@@ -1,6 +1,7 @@
 
       SUBROUTINE MEGNIT ! ----------------------------- initialize array
 *     internal initialization of memory and defaults
+      IMPLICIT NONE  
 #include "dynal.inc"
       CHARACTER*40 SUTEXT(0:39)
       CHARACTER*3  FMT
@@ -9,9 +10,11 @@
       CHARACTER*1 CHBYI
       CHARACTER*36 CHARRA
       LOGICAL FULLPR,DONE,DEBUG
-      SAVE 
+      INTEGER NWORDS,NDL,LENSML,LENDIF,IBYCH,LLT,LUNDEB,MQI,ICI
+      INTEGER I,ISTOP,IU,IL,ID,IP,IAI,IA,IBI,IFMT,LCH,ICH,ND,IND,NDC  
       DATA CHARRA/'0123456789abcdefghijklmnopqrstuvwxyz'/
       DATA DONE/.FALSE./
+      SAVE 
 
 *     ------------------------------------------------------------------
 *     This subroutine allows to subdivide a large array dynamically.
@@ -27,8 +30,14 @@
 *        CALL MEGPRN
 *
 *     A subarray 'a' is created and the index of the sub-array with ND
-*     words is obtained by 
-*        CALL MEGARR('a',ND,Text)  
+*     4-byte words is obtained by 
+*        CALL MEGARR('a',ND,Text)
+*     With the same call the format for printing can be defined by
+*        CALL MEGARR('a I',ND,Text)    integer
+*        CALL MEGARR('a S',ND,Text)    real (floating-point)
+*        CALL MEGARR('a F',ND,Text)    real (floating-point)
+*        CALL MEGARR('a D',ND,Text)    double precision (ND/2 DP words)
+*          
 *     All words of the sub-array are set to zero.        
 *
 *     The index INDA is defined and can be used by:
@@ -40,17 +49,22 @@
 *     The number ND should be even (an odd number is increased by 1).  
 *
 *     Up to 36 sub-arrays are allowed, with the 26 letters as first
-*     argument of the call (case-insensitive) or a digit 0...9; 
-*     the corresponding index
+*     argument of the call (case-insensitive) or a digit 0...9 or 
+*     characters . :   ;  !.    
+*     The corresponding index
 *     is IND with the same letter, e.g. the sub-array of the call 
 *        CALL MEGARR('h',ND,'Normal matrix')   
 *     is INDH and for 
 *        CALL MEGARR('7',ND,'gradient vector')
 *     the index is IND7. One can also use the index INDICS(I) with
-*     i from 0 to 35. 
+*     i from 0 to 39. 
+*     Special charcaters:   .   IDOT1  
+*                           :   IDOT2
+*                           ;   IDOT3
+*                           !   IDOT4   
 *
-*     character:  0  1  2  3  4  5  6  7  8  9  a  b  c  d ...  z
-*     index I:    0  1  2  3  4  5  6  7  8  9 10 11 12 13 ... 35 
+*     character:  0  1  2 ...  8  9  a  b  c  d ...  y  z  . :   ;  !
+*     index I:    0  1  2 ...  8  9 10 11 12 13 ... 34 35 36 37 38 39 
 *     
 *     The text given in the call is printed in MEGPRN.
 *     The programs stops with an error printout if to many words are
@@ -62,9 +76,11 @@
 *     with the new length ND. If the length is increased, the additional
 *     words are set to zero, other words are unchanged
 *
-*     The subarray is removed by an identical call with ND < 0. The
-*     total array is always reorganised to avoid unused space between
-*     used space.    
+*        CALL MEGRM('a')   removes array 'a'
+*     There is an option to remove an existing array by an identical 
+*     call with ND < 0. Use the call MEGRM('a') instead.
+*     The total array is always reorganised to avoid unused space
+*     between used space.    
 *
 *     Each sub-array has 10 extra words in addition to the ND words, 
 *     where 2 words are used by the subroutine (and should never be 
@@ -93,10 +109,11 @@
 *     MEGA-MQU is the number of unused words.
 *
 *     A sub-array including all data words is printed by
+*        CALL MEGAPR('a)     in format as defin4ed by MEGARR.    
+*     A different format can be forced by
 *        CALL MEGIPR('a')    as integer words
 *        CALL MEGFPR('a')    as single precision fl.pt. words
 *        CALL MEGDPR('a')    as double precision fl.pt. words
-*        CALL MEGAPR('a')    as selected by word (IND-8) (see above)
 *     for sub-array a. 
 *     By the call 
 *        CALL MEGZER('a')
@@ -111,11 +128,20 @@
 *     Nothing is done if there is no subarray a. An existing subarray b
 *     is replaced by subarray a. Subarray a is removed. 
 *     
+*        CALL MEGDEB         switch on/off debugging.
+*                            Debugging printout is printed to file
+*                            dynal.txt on unit 75.
+*
+*        CALL MEGDB          print dump of whole (!) array
+*       
+*
 *     ------------------------------------------------------------------
       IF(DONE) RETURN
       ENTRY MEGRES    ! reset all = restart ----------------------------
       DONE=.TRUE. 
       DEBUG=.FALSE.
+      FULLPR=.FALSE.
+      LUNDEB=6
       DO I=1,10       ! reserved words 
        MQ(I)=0
       END DO
@@ -134,10 +160,10 @@
       RETURN
 
       ENTRY MEGPRN !------------------------------------- print overview
-      WRITE(*,*) ' '
+ 02   WRITE(*,*) ' '
       WRITE(*,*) 'Dynamic array [allocated with dimension ',
      +            1.0E-6*FLOAT(MEGA),' Mio words]:'
- 02   WRITE(*,*) ' '
+      WRITE(*,*) ' '
       IP=0
       DO I=0,39
        IF(INDICS(I).NE.0) THEN
@@ -167,7 +193,8 @@
   01  ISTOP=1     ! error with following stop
       WRITE(*,*) ' '
       WRITE(*,*) 'Error: too many words required for array ',CCH
-      WRITE(*,*) 'Request for array ',CCH,' with',ND,' words.' 
+      WRITE(*,*) 'Request for array ',CCH,' with',ND,' words.'
+      STOP 
       GOTO 02
    
       ENTRY MEGSPC(NWORDS) ! --------------- return number of free words
@@ -175,6 +202,11 @@
       RETURN
 
       ENTRY MEGARR(CH,NDL,TEXT) ! ---------------------------- sub-array
+      IF(DEBUG) THEN
+         LLT=LEN(TEXT)
+         IF(LLT.LT.50) WRITE(LUNDEB,*) 'MEGARR ',CH,NDL,'   ',TEXT
+         IF(LLT.GE.50) WRITE(LUNDEB,*) 'MEGARR ',CH,NDL,'   ',TEXT(1:50)
+      END IF
       CCH=CH
       IAI=IBYCH(CH)
       IF(IAI.LT.0) RETURN 
@@ -193,8 +225,10 @@
 
       IF(ND.GT.0) ND=2*((ND+1)/2)       ! make ND > 0 even
       IF(INDICS(IAI).EQ.0) THEN 
+         IF(NDL.LT.0) GOTO 01           ! probably too large
          SUTEXT(IAI)=' '                !
-         IF(ND.LT.0) RETURN                   
+         IF(ND.LT.0) RETURN   
+c         WRITE(*,*) 'Compare MQU+10+ND.GT.MEGA ',MQU,ND,MEGA                 
          IF(MQU+10+ND.GT.MEGA) GOTO 01
          IND=MQU+10
          INDICS(IAI)=IND                ! new index
@@ -207,17 +241,17 @@
          MQU=MQU+10+ND                  ! update "used" counter
          SUTEXT(IAI)=TEXT
          IF(DEBUG) THEN
-            WRITE(*,*) 'MEGARR: new array ',CH(1:1),' with',NDL,' words'
-            WRITE(*,*) '        ',SUTEXT(IAI) 
+c            WRITE(*,*) 'MEGARR: new array ',CH(1:1),' with',NDL,' words'
+c            WRITE(*,*) '        ',SUTEXT(IAI) 
          END IF 
          RETURN
       ELSE IF(ND.LT.0) THEN             ! remove array
          IND=INDICS(IAI) 
          NDC=-10-MQ(IND) 
          IF(DEBUG) THEN
-            WRITE(*,*) 'MEGARR: array ',CH(1:1),' with',MQ(IND),
-     +                 ' words removed'
-            WRITE(*,*) '       ',SUTEXT(IAI)
+c            WRITE(*,*) 'MEGARR: array ',CH(1:1),' with',MQ(IND),
+c     +                 ' words removed'
+c            WRITE(*,*) '       ',SUTEXT(IAI)
          END IF
          IA=IND+MQ(IND) 
          DO I=1+IA,MQU
@@ -231,13 +265,16 @@
       ELSE
          IND=INDICS(IAI)
          IF(DEBUG) THEN
-            WRITE(*,*) 'MEGARR: array ',CH(1:1),', length change from',
-     +      MQ(IND),' to ',ND,' words'
-            WRITE(*,*) '   old  ',SUTEXT(IAI)
-            WRITE(*,*) '   new  ',TEXT
+c            WRITE(*,*) 'MEGARR: array ',CH(1:1),', length change from',
+c     +      MQ(IND),' to ',ND,' words'
+c            WRITE(*,*) '   old  ',SUTEXT(IAI)
+c            WRITE(*,*) '   new  ',TEXT
          END IF
          NDC=ND-MQ(IND)                 ! change in length
          IF(NDC.EQ.0) RETURN
+        
+c         WRITE(*,*)'Compare MQU+10+NDC.GT.MEGA ',MQU,NDC,MEGA,ND,MQ(IND)
+ 
          IF(MQU+NDC.GT.MEGA) GOTO 01
          IA=IND+MQ(IND)                 ! last word old array
          IF(NDC.LT.0) THEN
@@ -267,8 +304,10 @@
       IA=IA+10+MQ(INDICS(IAI))
       GOTO 10
 
-      ENTRY MEGRM(CH)                ! remove sub-array 
-
+      ENTRY MEGRM(CH)                ! remove sub-array
+      IF(DEBUG) THEN 
+         WRITE(LUNDEB,*) 'MEGRM  ',CH
+      END IF 
       IAI=IBYCH(CH)
       IF(IAI.LT.0) RETURN
 
@@ -278,9 +317,9 @@
          RETURN
       END IF
       IF(DEBUG) THEN
-            WRITE(*,*) 'MEGRM:  array ',CH(1:1),' with',MQ(IND),
-     +      ' words removed'
-            WRITE(*,*) '        ',SUTEXT(IAI)
+c            WRITE(*,*) 'MEGRM:  array ',CH(1:1),' with',MQ(IND),
+c     +      ' words removed'
+c            WRITE(*,*) '        ',SUTEXT(IAI)
       END IF
 
       NDC=-10-MQ(IND) 
@@ -300,6 +339,9 @@
       GOTO 30
 
       ENTRY MEGCP(CH)              ! copy from CHA to CHAB
+      IF(DEBUG) THEN
+         WRITE(LUNDEB,*) 'MEGCP  ',CH
+      END IF
       CCH=CH(2:2)
       IBI=IBYCH(CCH)
       IF(IBI.LT.0) RETURN
@@ -340,15 +382,18 @@ C      IBI=IAI
       RETURN 
 
       ENTRY MEGDMP                 ! dump
-      WRITE(*,*) ' '
-      WRITE(*,*) 'MQU MEGA',MQU,MEGA
-      WRITE(*,*) 'INDICS',INDICS
-      WRITE(*,105) (MQ(I),I=1,MQU) 
-      WRITE(*,*) 'end of dump'
-      WRITE(*,*) ' '
+      WRITE(LUNDEB,*) ' '
+      WRITE(LUNDEB,*) 'MQU MEGA',MQU,MEGA
+      WRITE(LUNDEB,*) 'INDICS',INDICS
+      WRITE(LUNDEB,105) (MQ(I),I=1,MQU) 
+      WRITE(LUNDEB,*) 'end of dump'
+      WRITE(LUNDEB,*) ' '
       RETURN   
 
       ENTRY MEGMV(CH)              ! move from CHA to CHAB
+      IF(DEBUG) THEN
+         WRITE(LUNDEB,*) 'MEGMV  ',CH
+      END IF
       CCH=CH(2:2)
       IBI=IBYCH(CCH)
       IF(IBI.LT.0) RETURN      
@@ -399,51 +444,59 @@ C      IBI=IAI
       IF(IAI.LT.0) RETURN
       IND=INDICS(IAI)
       IF(IND.EQ.0) RETURN
-      FULLPR=.TRUE.
-      IF(IFMT.EQ.0) FULLPR=.FALSE.
+c      FULLPR=.TRUE.
+c      IF(IFMT.EQ.0) FULLPR=.FALSE.
+
+c      FULLPR=.FALSE. !!!!!!!!!!!!!!!!
+
       IF(IFMT.EQ.0) THEN
          IFMT=MQ(IND-8)
          IF(IFMT.LT.1.OR.IFMT.GT.3) IFMT=1
       END IF  
-      WRITE(*,*) ' '
+      WRITE(LUNDEB,*) ' '
       IF(IFMT.NE.3) THEN 
-         WRITE(*,*) 'Sub-array ',CHARRA(IAI+1:IAI+1),' at index',IND,
+         WRITE(LUNDEB,*)
+     +              'Sub-array ',CHARRA(IAI+1:IAI+1),' at index',IND,
      +              ' with',MQ(IND),' words:'
       ELSE
-         WRITE(*,*) 'Double precision sub-array ',CHARRA(IAI+1:IAI+1),
+         WRITE(LUNDEB,*) 
+     +              'Double precision sub-array ',CHARRA(IAI+1:IAI+1),
      +              ' at index',IND/2,' with',MQ(IND)/2,' words:'
       END IF   
-      WRITE(*,*) 'Control-words ',(MQ(IND+I),I=-8,-1)
+
+      WRITE(LUNDEB,*) 'Control-words ',(MQ(IND+I),I=-8,-1)
+      LENSML=200
+      LENDIF=60
       IF(IFMT.EQ.1) THEN
-         IF(MQ(IND).LE.200.OR.FULLPR) THEN
-            WRITE(*,105) (MQ(IND+I),I=1,MQ(IND))
+         IF(MQ(IND).LE.LENSML.OR.FULLPR) THEN
+            WRITE(LUNDEB,105) (MQ(IND+I),I=1,MQ(IND))
          ELSE
-            WRITE(*,105) (MQ(IND+I),I=1,60)
-            WRITE(*,*) ' ...'
-            MQI=((MQ(IND)-60)/20)*20+1
-            WRITE(*,105) (MQ(IND+I),I=MQI,MQ(IND))
+            WRITE(LUNDEB,105) (MQ(IND+I),I=1,LENDIF)
+            WRITE(LUNDEB,*) ' ...'
+            MQI=((MQ(IND)-LENDIF)/20)*20+1
+            WRITE(LUNDEB,105) (MQ(IND+I),I=MQI,MQ(IND))
          END IF 
       ELSE IF(IFMT.EQ.2) THEN
-         IF(MQ(IND).LE.200.OR.FULLPR) THEN
-            WRITE(*,106) (QM(IND+I),I=1,MQ(IND))
+         IF(MQ(IND).LE.LENSML.OR.FULLPR) THEN
+            WRITE(LUNDEB,106) (QM(IND+I),I=1,MQ(IND))
          ELSE
-            WRITE(*,106) (QM(IND+I),I=1,60)
-            WRITE(*,*) ' ...'
-            MQI=((MQ(IND)-60)/20)*20+1
-            WRITE(*,106) (QM(IND+I),I=MQI,MQ(IND))
+            WRITE(LUNDEB,106) (QM(IND+I),I=1,LENDIF)
+            WRITE(LUNDEB,*) ' ...'
+            MQI=((MQ(IND)-LENDIF)/20)*20+1
+            WRITE(LUNDEB,106) (QM(IND+I),I=MQI,MQ(IND))
          END IF
       ELSE IF(IFMT.EQ.3) THEN
-         IF(MQ(IND).LE.200.OR.FULLPR) THEN   
-            WRITE(*,106) (DQ(IND/2+I),I=1,MQ(IND)/2)
+         IF(MQ(IND).LE.LENSML.OR.FULLPR) THEN   
+            WRITE(LUNDEB,106) (DQ(IND/2+I),I=1,MQ(IND)/2)
          ELSE
-            WRITE(*,106) (DQ(IND/2+I),I=1,60)
-            WRITE(*,*) ' ...'
-            MQI=((MQ(IND)/2-60)/20)*20+1
-            WRITE(*,106) (DQ(IND/2+I),I=MQI,MQ(IND)/2)
+            WRITE(LUNDEB,106) (DQ(IND/2+I),I=1,LENDIF)
+            WRITE(LUNDEB,*) ' ...'
+            MQI=((MQ(IND)/2-LENDIF)/20)*20+1
+            WRITE(LUNDEB,106) (DQ(IND/2+I),I=MQI,MQ(IND)/2)
          END IF
 
       END IF
-      WRITE(*,*) ' '
+      WRITE(LUNDEB,*) ' '
  105  FORMAT(5I14)
  106  FORMAT(5G14.4)
       RETURN
@@ -461,17 +514,27 @@ C      IBI=IAI
 
       ENTRY MEGDEB                            ! debug on/off
       IF(DEBUG) THEN
-         WRITE(*,*) 'MEG... debugging switched off'  
+         WRITE(*,*) 'MEG... debugging switched off'
+         LUNDEB=6  
       ELSE
-         WRITE(*,*) 'MEG... debugging switched on'  
+         WRITE(*,*) 'MEG... debugging switched on'
+         LUNDEB=75
+         CALL MVOPEN(LUNDEB,'dynal.txt')  
       END IF 
       DEBUG=.NOT.DEBUG 
+      FULLPR=.NOT.FULLPR
+
       END 
 
 
-      SUBROUTINE PETIME                          ! print times                      
+
+      SUBROUTINE PETIME                          ! print times
+      IMPLICIT NONE
 *     print the elapsed and total time
-      REAL TA(2),RST
+      REAL TA(2),RST,DELTA,RSTP,SECND1,SECND2
+      INTEGER NCOUNT,MODE
+      INTEGER NHOUR1,MINUT1,NSECD1,NHOUR2,MINUT2,NSECD2
+
       SAVE
       DATA NCOUNT/0/
 *     ...
@@ -479,36 +542,35 @@ C      IBI=IAI
  10   NCOUNT=NCOUNT+1
       CALL ETIME(TA,RST)
       IF(NCOUNT.GT.1) THEN
+         DELTA=RST
+               NSECD1=DELTA ! -> integer
+               NHOUR1=NSECD1/3600
+               MINUT1=NSECD1/60-60*NHOUR1
+               SECND1=DELTA-60*(MINUT1+60*NHOUR1)
          DELTA=RST-RSTP
-         IF(RST.LE.999.999) THEN
-            IF(MODE.EQ.1) THEN
-               WRITE(*,101) DELTA,RST
-            ELSE 
-               WRITE(*,103) DELTA
-            END IF
-         ELSE
-            IDELTA=DELTA+0.5
-            IRST  =RST+0.5
-            IF(MODE.EQ.1) THEN 
-               WRITE(*,102) IDELTA,IRST
-            ELSE
-               WRITE(*,104) IDELTA
-            END IF
-         END IF
-      END IF
+               NSECD2=DELTA ! -> integer
+               NHOUR2=NSECD2/3600
+               MINUT2=NSECD2/60-60*NHOUR2
+               SECND2=DELTA-60*(MINUT2+60*NHOUR2)
+         WRITE(*,101) NHOUR1,MINUT1,SECND1, NHOUR2,MINUT2,SECND2
+      END IF 
+
       RSTP=RST
       RETURN
-      
+
       ENTRY EATIME
+      WRITE(*,*) 'EATIME'
       MODE=2
       GOTO 10
- 101  FORMAT(36X,'Time elapsed',F8.2,', total',F8.2,' sec')
- 102  FORMAT(36X,'Time elapsed',  I8,', total',  I8,' sec')
- 103  FORMAT(63X,F8.2,' sec')
- 104  FORMAT(63X,  I8,' sec')     
+ 101  FORMAT(I2,' h',I3,' min',F5.1,' sec total',22X,'elapsed',
+     +       I2,' h',I3,' min',F5.1,' sec')
       END
 
+
+
+
       SUBROUTINE WAITST(ISTOP,TEXT)              ! wait to check printout
+      IMPLICIT NONE
 *     Input from keyboard:
 *     blank             continue
 *     q                 quit = stop
@@ -523,7 +585,9 @@ C      IBI=IAI
 *     The program is waiting for input from keyboard
 *    
       CHARACTER*1 TDUMMY,CCH, TEXT*(*)
+      CHARACTER*8 TBLANK
       LOGICAL START
+      INTEGER IWAIT,ISTOP,IAI,IBYCH
       SAVE
       DATA START/.TRUE./
 *     ...
@@ -536,9 +600,11 @@ C      IBI=IAI
       WRITE(*,*) '   enter / to print the array list'
       WRITE(*,*) '   enter one character: 0 or a .. or A or Z to ',
      +              'print an array'
+      WRITE(*,*) '   enter ! to sitch to debugging' 
       WRITE(*,*) '   enter $ to call MEGDMP'  
       WRITE(*,*) '   enter ? to get this text'
       WRITE(*,*) '   enter - to switch wait off' 
+      WRITE(*,*) '   enter Q to stop immediately' 
       WRITE(*,*) '   enter q to stop in a controlled way'
       WRITE(*,*) ' '
       WRITE(*,*) ' '
@@ -547,14 +613,26 @@ C      IBI=IAI
       ISTOP=0
  10   IF(IWAIT.EQ.0) RETURN 
       TDUMMY=' '
-      WRITE(*,*) '>                                    [wait for input]'
+      WRITE(*,*) '[wait for input]  =>'
       READ(*,101) TDUMMY
  101  FORMAT(A)
+      TBLANK=TDUMMY
+C      WRITE(*,*) 'code=',ICHAR(TBLANK(1:1))
+      IF(TBLANK.EQ.' ') TBLANK=' (blank)' 
+
+      WRITE(*,*) '         [input]  =>',TBLANK    
       IF(TDUMMY.EQ.' ') RETURN
       IF(TDUMMY.EQ.'$') THEN
          CALL MEGDMP ! many lines
          GOTO 10
       END IF
+      IF(TDUMMY.EQ.'!') THEN
+         CALL MEGDEB
+         GOTO 10
+      END IF 
+      IF(TDUMMY.EQ.'Q') THEN
+         STOP
+      END IF 
       IF(TDUMMY.EQ.'q') THEN
          ISTOP=1
          RETURN
@@ -566,6 +644,10 @@ C      IBI=IAI
          IWAIT=0
          RETURN
       END IF
+      IF(TDUMMY.EQ.'/') THEN
+         CALL MEGPRN
+         GOTO 05
+      END IF 
       CCH=TDUMMY
       IAI=IBYCH(CCH)
       IF(IAI.GE.0) THEN
@@ -577,8 +659,10 @@ C      IBI=IAI
       END
 
 
-      FUNCTION IBYCH(CH)                         ! return index from char
+      INTEGER FUNCTION IBYCH(CH)                         ! return index from char
+      IMPLICIT NONE
       CHARACTER*(*) CH, CCH*1
+      INTEGER IL,IU,ID,ICH,IAI
       SAVE 
 *     ...
       CCH=CH 
@@ -605,10 +689,15 @@ C      IBI=IAI
       END IF
       IF(IAI.GE.40) IAI=-1
       IBYCH=IAI
+      IF(IAI.GE.0) RETURN
+      WRITE(*,*) 'Illegal character:',CH,ICHAR(CH),' - stop'
+      STOP
       END 
 
       CHARACTER*1 FUNCTION CHBYI(IAI)            ! return array characater
+      IMPLICIT NONE
       CHARACTER*40 CHARS
+      INTEGER IAI
       SAVE
       DATA CHARS/'0123456789abcdefghijklmnopqrstuvwxyz.:;!'/ 
 *     ...
@@ -620,9 +709,12 @@ C      IBI=IAI
       END 
 
   
-      FUNCTION INTVAL(NSEC)                      ! return time diff
-      REAL TA(2),RST
+      INTEGER FUNCTION INTVAL(NSEC)                      ! return time diff
+      IMPLICIT NONE  
+*
+      REAL TA(2),RST,RSTI,RSTP
       LOGICAL START
+      INTEGER NSEC,NT 
       SAVE
       DATA START/.TRUE./
 *     ...
@@ -645,6 +737,7 @@ C      IBI=IAI
 *     vector tables ----------------------------------------------------
 
       SUBROUTINE MEGVEC(CH,VECT,N,NPLUS)         ! add vector
+      IMPLICIT NONE 
 #include "dynal.inc"
 *
 *     ind-2   length of vctor
@@ -654,6 +747,7 @@ C      IBI=IAI
 *     array length increase by 20 % plus 100 vectors
 *
       CHARACTER*(*) CH, CHC*3
+      INTEGER N,NPLUS,IAI,IND,NCOL,NROW,NROWDF,I,IBYCH
       REAL VECT(N)
       SAVE
 *     ...
@@ -685,8 +779,10 @@ C      IBI=IAI
       END
 
       SUBROUTINE MEGLEN(CH)                      ! correct length
+      IMPLICIT NONE
 #include "dynal.inc"
       CHARACTER*(*) CH
+      INTEGER IAI,IND,NCOL,NROW,IBYCH
       SAVE
 *     ... 
       IAI=IBYCH(CH)
@@ -695,14 +791,15 @@ C      IBI=IAI
       IF(IND.EQ.0) RETURN ! no sub-array
       NCOL=MQ(IND-2)
       NROW=MQ(IND-1)
-c      WRITE(*,*) 'in MEGLEN: NCOL NROW ',NCOL,NROW,MQ(IND)
       CALL MEGARR(CH,NROW*NCOL,' ')
       END
 
       SUBROUTINE MEGRDV(CH,ITH,VECT,N)           ! read I.th vector
+      IMPLICIT NONE  
 #include "dynal.inc"
       CHARACTER*(*) CH 
       REAL VECT(*)
+      INTEGER I,ITH,N,IAI,IND,NCOL,NROW,IBYCH
       SAVE
 *     ...
       N=0

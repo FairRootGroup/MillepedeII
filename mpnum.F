@@ -164,10 +164,14 @@
 *        V(.)    = symmetric matrix, unchanged        
 *        WORK(N) = work array  
 *
-      PARAMETER (ITMAX=30,TOL=1.0E-15,EPS=1.0E-10)
+      IMPLICIT NONE
+      INTEGER N,ITMAX
+      DOUBLE PRECISION TOL,EPS 
+      PARAMETER (ITMAX=30,TOL=1.0D-16,EPS=1.0D-16)
       DOUBLE PRECISION V(*),DIAG(N),U(N,N),WORK(N)
       DOUBLE PRECISION F,G,H,SH,HH,B,P,R,S,C,WORKD
       INTEGER IWORK(N)
+      INTEGER IJ,I,J,K,L,M,LL
       SAVE
 *     ...
 *     1. part: symmetric matrix V reduced to tridiagonal from
@@ -256,6 +260,7 @@
         U(J,I)=0.0D0
        END DO
       END DO
+
 *     2. part: diagonalization of tridiagonal matrix
       DO I=2,N
        WORK(I-1)=WORK(I)
@@ -274,7 +279,10 @@
        M=L
    10  IF(M.EQ.L) GOTO 30          
 *      next iteration
-   20  IF(J.EQ.ITMAX) RETURN       ! no convergence
+   20  IF(J.EQ.ITMAX) THEN
+          WRITE(*,*) 'DEVROT: Iteration limit reached'
+          STOP         
+       END IF
        J=J+1
        G=DIAG(L)
        P=(DIAG(L+1)-G)/(2.0D0*WORK(L))
@@ -321,7 +329,6 @@
        IF(ABS(WORK(L)).GT.B) GOTO 20 ! next iteration
    30  DIAG(L)=DIAG(L)+F
       END DO 
-
       DO I=1,N
        IWORK(I)=I
       END DO
@@ -370,108 +377,24 @@
       END DO
       END
 
-
-      SUBROUTINE DEVPRT(N,DIAG,U,B,WORK,IWORK,X) ! print eigenvectors 
-*     print 
-      DOUBLE PRECISION B(N),U(N,N),DIAG(N),X(N),WORK(N),SUM
-      INTEGER IWORK(N)
-      SAVE
+      SUBROUTINE DEVSIG(N,DIAG,U,B,COEF)     ! calculate significances
+      IMPLICIT NONE
+      INTEGER N,I,J
+      DOUBLE PRECISION DIAG(N),U(N,N),B(N),COEF(N),SUM
 *     ...
-      WRITE(*,*) 'Eigenvalues of matrix and conditions: '
       DO I=1,N
-       COND=0.0D0
-       IF(DIAG(I).NE.0.0) COND=DIAG(1)/DIAG(I)
-       WRITE(*,101) I,DIAG(I),COND
-      END DO
- 101  FORMAT(I3,2G16.8)
-      WRITE(*,*) ' '
-      WRITE(*,*) 'Eigenvectors of matrix'
-      DO I=1,N
-       WRITE(*,102) I,(U(J,I),J=1,N)
-      END DO
- 102  FORMAT(I3,10F6.2/(3X,10F6.2))
-
-*     solution
-
-      WRITE(*,*) 'Solution '
- 203  FORMAT('  I Coeff     error      Coeff    error')
-      DO I=1,N
-       SUM=0.0D0
-       DO J=1,N
-        SUM=SUM+U(J,I)*B(J)
-       END DO
-       COEFY=0.0
-       ERRFY=0.0
-       IF(DIAG(I).GT.0.0) THEN
-          COEFY=SUM/DIAG(I)
-          ERRFY=1.0/SQRT(DIAG(I)) 
+       COEF(I)=0.0D0
+       IF(DIAG(I).GT.0.0D0) THEN
+          SUM=0.0D0
+          DO J=1,N
+           SUM=SUM+U(J,I)*B(J)
+          END DO
+          COEF(I)=ABS(SUM)/SQRT(DIAG(I))
        END IF
-
-       COEFZ=0.0
-       ERRFZ=0.0
-       IF(DIAG(I).GT.0.0) THEN
-          COEFZ=SUM/SQRT(DIAG(I))
-          ERRFZ=1.0
-       END IF
-       WRITE(*,103) I,COEFY,CHAR(177),ERRFY,COEFZ,CHAR(177),ERRFZ
-      END DO 
- 103  FORMAT(I3,G16.8,1X,A1,1X,G12.4,5X,G16.8,1X,A1,1X,G12.4)
-
-*     select significant terms
-
-      DO I=1,N
-       IWORK(I)=I
-       SUM=0.0
-       DO J=1,N
-        SUM=SUM+U(J,I)*B(J)
-       END DO
-       WORK(I)=0.0
-       IF(DIAG(I).GT.0.0) THEN 
-          WORK(I)=ABS(SUM)/SQRT(DIAG(I))
-       END IF 
       END DO
-      WRITE(*,*) 'Significances ',(WORK(IWORK(I)),I=1,N)
+      END  
 
-*     shell sort
-
-      M=4
- 10   IF(3*M+1.LT.N) THEN    ! determine initial increment
-         M=3*M+1
-         GOTO 10
-      END IF
- 20   M=M/3                  ! next increment
-      DO I=1+M,N             ! ... used in insert sort
-       IDXT=IWORK(I)
-       J=I
- 30    IF(WORK(IWORK(J-M)).LT.WORK(IDXT)) THEN
-          IWORK(J)=IWORK(J-M)
-          J=J-M
-          IF(J.GT.M) GOTO 30
-       END IF
-       IWORK(J)=IDXT
-      END DO
-      IF(M.GT.1) GOTO 20
-      WRITE(*,*) 'Significances ',(WORK(IWORK(I)),I=1,N)
-      WRITE(*,*) 'indices  ',(IWORK(I),I=1,N/2)
-
-      DO I=1,N
-       X(I)=0.0
-      END DO
-
-      DO IS=1,N/2
-       I=IWORK(IS)
-       SUM=0.0
-       DO J=1,N
-        SUM=SUM+U(J,I)*B(J)
-       END DO
-       YI=SUM/DIAG(I)
-       DO J=1,N
-        X(J)=X(J)+YI*U(J,I)  
-       END DO
-      END DO
-      WRITE(*,*) 'X ',X
-      END
-
+ 
 
       SUBROUTINE DEVSOL(N,DIAG,U,B,X,WORK)       ! solution  
 *     Solution of matrix equation   V * X = B 
@@ -487,6 +410,8 @@
 *        X(N)    = solution vector
 *        WORK(N) = work array  
 *
+      IMPLICIT NONE
+      INTEGER N,I,J,JJ
       DOUBLE PRECISION B(N),U(N,N),DIAG(N),X(N),WORK(N),S
       SAVE
 *     ...
@@ -508,7 +433,9 @@
          S=S+U(J,JJ)*WORK(JJ) 
         END DO 
         X(J)=S
-      END DO 
+      END DO
+c      WRITE(*,*) 'DEVSOL'
+c      WRITE(*,*) 'X ',X 
       END
 
 
@@ -998,20 +925,22 @@ c       X(K)=X(K)/VAL(ILPTR(K))            ! X_k := X_k/D_kk
 *     accurate summation -----------------------------------------------
 
       
-      SUBROUTINE ADDSUM(ADD)                     ! accurate summation
+      SUBROUTINE ADDSUM(ADD)                  ! accurate summation
+      IMPLICIT NONE
       DOUBLE PRECISION ADD,SUM,DSUM
+      INTEGER NSUM,NEXP20,NADD,NEXP
       DATA NSUM/0/,NEXP/0/,DSUM/0.0D0/,NEXP20/1048576/
       SAVE
 *     ...
-      NADD=ADD
-      NSUM=NSUM+NADD
-      DSUM=DSUM+(ADD-DFLOAT(NADD))
-      IF(DSUM.GT.16.0D0) THEN
-         DSUM=DSUM-16.D0
+      NADD=ADD                     ! convert to integer
+      NSUM=NSUM+NADD               ! sum integer
+      DSUM=DSUM+(ADD-DFLOAT(NADD)) ! sum remainder
+      IF(DSUM.GT.16.0D0) THEN      ! + - 16     
+         DSUM=DSUM-16.0D0
          NSUM=NSUM+16
       END IF
-      IF(NSUM.GT.NEXP20) THEN
-         NEXP=NEXP+1  
+      IF(NSUM.GT.NEXP20) THEN      ! if > 2^20: + - 2^20 
+         NEXP=NEXP+1                
          NSUM=NSUM-NEXP20
       END IF
       RETURN
@@ -1065,36 +994,75 @@ c       X(K)=X(K)/VAL(ILPTR(K))            ! X_k := X_k/D_kk
       GOTO 10
       END
 
-      SUBROUTINE SORT2K(ITEM,N)                  ! sort 2-dim key-array
-*     integer sort using Shells method of 2-dim key-array
-      INTEGER ITEM(2,N),ITEMS
-      LOGICAL EXCHAN
-      SAVE
+      SUBROUTINE SORT2K(A,N)         ! quick sort of A(2,N) integer
+      IMPLICIT NONE
+      INTEGER NLEV          ! stack size
+      PARAMETER (NLEV=2*32) ! ... for N = 2**32 = 4.3 10**9
+      INTEGER I,J,L,R,N,LEV,LR(NLEV),LRH,MAXLEV
+      INTEGER A(2,N),A1,A2,AT       ! array of keys and pivot key
 *     ...
-      M=1
- 10   M=1+3*M    ! determine initial increment
-      IF(M.LE.N) GOTO 10
- 20   M=M/3
-      DO J=1,N-M ! sort with increment M
-       L=J
- 30    EXCHAN=.FALSE.
-       IF(ITEM(1,L+M).LT.ITEM(1,L)) THEN
-          EXCHAN=.TRUE.
-       ELSE IF(ITEM(1,L+M).EQ.ITEM(1,L)) THEN
-          IF(ITEM(2,L+M).LT.ITEM(2,L)) EXCHAN=.TRUE.
-       END IF
-       IF(EXCHAN) THEN
-          ITEMS     =ITEM(1,L+M)       ! exchange first element ...
-          ITEM(1,L+M)=ITEM(1,L)
-          ITEM(1,L)  =ITEMS
-          ITEMS     =ITEM(2,L+M)       ! ... and second element
-          ITEM(2,L+M)=ITEM(2,L)
-          ITEM(2,L)  =ITEMS
-          L=L-M
-          IF(L.GT.0) GOTO 30
-       END IF
-      END DO
-      IF(M.GT.1) GOTO 20
+      MAXLEV=0
+      LEV=0
+      L=1
+      R=N
+ 10   IF(R-L.EQ.1) THEN     ! sort two elements L and R
+         IF(A(1,L).GT.A(1,R).OR.(
+     +      A(1,L).EQ.A(1,R).AND.A(2,L).GT.A(2,R))) THEN
+            AT=A(1,L)       ! exchange L <-> R
+            A(1,L)=A(1,R)
+            A(1,R)=AT
+            AT=A(2,L)
+            A(2,L)=A(2,R)
+            A(2,R)=AT
+         END IF
+         R=L
+      END IF
+      IF(R.EQ.L) THEN
+         IF(LEV.LE.0) THEN
+            WRITE(*,*) 'SORT2K (quicksort): maxlevel used/available =',
+     +                 MAXLEV,'/64'
+            RETURN
+         END IF
+         LEV=LEV-2
+         L=LR(LEV+1)
+         R=LR(LEV+2)
+      ELSE
+*        LRH=(L+R)/2
+         LRH=(L/2)+(R/2)          ! avoid bit overflow
+         IF(MOD(L,2).EQ.1.AND.MOD(R,2).EQ.1) LRH=LRH+1
+         A1=A(1,LRH)      ! middle
+         A2=A(2,LRH)
+         I=L-1            ! find limits [J,I] with [L,R]
+         J=R+1
+ 20      I=I+1
+         IF(A(1,I).LT.A1) GOTO 20
+         IF(A(1,I).EQ.A1.AND.A(2,I).LT.A2) GOTO 20
+ 30      J=J-1
+         IF(A(1,J).GT.A1) GOTO 30
+         IF(A(1,J).EQ.A1.AND.A(2,J).GT.A2) GOTO 30
+         IF(I.LE.J) THEN
+            AT=A(1,I)     ! exchange I <-> J
+            A(1,I)=A(1,J)
+            A(1,J)=AT
+            AT=A(2,I)
+            A(2,I)=A(2,J)
+            A(2,J)=AT
+            GO TO 20
+         END IF
+         IF(LEV+2.GT.NLEV) STOP 'SORT2K (quicksort): stack overflow'
+         IF(R-I.LT.J-L) THEN
+            LR(LEV+1)=L
+            LR(LEV+2)=J
+            L=I
+         ELSE
+            LR(LEV+1)=I
+            LR(LEV+2)=R
+            R=J
+         END IF
+         LEV=LEV+2
+         MAXLEV=MAX(MAXLEV,LEV)
+      END IF
+      GO TO 10
       END
 
 
@@ -1135,5 +1103,294 @@ c       X(K)=X(K)/VAL(ILPTR(K))            ! X_k := X_k/D_kk
 
 
 
- 
+      SUBROUTINE LLTDEC(N,C,INDIA,NRKD)        ! C = L L^T decomposition
+*     Variable-band matrix row-Doolittle decomposition of pos. def. matrix.
+*     A variable-band NxN symmetric matrix, is stored row by row in the
+*     array C(.). For each row all coefficients from the first
+*     non-zero element in the row to the diagonal is stored.
+*     The pointer array INDIA(N) contains the indices in C(.) of the
+*     diagonal elements. INDIA(1) is always 1, and INDIA(N) is equal
+*     to the total number of coefficients stored, called the profile.
+*     The form of a variable-band matrix is preserved in the L D L^T
+*     decomposition. No fill-in is created ahead in any row or ahead of the
+*     first entry in any column, but existing zero-values will become
+*     non-zero. The decomposition is done "in-place".
+*
+*     NRKD = 0   no component removed
+*     NRKD < 0   1 component removed, negative index
+*     NRKD > 1   number of removed components
+*
+*     The matrix C is assumed to be positive definite, e.g. from the 
+*     normal equations of least squares. The (positive) diagonal elements
+*     are reduced during decomposition. If a diagonal element is reduced
+*     by about a word length (see line "test for linear dependence"),
+*     then the pivot is assumed as zero and the entire row/column is
+*     reset to zero, removing the corresponding element from the solution. 
+*
+      DOUBLE PRECISION C(*),X(N),DIAG         ! index (k,k)  INDIA(K)
+      INTEGER INDIA(N)                        ! index (j,k)  INDIA(K)+J-K 
+      SAVE
+*     ...
+      NRKD=0
+      IF(C(INDIA(1)).GT.0.0) THEN
+         C(INDIA(1))=1.0D0/SQRT(C(INDIA(1))) ! square root
+      ELSE
+         C(INDIA(1))=0.0D0
+         NRKD=-1
+      END IF 
+
+      DO K=2,N
+       MK=K-INDIA(K)+INDIA(K-1)+1    ! first index in row K
+       DO J=MK,K                     ! loop over row K with index J
+        MJ=1
+        IF(J.GT.1) MJ=J-INDIA(J)+INDIA(J-1)+1   ! first index in row J
+        KJ=INDIA(K)-K+J              ! index kj
+        DIAG=C(INDIA(J))             ! j-th diagonal element
+
+        DO I=MAX(MJ,MK),J-1
+*        L_kj = L_kj - L_ki           *D_ii       *L_ji
+         C(KJ)=C(KJ) - C(INDIA(K)-K+I)*C(INDIA(J)-J+I)
+        END DO ! I
+      
+        IF(J.NE.K) C(KJ)=C(KJ)*DIAG
+       END DO ! J
+
+       IF(DIAG+C(INDIA(K)).GT.DIAG) THEN      ! test for linear dependence
+          C(INDIA(K))=1.0D0/SQRT(C(INDIA(K))) ! square root
+       ELSE
+          DO J=MK,K                  ! reset row K
+           C(INDIA(K)-K+J)=0.0D0
+          END DO ! J
+          IF(NRKD.EQ.0) THEN
+             NRKD=-K
+          ELSE 
+             IF(NRKD.LT.0) NRKD=1
+             NRKD=NRKD+1   
+          END IF 
+       END IF 
+
+      END DO ! K
+      RETURN
+
+*     ------------------------------------------------------------------
+*     The matrix equation  A X = B  is solved by forward + backward
+*     solution. The matrix is assumed to
+*     decomposed before using AMADEC. The array X(N) contains on entry
+*     the right-hand-side B(N); at return it contains the solution.
+
+      ENTRY LLTFWD(N,C,INDIA,X)      ! forward X -> solution X
+      X(1)=X(1)*C(INDIA(1)) 
+      DO K=2,N                       ! forward loop
+       DO J=K-INDIA(K)+INDIA(K-1)+1,K-1
+        X(K)=X(K)-C(INDIA(K)-K+J)*X(J)  ! X_k := X_k - L_kj * B_j
+       END DO ! J
+       X(K)=X(K)*C(INDIA(K)) 
+      END DO ! K
+      RETURN
+
+      ENTRY LLTBWD(N,C,INDIA,X)      ! backward X -> solution X 
+      DO K=N,2,-1                    ! backward loop
+       X(K)=X(K)*C(INDIA(K))
+       DO J=K-INDIA(K)+INDIA(K-1)+1,K-1
+        X(J)=X(J)-C(INDIA(K)-K+J)*X(K)  ! X_j := X_j - L_kj * X_k
+       END DO ! J
+      END DO ! K
+      X(1)=X(1)*C(INDIA(1))
+      END
+
+
+      SUBROUTINE EQUDEC(N,M,C,INDIA,NRKD,NRKD2)
+*     solution of equilibrium systems
+*     N x N matrix C:     starting with sym.pos.def. matrix (N) 
+*     length  of array C: INDIA(N) + N*M + (M*M+M)/2
+*     Content of array C: band matrix, as described by INDIA(1)...INDIA(N)
+*            followed by: NxM elements of constraint matrix A
+*            followed by: (M*M+M)/2 unused elements  
+*                         INDIA(N+1)...INDIA(N+M) defined internally  
+
+      INTEGER N,M,INDIA(N+M)
+      DOUBLE PRECISION C(*),X(N+M)
+      PARAMETER (EPS=2.22044605E-16) 
+*     ...
+      NTOTAL=N+N*M+(M*M+M)/2
+
+      CALL LLTDEC(N,C,INDIA,NRKD)                  ! decomposition G G^T
+      DO I=1,M  
+       CALL LLTFWD(N,C,INDIA,C(INDIA(N)+(I-1)*N+1)) ! forward solution K
+      END DO 
+
+      JK=INDIA(N)+N*M
+      DO J=1,M
+       DO K=1,J
+        JK=JK+1
+        C(JK)=0.0D0                                 ! product K K^T
+        DO I=1,N
+         C(JK)=C(JK)+C(INDIA(N)+(J-1)*N+I)*C(INDIA(N)+(K-1)*N+I)
+        END DO
+       END DO 
+      END DO
+
+      INDIA(N+1)=1
+      DO I=2,M
+       INDIA(N+I)=INDIA(N+I-1)+MIN(I,M)              ! pointer for K K^T 
+      END DO
+
+      CALL LLTDEC(M,C(INDIA(N)+N*M+1),INDIA(N+1),NRKD2)  ! decomp. H H^T
+
+      NTOTAL=N+N*M+(M*M+M)/2
+
+      RETURN
+
+
+      ENTRY EQUSLV(N,M,C,INDIA,X)                   ! solution vector 
+      CALL LLTFWD(N,C,INDIA,X)                           ! result is u
+      DO I=1,M
+       DO J=1,N
+        X(N+I)=X(N+I)-X(J)*C(INDIA(N)+(I-1)*N+J)         ! g - K u
+       END DO
+      END DO 
+      CALL LLTFWD(M,C(INDIA(N)+N*M+1),INDIA(N+1),X(N+1)) ! result is v
+
+
+      CALL LLTBWD(M,C(INDIA(N)+N*M+1),INDIA(N+1),X(N+1)) ! result is -y
+      DO I=1,M
+       X(N+I)=-X(N+I)                                    ! result is +y
+      END DO
+   
+      DO I=1,N
+       DO J=1,M
+        X(I)=X(I)-X(N+J)*C(INDIA(N)+(J-1)*N+I)           ! u - K^T y
+       END DO
+      END DO   
+      CALL LLTBWD(N,C,INDIA,X)                           ! result is x
+      END 
+
+
+      SUBROUTINE PRECON(P,N,C,CU,A,S)
+      INTEGER P,N
+c      DOUBLE PRECISION C(N),CU(N),A(P,N),S((P*P+P)/2),X(N+P),Y(N+P)
+      DOUBLE PRECISION C(N),CU(N),A(N,P),S((P*P+P)/2),X(N+P),Y(N+P)
+      DOUBLE PRECISION DIV,RATIO,SUM
+c      DATA INIT/0/
+*
+*     ------------------------------------------------------------------
+*
+*     Constrained preconditioner, e.g for GMRES solution:
+*        
+*                                                intermediate
+*        (            )  (   )      (   )           (   )
+*        (   C    A^T )  ( x )   =  ( y )           ( u )
+*        (            )  (   )      (   )           (   )
+*        (   A     0  )  ( l )      ( d )           ( v )
+*
+*     input:
+*        C(N) is diagonal matrix and remains unchanged
+*             may be identical to CU(N), then it is changed  
+*        A(N,P) is modified
+*        Y(N+P) is rhs vector, unchanged
+*             may be identical to X(N), then it is changed
+*      
+*     result:
+*        CU(N) is 1/sqrt of diagonal matrix C(N) 
+*        X(N+P) is result vector
+*        S((P*P+P)/2) is Cholesky decomposed symmetric (2,2) matrix   
+*
+*     ------------------------------------------------------------------
+
+      IF(INIT.EQ.0) THEN
+c         WRITE(*,*) 'Before ............'
+c         WRITE(*,*) 'C is ',C
+c         WRITE(*,*) 'A is ',A
+      END IF 
+
+      DO I=1,(P*P+P)/2
+       S(I)=0.0D0
+      END DO
+      DO I=1,N
+       JK=0
+       DIV=C(I)                          ! copy       
+       CU(I)=0.0D0
+       IF(DIV.GT.0.0) CU(I)=1.0D0/SQRT(DIV) 
+       DO J=1,P
+        A(I,J)=A(I,J)*CU(I)              ! K = A C^{-1/2}
+        DO K=1,J
+         JK=JK+1
+         S(JK)=S(JK)+A(I,J)*A(I,K)       ! S = symmetric matrix K K^T 
+        END DO
+       END DO
+      END DO
+
+      II=0
+      DO I=1,P                           ! S -> H D H^T (Cholesky)
+       II=II+I
+       IF(S(II).NE.0.0D0) S(II)=1.0D0/S(II)
+       JJ=II
+       DO J=I+1,P
+        RATIO=S(I+JJ)*S(II)
+        KK=JJ
+        DO K=J,P
+         S(KK+J)=S(KK+J)-S(KK+I)*RATIO
+         KK=KK+K
+        END DO ! K
+        S(I+JJ)=RATIO
+        JJ=JJ+J
+       END DO ! J
+      END DO ! I
+      IF(INIT.EQ.0) THEN
+c         WRITE(*,*) 'After ............'
+c         WRITE(*,*) 'C is ',C
+c         WRITE(*,*) 'CU is ',CU
+c         WRITE(*,*) 'A is ',A
+c         WRITE(*,*) 'S is ',S
+         INIT=1
+      END IF 
+      RETURN
+
+*     ------------------------------------------------------------------ 
+
+      ENTRY PRESOL(P,N,CU,A,S,X,Y) ! solution
+
+      DO I=1,N+P
+       X(I)=Y(I)
+      END DO
+      DO I=1,N
+       X(I)=X(I)*CU(I)                   ! u =C^{-1/2} y
+       DO J=1,P
+        X(N+J)=X(N+J)-A(I,J)*X(I)        ! d - K u
+       END DO
+      END DO
+
+      JJ=0
+      DO J=1,P                           ! Cholesky solution for v
+       SUM=X(N+J)
+       DO K=1,J-1
+        SUM=SUM-S(K+JJ)*X(N+K)           ! H v = d - K u
+       END DO
+       X(N+J)=SUM                        ! -> v
+       JJ=JJ+J
+      END DO
+
+      DO J=P,1,-1                        ! solution for lambda
+       SUM=X(N+J)*S(JJ)
+       KK=JJ
+       DO K=J+1,P
+        SUM=SUM+S(KK+J)*X(N+K)           ! D H^T lambda = -v
+        KK=KK+K
+       END DO
+       X(N+J)=-SUM                       ! -> lambda
+       JJ=JJ-J
+      END DO
+
+      DO I=1,N                           ! u - K^T lambda 
+       DO J=1,P
+        X(I)=X(I)-A(I,J)*X(N+J)
+       END DO
+      END DO
+      DO I=1,N
+       X(I)=X(I)*CU(I)                   ! x = C^{-1/2} u
+      END DO
+
+      END 
+
+
 

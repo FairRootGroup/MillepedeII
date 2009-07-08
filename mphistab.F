@@ -344,6 +344,7 @@ c       WRITE(*,*) 'K,I,X ',K,I,X
       REAL BIN(10)
       DATA BIN/1.0,1.5,2.0,3.0,4.0,5.0,8.0,10.0,15.0,20.0/
 *     ...
+
       CALL HEAPF(TAB,N) ! reduced statistic
 c      WRITE(*,*) ' '  
 c      WRITE(*,*) 'Sorted ',(TAB(I),I=1,N)
@@ -856,7 +857,7 @@ C      WRITE(*,*) 'GMPMS ',IG,X,Y
 *     ...
       XLOC=0.0
       XSCA=0.0
-      IF(N.LE.0) RETURN  
+      IF(N.LE.0) RETURN
       CALL HEAPF(X,N)  ! sort 
       XLOC=0.5*(X((N+1)/2)+X((N+2)/2))         ! location
       DO I=1,N

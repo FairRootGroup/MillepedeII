@@ -1,14 +1,20 @@
 
-       PARAMETER       (MEGA=NUMBER_OF_WORDS) ! make preprocessor decide
-*      PARAMETER       (MEGA=100 000 000) ! 100 mio words: 400 MB
-*         Following needs 64 bit and compiler option -mcmodel=medium:
-*      PARAMETER       (MEGA=1 000 000 000) ! 1000 mio words: 4 GB 
-*                           -----------
+      INTEGER MEGA,MEGAH,MQ
+      PARAMETER       (MEGA=NUMBER_OF_WORDS) ! make preprocessor decide
+c      PARAMETER       (MEGA=220 000 000)     ! 100 mio words: 400 MB
+*                            -----------
+        
       COMMON/COMEGA/MQ(MEGA)
       REAL          QM(MEGA)
       PARAMETER          (MEGAH=MEGA/2)
       DOUBLE PRECISION DQ(MEGAH)
       EQUIVALENCE  (MQ(1),QM(1),DQ(1))
+      INTEGER MQU,INDICS
+      INTEGER IND0,IND1,IND2,IND3,IND4,IND5,IND6,IND7,IND8,IND9,
+     +   INDA,INDB,INDC,INDD,INDE,INDF,INDG,INDH,INDI,INDJ,INDK,
+     +   INDL,INDM,INDN,INDO,INDP,INDQ,INDR,INDS,INDT,INDU,INDV,
+     +   INDW,INDX,INDY,INDZ,
+     +   IDOT1,IDOT2,IDOT3,IDOT4 
 
       COMMON/CMINDC/MQU,INDICS(0:39)
       EQUIVALENCE (INDICS( 0),IND0),(INDICS( 1),IND1),(INDICS( 2),IND2),
@@ -27,3 +33,5 @@
       EQUIVALENCE (INDICS(36),IDOT1),(INDICS(37),IDOT2),
      +            (INDICS(38),IDOT3),(INDICS(39),IDOT4)
 
+      INTEGER LUNLOG
+      COMMON/CLULOG/LUNLOG

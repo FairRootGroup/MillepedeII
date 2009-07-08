@@ -24,7 +24,7 @@
       INTEGER LABEL(2)
       LOGICAL EX1,EX2,EX3
 *     ...
-
+CCC      CALL RNTIME
       INQUIRE(FILE='mp2str.txt',IOSTAT=IOS,EXIST=EX1) ! keep, if existing
       INQUIRE(FILE='mp2con.txt',IOSTAT=IOS,EXIST=EX2) ! keep, if existing
 
@@ -79,29 +79,54 @@
       IF(EX1) GOTO 10       
       LUNS=7                           ! steerfile
       WRITE(LUNS,101) '*            Default test steering file'
-      WRITE(LUNS,101) 'fortranfiles ! binary file are fortran'
+      WRITE(LUNS,101) 'fortranfiles ! following bin files are fortran'
       WRITE(LUNS,101) 'mp2con.txt   ! constraints text file '
       WRITE(LUNS,101) 'mp2tst.bin   ! binary data file'
+      WRITE(LUNS,101) 'Cfiles       ! following bin files are Cfiles'  
       WRITE(LUNS,101) '*outlierrejection 100.0 ! reject if Chi^2/Ndf >'
       WRITE(LUNS,101) '*outliersuppression 3   ! 3 local_fit iterations'
+      
+      WRITE(LUNS,101)
+     +  '*hugecut 50.0     !cut factor in iteration 0'
+      WRITE(LUNS,101)
+     +  '*chisqcut 1.0 1.0 ! cut factor in iterations 1 and 2' 
+      WRITE(LUNS,101)
+     +  '*entries  10 ! lower limit on number of entries/parameter'
+      WRITE(LUNS,101) 
+     +  '*printrecord   1  2      ! debug printout for records'
+      WRITE(LUNS,101)
+     +  '*printrecord  -1 -1      ! debug printout for bad data records' 
+      WRITE(LUNS,101) 
+     +  '*outlierdownweighting  2 ! number of internal iterations (> 1)'
+      WRITE(LUNS,101)
+     +  '*dwfractioncut      0.2  ! 0 < value < 0.5'
+      WRITE(LUNS,101)
+     +  '*presigma           0.01 ! default value for presigma'
+      WRITE(LUNS,101)
+     +  '*regularisation 1.0      ! regularisation factor'
+      WRITE(LUNS,101)  
+     +  '*regularisation 1.0 0.01 ! regularisation factor, pre-sigma' 
+
       WRITE(LUNS,101) ' '
-      WRITE(LUNS,101) '*bandwidth 6 ! width of band matrix'
       WRITE(LUNS,101)
-     +     'method diagonalization 5 0.001 ! diagonalization      '
+     +     '*bandwidth 0         ! width of precond. band matrix'
       WRITE(LUNS,101)
-     +     'method fullGMRES       5 0.01 ! minimal residual     '
+     +     'method diagonalization 3 0.001 ! diagonalization      '
       WRITE(LUNS,101)
-     +     'method sparseGMRES     5 0.01 ! minimal residual     '
+     +     'method fullGMRES       3 0.01 ! minimal residual     '
       WRITE(LUNS,101)
-     +     'method cholesky        5 0.001 ! Cholesky             '
-c      WRITE(LUNS,101) 'method sparsecholesky  5 ! Cholesky       '
+     +     'method sparseGMRES     3 0.01 ! minimal residual     '
       WRITE(LUNS,101)
-     +     'method bandcholesky    5 0.1   ! Cholesky             '
+     +     'savespace                     ! change in loop2'
+      WRITE(LUNS,101)
+     +     '*mrestol      1.0D-8          ! epsilon for GMRES'
       WRITE(LUNS,101)
      +     'method inversion       3 0.001 ! Gauss matrix inversion'
       WRITE(LUNS,101) '* last method is applied'
+      WRITE(LUNS,101)
+     +     '*matiter      3  ! recalculate matrix in iterations'
       WRITE(LUNS,101) ' '
-c      WRITE(LUNS,101) 'end ! optional for end-of-data'
+      WRITE(LUNS,101) 'end ! optional for end-of-data'
  10   CONTINUE
 
       LUNT=9                           ! constraint file
@@ -149,7 +174,7 @@ c      WRITE(LUNS,101) 'end ! optional for end-of-data'
        WW=(X-XBAR)/DBAR
        SUM2=SUM2+DEL(I)*WW
       END DO
-      WRITE(*,*) '   Check for constraints ',SUM1,SUM2
+c      WRITE(*,*) '   Check for constraints ',SUM1,SUM2
 
 *     record loop ------------------------------------------------------
 
@@ -190,11 +215,11 @@ c       IF(ICOUNT.EQ.7468) IP=1
       REWIND (51)
       CLOSE  (51)
 
-      WRITE(*,*) ' '
-      WRITE(*,*) 'Shifts and drift velocity deviations:'
-      DO I=1,NPLAN
-       WRITE(*,102) I,DEL(I),DVD(I)
-      END DO 
+c      WRITE(*,*) ' '
+c      WRITE(*,*) 'Shifts and drift velocity deviations:'
+c      DO I=1,NPLAN
+c       WRITE(*,102) I,DEL(I),DVD(I)
+c      END DO 
 
 
       WRITE(*,*) ' '      
@@ -248,7 +273,7 @@ c       IF(ICOUNT.EQ.7468) IP=1
       SLOPE=(URAN()-0.5)*HEIT/(FLOAT(NPLAN-1)*DISX) 
       IF(IP.NE.0) THEN
          WRITE(*,*) ' '
-         WRITE(*,*) 'YNULL=',YNULL,'    SLOPE=',SLOPE
+C         WRITE(*,*) 'YNULL=',YNULL,'    SLOPE=',SLOPE
       END IF
       NHITS=0
       DO I=1,NPLAN
@@ -271,8 +296,8 @@ c       IF(ICOUNT.EQ.7468) IP=1
           YHITS(NHITS)=YBIAS+YMEAS-YDVDS     ! measured
           SIGMA(NHITS)=SGM(I)
           IF(IP.NE.0) THEN
-             WRITE(*,101) NHITS,I,X,YLIN,YBIAS,YMEAS,
-     +       SGM(I),YHITS(NHITS),GR,DEL(I)
+c             WRITE(*,101) NHITS,I,X,YLIN,YBIAS,YMEAS,
+c     +       SGM(I),YHITS(NHITS),GR,DEL(I)
           END IF
        END IF
   10  END DO 
@@ -281,7 +306,7 @@ c       IF(ICOUNT.EQ.7468) IP=1
 
 
 
-
+#ifdef standard
       FUNCTION URAN()  ! return random number U(0,1)
 *     (simple generator, showing principle)
       PARAMETER (IA=205,IC=29573,IM=139968)
@@ -289,5 +314,85 @@ c       IF(ICOUNT.EQ.7468) IP=1
       LAST=MOD(IA*LAST+IC,IM)
       IF(LAST.EQ.0) LAST=MOD(IA*LAST+IC,IM)
       URAN=FLOAT(LAST)/FLOAT(IM)
+      END
+#endif
+
+
+
+      SUBROUTINE SHIRAN(N,A)
+*     return N random numbers U(0,1) in array A(N) 
+      PARAMETER (NB=511)
+      PARAMETER (IA=16807,IM=2147483647,IQ=127773,IR=2836)   
+      PARAMETER (AEPS=1.0E-10,SCALIN=4.6566125E-10)
+      COMMON/RANBUF/MBUFF(0:NB),IAN,IC,IBOOST
+      REAL A(*)
+      INTEGER ISTART
+      IROTOR(M,N)=IEOR(IOR(ISHFT(M,17),ISHFT(M,-15)),N)
+      DATA ISTART/0/,IWARM/10/,ISEED/4711/
+      IF(ISTART.NE.0) GOTO 20 
+      WRITE(*,*) ' Automatic SHIRAN initialization using:'
+*     initialize buffer
+ 10   IDUM=ISEED+9876543          ! prevent damage, if iseed=0
+      WRITE(*,*) '           ISEED=',ISEED,'   IWARM=',IWARM      
+      DO J=0,NB+1                 ! fill buffer
+       K=IDUM/IQ                  ! minimal standard generator
+       IDUM=IA*(IDUM-K*IQ)-IR*K   !    with Schrages method
+       IF(IDUM.LT.0) IDUM=IDUM+IM !
+       MBUFF(J)=ISHFT(IDUM,1)     ! fill in leading bit 
+      END DO 
+      IAN=IAND(IAN,NB)            ! mask angle
+      IC=1                        ! set pointer
+      IBOOST=0
+      DO J=1,IWARM*NB             ! warm up a few times
+       IT=MBUFF(IAN)              ! hit ball angle
+       MBUFF(IAN)=IROTOR(IT,IC)   ! new spin 
+       IC=IT                      ! replace red spin
+       IAN=IAND(IT+IBOOST,NB)     ! boost and mask angle
+       IBOOST=IBOOST+1            ! increment boost
+      END DO 
+      IF(ISTART.LT.0) RETURN      ! return for RBNVIN
+      ISTART=1                    ! set done-flag 
+*     generate array of r.n.
+ 20   DO I=1,N
+       IT=MBUFF(IAN)              ! hit ball angle
+       MBUFF(IAN)=IROTOR(IT,IC)   ! new spin
+       IC=IT                      ! replace red spin
+       IAN=IAND(IT+IBOOST,NB)     ! boost and mask angle
+       A(I)=FLOAT(ISHFT(IT,-1))*SCALIN+AEPS ! avoid zero output
+       IBOOST=IBOOST+1            ! increment boost
+      END DO
+      IBOOST=IAND(IBOOST,NB) 
+      RETURN
+      ENTRY VINRAN(JSEED,JWARM)   ! initialize, but only once 
+      IF(ISTART.EQ.0) THEN 
+         WRITE(*,*) ' SHIRAN initialization by RANVIN-call using:'
+         ISEED=JSEED              ! copy seed and  
+         IWARM=JWARM              !    warm-up parameter
+         ISTART=-1                ! start flag 
+         GOTO 10
+      END IF
+      END     
+
+      FUNCTION URAN()
+*     random number U(0,1) using SHIRAN
+      PARAMETER (NDIM=100)
+      REAL BUFFER(NDIM)
+      DATA INDEX/NDIM/
+      SAVE INDEX,BUFFER
+      INDEX=MOD(INDEX,NDIM)+1
+      IF(INDEX.EQ.1) CALL SHIRAN(NDIM,BUFFER)
+      URAN=BUFFER(INDEX)
+      END  
+
+
+      SUBROUTINE RNTIME
+*     RANSHI initialization using TIME()
+      LOGICAL DONE
+      DATA    DONE/.FALSE./
+      IF(DONE) RETURN
+      JSEED=TIME()
+      WRITE(*,*) ' Ranshi initialialization using Time()'
+      CALL VINRAN(JSEED,10)
+      DONE=.TRUE.
       END
 

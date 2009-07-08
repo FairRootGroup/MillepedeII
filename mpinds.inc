@@ -1,4 +1,6 @@
 
+      INTEGER IGLBV,IGLBC,IGMAT,IGVEC,IGLMA,ICORM,ICORV,IAUX1,IDUX1,
+     +        IDUX2,IDUX3,IDUX4,IDUX5,IDUX6,IDUX7,IDUX8,IDUX9,ISOLV
       EQUIVALENCE (INDU,IGLBV) ! initial global parameter values
       EQUIVALENCE (INDV,IGLBC) ! corrections to parameter values
       EQUIVALENCE (INDJ,IGMAT) ! big matrix double precision
@@ -21,27 +23,46 @@
       PARAMETER (NDIMB=5000)
       COMMON/MEMI/NST,GLDER(NDIMB),INDER(NDIMB)
 
-*GF      PARAMETER (MFILES=100)
       PARAMETER (MFILES=500)
       INTEGER MFD(MFILES)  ! MFD(.)=1 binary   MFD(.)=2 text
       INTEGER LFD(MFILES)  ! LFD(.)=  number of characters
       INTEGER NFD(MFILES)  ! NFD(.)=  index in file  
-*GF      CHARACTER*240 TFD(MFILES)        ! file names
       CHARACTER*500 TFD(MFILES)        ! file names
       COMMON/MPFILE/IFILE,NFILES,NFILB,NFILC,MFD,LFD,TFD,NFD
 
+      INTEGER NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
+     +        METSOL,MATSTO,MPRINT,MDEBUG,MREQEN,INTRAC,
+     +        MITERA,MBANDW,ICTEST,NAEQN,NREC,NLOOPN,
+     +        LUNKNO,LHUBER,NREJEC,
+     +        ITERAT,NTERAT,
+     +        NRECPR,NRECP2,NREC1,NREC2,
+     +        ISUBIT,NHISTP,
+     +        NOFEAS,
+     +        NDFSUM,NREGUL,IITERA,ISTOPA,
+     +        LSINFO,ITEXIT,ICALCM,MATRIT,NPRESG,NRECAL,NMISS1,ISAVES
+      REAL
+     +        CHIREM,DFLIM,
+     +        TIMES,GBM,UBM,STEPL,
+     +        VALUE1,VALUE2,
+     +        TA,DWCUT,
+     +        WOLFC1,WOLFC2,DELFUN,ACTFUN,ANGRAS,
+     +        REGULA,REGPRE,DELTIM,RSTART
+
       LOGICAL RECPRI,NEWITE
-      DOUBLE PRECISION MRESTL
-      COMMON/MPSTER/NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
+      DOUBLE PRECISION MRESTL,CHICUT
+      COMMON/MPSTER/MRESTL,CHICUT,
+     +              NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
      +              METSOL,MATSTO,MPRINT,MDEBUG,MREQEN,INTRAC,
      +              MITERA,MBANDW,ICTEST,NAEQN,NREC,NLOOPN,
-*GF     +              LUNKNO,LHUBER,CHICUT,CHIREM,DFLIM,NREJEC(3),
-     +              LUNKNO,LHUBER,CHICUT,CHIREM,CHHUGE,DFLIM,NREJEC(3),
+     +              LUNKNO,LHUBER,CHIREM,CHHUGE,DFLIM,NREJEC(3),
      +              ITERAT,NTERAT,TIMES(0:6),GBM,UBM,STEPL,
      +              NRECPR,NRECP2,NREC1,NREC2,VALUE1,VALUE2,
      +              RECPRI,NEWITE,TA(2),DWCUT,ISUBIT,NHISTP,
-*GF     +              WOLFC1,WOLFC2,NOFEAS,DELFUN,ACTFUN,ANGRAS   
-     +              WOLFC1,WOLFC2,MRESTL,NOFEAS,DELFUN,ACTFUN,ANGRAS   
+     +              WOLFC1,WOLFC2,NOFEAS,DELFUN,ACTFUN,ANGRAS,
+     +              NDFSUM,NREGUL,REGULA,REGPRE,IITERA,DELTIM,ISTOPA,
+     +              LSINFO,ITEXIT,ICALCM,RSTART,MATRIT,NPRESG,NRECAL,
+     +              NMISS1,ISAVES
+*     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
 *     NAGB  = number of fit parameters (incl. Lagrange multiplier)
@@ -84,12 +105,11 @@
 *     WOLFC2 = C_2 constant of strong Wolfe condition
 *              default = 0.9 for Newton and quasi Newton
 *              default = 0.1 for nonlinear CG
-*     MRESTL = tolerance criterion for MINRES (default 10^-8) (GF)
+
 *     NOFEAS = do not make par feasible at start, if ne zero
 *     DELFUN = expected function change for search step
 *     ACTFUN = actual function change 
 *     ANGRAS = angle between gradient and search direction, in degrees 
-
 *     METSOL = solution method
 *     MATSTO = matrix storage mode
 *     MPRINT = print flag
@@ -97,14 +117,28 @@
 *     MREQEN = min number of entries
 *     INTRAC = 0 batch, =1 interactive
 *     MITERA = number of iterations
+*     NPRESG = number of presigmas 
+*     NRECAL = total number of records 
+*     NMISS1 = rank defect for constraints
 *     MBANDW = width of band matrix 
 *     ICTEST = 1 for internal test data
+*     NDFSUM = sum of all NDFs
+*     NREGUL = 1 for regularization
+*     REGULA = regularization factor
+*     REGPRE = default pre-sigma      
+*     IITERA = number of internal (GMRES) iterations
+*     DELTIM = delta time
+*     RSTART = start time
+*     ISTOPA = stop code of solution
+*     LSINFO = INFO from line search
+*     ITEXIT = exit code
+*     ICALCM = 
 
-      DOUBLE PRECISION FVALUE
-      COMMON/MPDOUB/FVALUE
-
+      DOUBLE PRECISION FVALUE,FLINES
+      COMMON/MPDOUB/FVALUE,FLINES
 
 *     statement functions to get from the total parameter index the ... 
+      INTEGER JTGBL,JVGBI,JTGBI,IJSYM,ITGBI,IVGBI,I,J
       JTGBL(ITGBI)=MQ(INDA+ITGBI+ITGBI-1) ! ... total parameter label
       JVGBI(ITGBI)=MQ(INDA+ITGBI+ITGBI)   ! ... variable-parameter index 
       JTGBI(IVGBI)=MQ(IND3+IVGBI)         ! ... total parameter index

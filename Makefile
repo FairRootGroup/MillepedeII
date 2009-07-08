@@ -22,17 +22,17 @@ NUMBER_OF_WORDS = 100000000 # =400 MB
 #
 #
 FCOMP = gcc
-F_FLAGS = -Wall -fno-automatic -fno-backslash -O3 ${LARGE_MEMORY_OPT}
+F_FLAGS = -pg -Wall -fno-automatic -fno-backslash -O3 ${LARGE_MEMORY_OPT}
 # Blobel:  -Wunused -fno-automatic -fno-backslash  -O3
 #
 CCOMP = gcc 
-C_FLAGS = -Wall -O3 -Df2cFortran ${LARGE_MEMORY_OPT}
+C_FLAGS = -pg -Wall -O3 -Df2cFortran ${LARGE_MEMORY_OPT}
 C_INCLUDEDIRS =  # e.g. -I .
 C_LIBS = -lg2c -lfrtbegin
 DEBUG =          # e.g. -g
 #
 LOADER = gcc
-L_FLAGS = -Wall -O3 ${LARGE_MEMORY_OPT}
+L_FLAGS = -pg -Wall -O3 ${LARGE_MEMORY_OPT}
 #
 # objects for this project
 #
@@ -54,7 +54,7 @@ endif
 #
 # Make the executables
 # The specific ones (part of hack, see below) + the single:
-EXECUTABLES = pede pede_1GB pede_1GB_rfio pede_2GB pede_2GB_rfio 
+EXECUTABLES = pede pede_1GB pede_1GB_rfio pede_2GB pede_2GB_rfio
 
 all:	$(EXECUTABLES)
 

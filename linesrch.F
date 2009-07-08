@@ -1,462 +1,435 @@
 
-*
-*     Line search
-*        MTLINE, CSTEPM  
-*    
 
-
-      SUBROUTINE MTLINE(N,X,F,G,S,STP, WA, DGOUT,INFO)
-*     Linesearch Algorithms wih Guaranteed Sufficient Decrease"
-*     by JJ More and D Thuente, ACM Transactions on Mathenatical
-*     Software 20 (1994), pp 286-307 - modified by V.B.
-*
-*        ===============================================================
-*        The algorithm is designed to find a step which satisfies 
-*        the sufficient decrease condition
-*              F(X+STEP*S) <= F(X) + FTOL*STP*[gradF(X).S]
-*        and the curvature condition
-*              ABS[gradF(X+STP*S).S] <= GTOL*ABS[gradF(X).S]
-*
-*        Typical values for Constants: 
-*                               FTOL = 1.0E-4
-*                               GTOL = 0.9  for Newton, Quasi-Newton
-*                                    = 0.1  for CG
-*
-*        Conditions: 0 < FTOL < GTOL <  1   for Newton, Quasi-Newton
-*                    0 < FTOL < GTOL < 1/2  for CG
-*        ===============================================================
-*      
-*     CALL MTLDEF(...)      ! initialization, see end of routine
-*     NC=0                  ! reset
-*     define STP =  (in units of S(.), usually 1.0) 
-* 01  calculate     (note: first value before first MTLINE call) 
-*             F    = function value,
-*             G(.) = gradient,
-*             S(.) = search vector, at X(.) 
-*     NC=NC+1               ! count function calls  
-*     CALL MTLINE(N,X,F,G,S,STP, WA, DGOUT,INFO)
-*        WA(.) =work array, of dimension N
-*        DGOUT =value of directional derivative when the Wolfe 
-*               conditions hold; may be used to check descent     
-*        INFO  =returned flag (not to be modified) 
-*     IF(INFO.LT.0) GOTO 01 ! recalculate function ...  
-*     IF(INFO.NE.1)         ! error condition
-*     IF(INFO.EQ.1)         ! sufficient decrease and deriv. condition
-*                           ! i.e. Wolfe conditions hold 
-*     CALL MTINFO(INFO)     ! to print end condition
+      SUBROUTINE PTLINE(N,X,F,G,S,STEP, INFO) ! - 2 arguments
+      IMPLICIT NONE
 *     ------------------------------------------------------------------ 
+*     "Line search routine with sufficient decrease of slope"
+*
+*     In many minimization problems the objective function is close to 
+*     quadratic, except far from the solution. Close to the minimum the
+*     behaviour may be almost quadratic or, due to round-off errors, 
+*     it may have a non-smooth behaviour, which often complicates any
+*     further progress and the recognition of convergence.  
+*     Round-off errors affect the function value, which may be large and
+*     small parameter changes result in small relative changes of the 
+*     function value. Close to the minimum the gradient becomes small 
+*     and the behaviour is not so much affected by Round-off errors.
+*
+*     ------------------------------------------------------------------
+*
+*      CALL PTLDEF(0.0,0.0, 0,0) ! init line search 
+*      N=...
+*      X(.)=...
+*      D(.)=...
+*      ALPHA=1.0D0
+* 10   F(X)=...
+*      G(X)=...
+*      IF(.) S(X)=..
+*      CALL PTLINE(N,X,F,G,D,ALPHA,INFO)
+*      IF(INFO.LT.0) GOTO 10
+*
+*     ------------------------------------------------------------------
+*     N       = dimension of problem
+*     X(N)    = current iterate
+*     F       = associated function value
+*     G(N)    = associated gradient
+*     S(N)    = search vector
+*
+*     ALPHA   = step factor (initially = 1.0) 
+*
+*     INFO    =     information 
+*             = -1  repeat function evaluation
+*             =  0  input error (e.g. gradient not negative)
+*             =  1  convergence reached
+*             =  2  convergence assumed, but round-off errors 
+*             =  3  too many function calls
+*             =  4  ALPHA to small (ALPHA <= TOL)
+*
+*     ------------------------------------------------------------------
+      INTEGER N,INFO,MINFE,MAXFE                    ! arguments
+      DOUBLE PRECISION X(N),F,G(N),S(N),STEP        ! arguments 
+      REAL GTOLE,STMAX                              ! arguments
+*     ------------------------------------------------------------------
 
-      INTEGER N,MAXF,INFO,NFEV
-      DOUBLE PRECISION F,STP,FTOL,GTOL,XTOL,STPMIN,STPMAX
-      DOUBLE PRECISION X(N),G(N),S(N),WA(N)
+C      DOUBLE PRECISION AUX(1000)
+
+      INTEGER I,IM                                  ! internal
+      DOUBLE PRECISION ALPHA                        ! internal
+      DOUBLE PRECISION DGINIT,DG,FSAVED,TOT,FP1,FP2 ! internal
+*     DGINIT = initial slope
+*     DG     = current slope
+*     FSAVE  = initla function value
+*     TOT    = total step
+*     -----------------------------------------------------------------
+      INTEGER MSFD,NSFD,IDGL,IDGR,IDGM,MINF,MAXF,LSINFO 
+      PARAMETER (MSFD=20)
+      DOUBLE PRECISION SFD,STMX,GTOL
+      COMMON/CLNSEA/SFD(4,MSFD),STMX,GTOL,NSFD,IDGL,IDGR,IDGM,MINF,MAXF
+     +             ,LSINFO
+*     -----------------------------------------------------------------
+      INTEGER I1,I2
+C      DOUBLE PRECISION CENTER,REVAL,COMP
+*     -----------------------------------------------------------------
+*     -----------------------------------------------------------------
+      INTEGER LUNLOG
+      COMMON/CLULOG/LUNLOG
+*     -----------------------------------------------------------------
       SAVE
+* 
+*     initialization ---------------------------------------------------
+*
 
-      INTEGER INFOC,J
-      LOGICAL BRACKT,STAGE1
-      DOUBLE PRECISION DG,DGM,DGINIT,DGTEST,DGX,DGXM,DGY,DGYM,
-     *       FINIT,FTEST1,FM,FX,FXM,FY,FYM,P5,P66,STX,STY,
-     *       STMIN,STMAX,WIDTH,WIDTH1,XTRAPF,ZERO,DGOUT,STPAC
-c     DATA P5,P66,XTRAPF,ZERO /0.5D0,0.66D0,4.0D0,0.0D0/
-      DATA P5,P66,XTRAPF,ZERO /0.5D0,0.66D0,2.618D0,0.0D0/
+      INFO=0             ! reset INFO flag
+      DG=0.0D0
+      DO I=1,N           !
+       DG=DG-G(I)*S(I)   ! DG = scalar product: grad x search
+      END DO!
+
+      IF(NSFD.EQ.0) THEN    ! initial call
+         DGINIT=DG          ! DG = initial directional gradient
+         IF(DGINIT.GE.0.0D0) GOTO 100 ! error: step not decreasing
+         STEP=1.0D0         ! initial step factor is one 
+         ALPHA=STEP         ! get initial step factor
+         TOT=0.0D0          ! reset total step
+         IDGL=1             ! index of smallest negative slope 
+         IDGR=0             ! index of smallest positive slope 
+         FSAVED=F           ! initial Function value
+         NSFD=1             ! starting point of iteration
+         SFD(1,1)=0.0       ! abscissa
+         SFD(2,1)=0.0       ! referencefunction value 
+         SFD(3,1)=DGINIT    ! slope
+         SFD(4,1)=0.0       ! predicted zero 
+         IM=1               ! optimum
+      ELSE                  ! subsequent call
+         NSFD=NSFD+1
+         SFD(1,NSFD)=TOT          ! abscissa
+         SFD(2,NSFD)=F-FSAVED     ! function value difference to reference
+         SFD(3,NSFD)=DG           ! slope
+         SFD(4,NSFD)=0.0          ! predicted zero (see below)  
+         IF(DG.LT.SFD(3,IM)) THEN
+            IM=NSFD
+C            DO I=1,N
+C             AUX(I)=G(I)
+C            END DO 
+         END IF
+
+*        define interval indices IDGL and IDGR 
+         IF(DG.LE.0.0D0) THEN
+            IF(DG.GE.SFD(3,IDGL)) IDGL=NSFD 
+         END IF
+         IF(DG.GE.0.0D0) THEN     ! limit to the right
+            IF(IDGR.EQ.0) IDGR=NSFD 
+            IF(DG.LE.SFD(3,IDGR)) IDGR=NSFD
+         END IF 
+
+         IF(IDGR.EQ.0) THEN
+            I1=NSFD-1
+            I2=NSFD
+         ELSE
+            I1=IDGL
+            I2=IDGR
+         END IF
+         FP1=SFD(3,I1)
+         FP2=SFD(3,I2)                       ! interpolation
+         SFD(4,NSFD)=(SFD(1,I1)*FP2-SFD(1,I2)*FP1)/(FP2-FP1)
+c         CENTER=0.5D0*(SFD(1,I1)+SFD(1,I2))
+c         REVAL=ABS(2.0D0*MIN(ABS(FP1),ABS(FP2))/ABS(FP1-FP2)-1.0D0) 
+c         IF(ABS(FP1).GT.ABS(FP2)) THEN
+c            FP2=FP2+(0.01*FP2-0.01*FP1)*REVAL**2  
+c         ELSE
+c            FP1=FP1+0.05D0*(FP1-FP2)*REVAL**2
+c         END IF 
+c         COMP=(SFD(1,I1)*FP2-SFD(1,I2)*FP1)/(FP2-FP1)
+c         WRITE(LUNLOG,*) 'compare',SFD(4,NSFD),COMP,' at',REVAL
+c         IF(ABS(DG)/ABS(DGINIT).GT.0.1D0.AND.FP1*FP2.LT.0.0D0) THEN
+c            WRITE(LUNLOG,*) 'changed'
+c            SFD(4,NSFD)=COMP
+c         END IF
+
+c         IF(IDGR.NE.0) THEN
+c            CENTER=0.5D0*(SFD(1,I1)+SFD(1,I2))
+c            SFD(4,NSFD)=0.25D0*(CENTER+3.0D0*SFD(4,NSFD)) 
+c         END IF
+
+*        convergence tests
+         IF(NSFD.GE.MINF.AND.ABS(DG).LE.ABS(DGINIT)*GTOL) THEN
+*           normal convergence return with INFO=1 ----------------------
+            ALPHA=TOT+ALPHA          ! total ALPHA is returned
+            STEP =ALPHA
+            IDGM=IDGL
+            IF(IDGR.NE.0) THEN
+               IF(SFD(3,IDGR)+SFD(3,IDGL).LT.0.0D0) IDGM=IDGR
+            END IF
+#ifdef graphics 
+            CALL PLSFD
+            CALL PLDERL
+#endif
+            GOTO 101
+         END IF
+         IF(NSFD.GE.MAXF) GOTO 102 ! max number of function calls
+         ALPHA=MIN(SFD(4,NSFD),STMX)-TOT     ! new step from previous 
+         IF(ABS(ALPHA).LT.1.0D-3.AND.SFD(4,NSFD).GT.STMX) GOTO 103   
+         IF(ABS(ALPHA).LT.1.0D-3) GOTO 104
+      END IF
+
+*     prepare next function call ---------------------------------------
+
+      DO I=1,N
+       X(I)=X(I)+ALPHA*S(I)    ! step by ALPHA -> new X
+      END DO
+      TOT=TOT+ALPHA            ! 
+      STEP=TOT
+      INFO=-1                  ! recalculate function and gradient
+      LSINFO=INFO 
+      RETURN
+
+*     error exits ------------------------------------------------------    
+ 104  INFO=INFO+1              ! 4: step small
+ 103  INFO=INFO+1              ! 3: maximum reached
+ 102  INFO=INFO+1              ! 2: too many function calls
+ 101  INFO=INFO+1              ! 1: normal convergence
+      LSINFO=INFO
+      IM=1
+      DO I=1,NSFD 
+       IF(ABS(SFD(3,I)).LT.ABS(SFD(3,IM))) IM=I
+      END DO 
+      ALPHA=SFD(1,IM)-SFD(1,NSFD)
+      IF(IM.EQ.NSFD) RETURN    ! already at minimum
+      DO I=1,N
+       X(I)=X(I)+ALPHA*S(I)    ! step by ALPHA to slope minimum
+C      G(I)=AUX(I)             ! copy gradient at IM  
+      END DO
+      F=SFD(2,IM)+FSAVED       ! F at minimum
+      STEP=SFD(1,IM)           ! total step at convergence 
+      IF(IM.NE.1) RETURN       ! improvement
+      INFO=5                   ! no improvement
+ 100  STEP=0.0D0               ! 0: initial slope not negative
+      LSINFO=INFO  
+      RETURN
+
+*     ================================================================== 
+
+      ENTRY PTLDEF(GTOLE,STMAX,MINFE,MAXFE)
+*
+*     initialize "Linesearch Algorithm with Sufficient Slope Decrease"
+*
+*                        --- range ----       default
+*     slope ratio        1.0E-4 ... 0.9         0.9 
+*     min. F-calls       1 ... 2                 1 
+*     max. F-calls       2 ... 10                5 
+*
+      GTOL=MAX(1.0E-4,MIN(GTOLE,0.9E0))  ! slope ration
+      IF(GTOLE.EQ.0.0) GTOL=0.9D0   ! default slope ratio
+      STMX=STMAX                    ! maximum total step
+      IF(STMX.EQ.0.0D0) STMX=10.0D0 ! default limit
+      MINF=MAX(1,MIN(MINFE,MSFD-2)) ! minimum number of evaluations
+      MAXF=MAX(2,MIN(MAXFE,MSFD-1)) ! maximum number of evaluations
+      IF(MAXFE.EQ.0) MAXF=5         ! default max number of values
+      NSFD=0                        ! reset
+      END
+
+
+      SUBROUTINE PTLOPT(NF,M,SLOPES,STEPS)
+*     return NF     = number of function values
+*            M      = index of function value with smallest slope
+*            SLOPES(1) = initial slope
+*            SLOPES(2) = current slope         
+*            SLOPES(3) = smallest slope
+*            STEPS(1)  = initial position
+*            STEPS(2)  = current step
+*            STEPS(3)  = smallest step
+
+*     -----------------------------------------------------------------
+      IMPLICIT NONE
+      INTEGER NF,M,I
+      REAL SLOPES(3),STEPS(3)
+*     -----------------------------------------------------------------
+      INTEGER MSFD,NSFD,IDGL,IDGR,IDGM,MINF,MAXF,LSINFO
+      PARAMETER (MSFD=20)
+      DOUBLE PRECISION SFD,STMX,GTOL
+      COMMON/CLNSEA/SFD(4,MSFD),STMX,GTOL,NSFD,IDGL,IDGR,IDGM,MINF,MAXF
+     +             ,LSINFO
+*     -----------------------------------------------------------------
 *     ...
+      NF=NSFD
+      IF(NSFD.EQ.0) THEN  ! no values
+         M=0
+         DO I=1,3
+          SLOPES(I)=0.0
+          STEPS(I) =0.0
+         END DO 
+      ELSE                ! values exist
+         M=1
+         DO I=1,NSFD
+          IF(ABS(SFD(3,I)).LT.ABS(SFD(3,M))) M=I
+         END DO
+         SLOPES(1)=SFD(3,1)       
+         SLOPES(2)=SFD(3,NSFD)
+         SLOPES(3)=SFD(3,M)
+         STEPS(1) =SFD(1,1)
+         STEPS(2) =SFD(1,NSFD)
+         STEPS(3) =SFD(1,M)
+      END IF
+      END
 
-*     -------------------------  initialization  ----------------------
-      IF(NFEV.GE.0) GOTO 10
-      NFEV =0     ! reset  
-      INFOC=1
-      INFO =0 
-      IF(N.LE.0.OR.STP.LE.ZERO) THEN 
-         WRITE(*,*) 'MTLINE call with N=',N,', STP=',STP
-         RETURN ! check N and step value
-      END IF 
-      DGINIT=ZERO
-      DO J=1,N
-       DGINIT=DGINIT+G(J)*S(J) ! dot product  gradient * search_direction 
+      SUBROUTINE PTLPRT
+*     print line search data
+      IMPLICIT NONE
+*     -----------------------------------------------------------------
+      INTEGER MSFD,NSFD,IDGL,IDGR,IDGM,MINF,MAXF,LSINFO
+      PARAMETER (MSFD=20)
+      DOUBLE PRECISION SFD,STMX,GTOL
+      COMMON/CLNSEA/SFD(4,MSFD),STMX,GTOL,NSFD,IDGL,IDGR,IDGM,MINF,MAXF
+     +             ,LSINFO
+*     -----------------------------------------------------------------
+      INTEGER LUN,LUNLOG
+      COMMON/CLULOG/LUNLOG
+*     -----------------------------------------------------------------
+      INTEGER I,J,IM
+      REAL RATIO
+      CHARACTER*2 TLR
+*     ...
+      LUN=LUNLOG
+      IF(LUN.EQ.0) LUN=6
+      IF(NSFD.LE.0) RETURN
+      WRITE(LUN,*) ' '
+      WRITE(LUN,*) 'PTLINE: line-search method based on slopes',
+     +             ' with sufficient slope-decrease'
+      WRITE(LUN,*) 'PTLDEF: slope ratio limit=',GTOL
+      WRITE(LUN,*) 'PTLDEF: maximum step =',STMX
+      WRITE(LUN,*) 'PTLDEF:',MINF,' <= nr of calls <=',MAXF
+      WRITE(LUN,101)
+      IM=1
+      DO I=1,NSFD
+       IF(ABS(SFD(3,I)).LT.ABS(SFD(3,IM))) IM=I
       END DO
-c      WRITE(*,*) 'Initial DG is',DGINIT,N
-      IF(DGINIT.GE.ZERO) THEN
-         WRITE(*,*) 'Initial DG is',DGINIT,N
-         RETURN ! check initial search direction
-      END IF 
+      DO I=1,NSFD
+       TLR='  '
+       IF(I.EQ.IM)   TLR='**'
+       IF(I.EQ.IDGL) TLR(1:1)='L'
+       IF(I.EQ.IDGR) TLR(2:2)='R'
+       IF(I.EQ.1) THEN
+          WRITE(LUN,102) I-1, SFD(1,I),TLR,(SFD(J,I),J=2,4)
+       ELSE
+          RATIO=ABS(SFD(3,I)/SFD(3,1))
+          WRITE(LUN,103) I-1, SFD(1,I),TLR,(SFD(J,I),J=2,4),RATIO
+       END IF 
 
-      BRACKT= .FALSE.         ! local variables
-      STAGE1= .TRUE.
-
-      FINIT = F               ! initial function value
-      DGTEST= FTOL*DGINIT     ! initial direct. derivative
-      WIDTH = STPMAX - STPMIN ! width 
-      WIDTH1= WIDTH/P5        
-      DO J = 1, N
-       WA(J) = X(J)           ! save initial parameter values
       END DO
-
-      STX=ZERO    ! step is zero             at best step
-      FX =FINIT   ! function value
-      DGX=DGINIT  ! directional derivative
-
-      STY=ZERO    ! step is zero             at other endpoint
-      FY =FINIT   ! function value
-      DGY=DGINIT  ! directional derivative
+      IF(LSINFO.EQ.0) WRITE(LUN,*)
+     +    'PTLINE: INFO=0  input error (e.g. gradient not negative)'
+      IF(LSINFO.EQ.1) WRITE(LUN,*)
+     +    'PTLINE: INFO=1  convergence reached' 
+      IF(LSINFO.EQ.2) WRITE(LUN,*)
+     +    'PTLINE: INFO=2  too many function calls'
+      IF(LSINFO.EQ.3) WRITE(LUN,*)
+     +    'PTLINE: INFO=3  maximum step reached'
+      IF(LSINFO.EQ.4) WRITE(LUN,*)
+     +    'PTLINE: INFO=4  step too small (< 0.001)' 
+      WRITE(LUN,*) ' '  
 
 #ifdef graphics
-*     graphic
-      CALL QFINIT(0.0,0.0)
-      CALL QUAT('red full line')
-      FUNG=F
-      DELD=FTOL*DGINIT
-      CALL QD2XY(0.0,FUNG,1.0,FUNG+DELD,'l') ! limit line
-
-      CALL QUAT('green full line') 
-      DELD=GTOL*DGINIT
-      CALL QD2XY(0.0,FUNG,1.0,FUNG+DELD,'l') ! slope line
-
-      CALL QUAT('blue bars line') 
-      FUNG=F 
-      DELA=-0.1
-      DELB=+0.5
-      DEL1=DELA*DGINIT
-      DEL2=DELB*DGINIT
-      CALL QD2XY(DELA,FUNG+DEL1,DELB,FUNG+DEL2,'l')
-      CALL QUAT('black bars line')
-      CALL QUAT('black plus marker 2.0')  
-#endif 
-
-      GOTO 30
-
-*     ------------------ new function and gradient ---------------------  
-
- 10   IF(INFO.GT.0) GOTO 20
-      INFO=0
-      NFEV=NFEV+1
-c      WRITE(*,*) NFEV,'.th function value',F,' with step STP',STP
-      STPAC=STP  ! actual step
-      DG=ZERO
-      DO J=1,N
-       DG=DG+G(J)*S(J) ! dot product  gradient * search_direction 
-      END DO
-c      WRITE(*,*) 'Actual DG is',DG,STP 
-
-#ifdef graphics
-*     graphic
-      DELG=0.1
-      DELD=DELG*DG
-      XELG=STP
-      FUNG=F
-      CALL QD2XY(XELG-DELG,FUNG-DELD,
-     +           XELG+DELG,FUNG+DELD,'lm')
-      WRITE(*,*) 'Point', XELG-DELG,FUNG-DELD,XELG+DELG,FUNG+DELD
+            CALL PLSFD
+            CALL PLDERL
 #endif
 
-*     STP=        ! current step             at current step
-*     F=          ! function value
-*     DG=         ! directional derivative       
-      FTEST1 = FINIT + STP*DGTEST
+ 101  FORMAT('  i      x              F(x)         F''(x)',
+     +       '          minimum     F''(x)')
+ 102  FORMAT(I3,F12.6,1X,A2,G15.6,G14.6,F12.6,'     ratio')
+ 103  FORMAT(I3,F12.6,1X,A2,G15.6,G14.6,F12.6,F10.3)
 
-      IF((BRACKT .AND. (STP .LE. STMIN .OR. STP .GE. STMAX))
-     +      .OR. INFOC .EQ. 0)
-     +                            INFO = 6 ! rounding error limitation 
-      IF(STP .EQ. STPMAX .AND.
-     +       F .LE. FTEST1 .AND. DG .LE. DGTEST)
-     +                            INFO = 5 ! step at the upper bound
-      IF(STP .EQ. STPMIN .AND.
-     +       (F .GT. FTEST1 .OR. DG .GE. DGTEST))
-     +                            INFO = 4 ! step at the lower bound
-      IF(NFEV .GE. MAXF)          INFO = 3 ! max number of calls reached
-      IF(BRACKT .AND. STMAX-STMIN .LE. XTOL*STMAX)
-     +                            INFO = 2 ! relative interval width limit
-
-c      WRITE(*,*) 'Test for INFO=1',F,FTEST1,DG,GTOL*(-DGINIT),NFEV,MINF 
-
-      IF(F.LE. FTEST1 .AND. ABS(DG) .LE. GTOL*(-DGINIT).
-     *       AND.NFEV.GE.MINF)    INFO = 1 ! min conditions hold ! 
-
-      IF(INFO.NE.0) THEN ! termination 
-         DGOUT=DG
-         RETURN
-      END IF
-
-*     ------------------------ define STP ------------------------------
-
-*     first stage" seek a step for which the modified function has
-*     a non-positive value and non-negative derivative
- 20   IF(STAGE1.AND.F.LE.FTEST1.AND.
-     +   DG.GE.MIN(FTOL,GTOL)*DGINIT) STAGE1=.FALSE.
-
-c      WRITE(*,*) 'TEST STAGE1 F,FTEST1,DG,FTOL,GTOL,DGINIT,M*DGINIT'
-c      WRITE(*,*) STAGE1,F,FTEST1,DG,FTOL,GTOL,DGINIT,
-c     +           MIN(FTOL,GTOL)*DGINIT
-c      WRITE(*,*) 'STAGE1 FX FTEST1',STAGE1,FX,FTEST1
-
-      IF(STAGE1.AND.F.LE.FX.AND.F.GT.FTEST1) THEN
-
-*        use modified function to predict a step, if no step was
-*        obtained for which the modified function has a non-positive
-*        function value and non-negative derivative, and if   
-*        a lower function value has been obtained, but with insufficient
-*        decrease
-
-         FM = F - STP*DGTEST    ! modify function value ...
-         FXM = FX - STX*DGTEST
-         FYM = FY - STY*DGTEST
-         DGM = DG - DGTEST      ! ... and gradient values
-         DGXM = DGX - DGTEST
-         DGYM = DGY - DGTEST
-
-*        update the interval and compute new step
-
-         CALL CSTEPM(STX,FXM,DGXM,
-     +               STY,FYM,DGYM,
-     +               STP,FM ,DGM,
-     +               BRACKT,STMIN,STMAX,INFOC)
-
-         FX = FXM + STX*DGTEST  ! reset function value ...
-         FY = FYM + STY*DGTEST
-         DGX = DGXM + DGTEST    ! ... and gradient values
-         DGY = DGYM + DGTEST
-
-      ELSE
-
-*        update the interval and compute new step
-
-         CALL CSTEPM(STX,FX,DGX,
-     +               STY,FY,DGY,
-     +               STP,F ,DG,                       ! update interval
-     +               BRACKT,STMIN,STMAX,INFOC)        ! and get new step
-      END IF
-
-      IF(BRACKT) THEN ! force sufficient decrease of size of interval
-         IF(ABS(STY-STX).GE.P66*WIDTH1) STP=STX+P5*(STY-STX)
-         WIDTH1 = WIDTH
-         WIDTH = ABS(STY-STX)
-      END IF
-
-*     ---------- prepare calculation of next function value ------------
-
-   30 IF(BRACKT) THEN               ! interval of uncertainty defined      
-         STMIN=MIN(STX,STY)             ! minimum step
-         STMAX=MAX(STX,STY)             ! maximum step
-      ELSE                          ! interval of uncertainty undefined 
-         STMIN=STX                      ! minimum step
-         STMAX=STP+XTRAPF*(STP-STX)     ! maximum step
-      END IF
-
-      STP=MAX(STPMIN,MIN(STP,STPMAX)) ! STPMIN < STP < STPMAX
-
-      IF((BRACKT .AND. (STP .LE. STMIN .OR. STP .GE. STMAX))
-     +   .OR. NFEV .GE. MAXF-1 .OR. INFOC .EQ. 0
-     +   .OR. (BRACKT .AND. STMAX-STMIN .LE. XTOL*STMAX)) THEN
-*        unusual termination
-c         WRITE(*,*) 'NFEV MAXF INFOC',NFEV,MAXF,INFOC
-c         WRITE(*,*) 'Unusual termination, new,best STP  is',STP,STX
-         STP = STX
-c         WRITE(*,*) 'STX STPAC',STX,STPAC
-         IF(NFEV.GE. MAXF-1.AND.STX.EQ.STPAC) THEN
-            INFO=3
-            STP=STPAC
-            DGOUT=DG
-c            WRITE(*,*) 'Special return !'
-            RETURN
-         END IF
-      END IF
-
-      DO J = 1, N          ! calculate the parameter values
-       X(J)=WA(J)+STP*S(J) ! for step STP
-      END DO
-      INFO=-1 ! return to compute function value
-      RETURN
-
-      ENTRY MTINFO(INFO)  ! print information about errors
-      IF(INFO.GE.0) WRITE(*,*) ' '
-      IF(INFO.EQ.0) THEN
-         WRITE(*,101) INFO,'N or STP lt 0 or step no descending'
-      ELSE IF(INFO.EQ.1) THEN
-         WRITE(*,101) INFO,'Linesearch convergence conditions reached'
-      ELSE IF(INFO.EQ.2) THEN
-         WRITE(*,101) INFO,'interval of uncertainty at lower limit'
-      ELSE IF(INFO.EQ.3) THEN
-         WRITE(*,101) INFO,'max nr of line search calls reached'
-      ELSE IF(INFO.EQ.4) THEN
-         WRITE(*,101) INFO,'step at the lower bound' 
-      ELSE IF(INFO.EQ.5) THEN
-         WRITE(*,101) INFO,'step at the upper bound'
-      ELSE IF(INFO.EQ.6) THEN
-         WRITE(*,101) INFO,'rounding error limitation'  
-      END IF 
-      IF(INFO.GE.0) WRITE(*,*) ' '
- 101  FORMAT('     Info =',I3,3X,A)
-      RETURN
-
-*     MTLINE search initialization -------------------------------------
-
-      ENTRY MTLDEF(FTOLE, GTOLE, XTOLE,  STMINE, STMAXE, MINFE,MAXFE)
-*        example:  1.0E-4 1.0E-1 1.0E-17 1.0E-20 1.0E+20 1     40  
-*     initialize "Linesearch Algorithm with Sufficient Decrease" 
-
-      FTOL=FTOLE    ! tolerance C1  for sufficient decrease of function value
-      GTOL=GTOLE    ! tolerance C2  for directional derivative condition
-      XTOL=XTOLE    ! tolerance for width of intercal
-      STPMIN=STMINE ! lower bound for the step
-      STPMAX=STMAXE ! upper bound for the step
-      MINF=MINFE    ! min number of linesearch function calls
-      MAXF=MAXFE    ! max number of linesearch function calls (>1)
-      IF(FTOL.LT.ZERO.OR.GTOL.LT.ZERO.OR.XTOL.LT.ZERO.OR.
-     +   STMIN.LT.ZERO.OR.STPMAX.LT.STPMIN.OR.
-     +   MINF.GT.MAXF.OR.MAXF.LE.1) THEN
-         WRITE(*,*) 'Improper MTLDEF arguments - stop'
-         STOP
-      END IF 
-      NFEV=-1               ! reset counter
+c 101  FORMAT('  i          x              F(x)         F''(x)',
+c     +       '              mininum F''(x)')
+c 102  FORMAT(I3,F16.10,1X,A2,G15.6,G14.6,F16.10,' ratio')
+c 103  FORMAT(I3,F16.10,1X,A2,G15.6,G14.6,F16.10,F6.2)
       END
 
-
-      SUBROUTINE CSTEPM(STX,FX,DX,  ! step, fvalue, der at best step
-     +                  STY,FY,DY,  !                   at other endpt
-     +                  STP,FP,DP,  !                   at current step 
-     +                  BRACKT,        ! bracketed true/false
-     +                  STPMIN,STPMAX, ! bounds for ste step
-     +                  INFO)          ! returned: INFO=0 means error 
-*                       INFO=1 ... 4   ! used method of interpolation
-*     compute a safeguarded step for a linesearch
-*     update an interval of uncertainty for the function minimum
-      INTEGER INFO
-      DOUBLE PRECISION STX,FX,DX,STY,FY,DY,STP,FP,DP,STPMIN,STPMAX
-      LOGICAL BRACKT,BOUND
-      DOUBLE PRECISION GAMMA,P,Q,R,S,SGND,STPC,STPF,STPQ,THETA
+#ifdef graphics
+      SUBROUTINE PLSFD
+*     plot line search data
+      IMPLICIT NONE
+*     -----------------------------------------------------------------
+      INTEGER MSFD,NSFD,IDGL,IDGR,IDGM,MINF,MAXF,LSINFO
+      PARAMETER (MSFD=20)
+      DOUBLE PRECISION SFD,STMX,GTOL
+      COMMON/CLNSEA/SFD(4,MSFD),STMX,GTOL,NSFD,IDGL,IDGR,IDGM,MINF,MAXF
+     +             ,LSINFO
+*     -----------------------------------------------------------------
+      REAL XG,FUNG,XMAX,DELD,DELG,XELG,ARG1,ARG2
+      INTEGER I,J 
+*     -----------------------------------------------------------------
 *     ...
-      INFO=0
-      IF((BRACKT.AND.(STP.LE.MIN(STX,STY).OR.      ! check errors
-     *    STP.GE.MAX(STX,STY))).OR.
-     *    DX*(STP-STX).GE.0.0.OR.STPMAX.LT.STPMIN) RETURN
+      CALL PFINIT
+      XMAX=0.0D0
+      DO I=2,NSFD
+       XMAX=MAX(XMAX,SFD(1,I))
+      END DO
 
-      SGND=DP*SIGN(1.0D0,DX) 
-      IF(FP.GT.FX) THEN
-         INFO = 1
-*        higher function value: minimum is bracketed.
-*        If the cubic step is closer to STX than the quadratic step,
-*        the cubic step is taken, else the average of the two steps. 
-         BOUND=.TRUE.
-         THETA= 3.0*(FX - FP)/(STP - STX) + DX + DP
-         S=MAX(ABS(THETA),ABS(DX),ABS(DP))
-         GAMMA=S*SQRT((THETA/S)**2 - (DX/S)*(DP/S))
-         IF(STP.LT.STX) GAMMA = -GAMMA
-         P=(GAMMA-DX)+THETA
-         Q=((GAMMA-DX)+GAMMA)+DP
-         R=P/Q
-         STPC=STX+R*(STP-STX)
-         STPQ=STX+((DX/((FX-FP)/(STP-STX)+DX))/2)*(STP-STX)
-         IF(ABS(STPC-STX).LT.ABS(STPQ-STX)) THEN
-            STPF=STPC
-         ELSE
-            STPF=STPC+(STPQ-STPC)/2
-         END IF
-         BRACKT = .TRUE.
-      ELSE IF(SGND.LT.0.0) THEN
-         INFO = 2
-*        lower function value and opp. derivative signs: minimum bracketed.
-*        If the cubic step is closer to STX than the quadratic step,
-*        the cubic step is taken, else the quadratic step.          
-         BOUND = .FALSE.
-         THETA = 3*(FX - FP)/(STP - STX) + DX + DP
-         S = MAX(ABS(THETA),ABS(DX),ABS(DP))
-         GAMMA = S*SQRT((THETA/S)**2 - (DX/S)*(DP/S))
-         IF (STP .GT. STX) GAMMA = -GAMMA
-         P = (GAMMA - DP) + THETA
-         Q = ((GAMMA - DP) + GAMMA) + DX
-         R = P/Q
-         STPC = STP + R*(STX - STP)
-         STPQ = STP + (DP/(DP-DX))*(STX - STP)
-         IF(ABS(STPC-STP) .GT. ABS(STPQ-STP)) THEN
-            STPF = STPC
-         ELSE
-            STPF = STPQ
-         END IF
-         BRACKT = .TRUE.
-      ELSEIF(ABS(DP).LT.ABS(DX)) THEN
-         INFO = 3
-*        lower function value and same derivative signs, der. decreases:
-*        The cubic step is only used, if the cubic tends to infinity in
-*        the driection of the step, or if the minimum of the cuic is beyond
-*        STP. Otherwise the cubic step is defined to be either STPMIN or
-*        STPMAX. The quadratic step also computed and if the minimum is
-*        bracketed, then the step closest to STX is taken, else the step
-*        farthest away is taken.
-         BOUND = .TRUE.
-         THETA = 3*(FX - FP)/(STP - STX) + DX + DP
-         S = MAX(ABS(THETA),ABS(DX),ABS(DP))
-         GAMMA = S*SQRT(MAX(0.0D0,(THETA/S)**2 - (DX/S)*(DP/S)))
-         IF (STP .GT. STX) GAMMA = -GAMMA
-         P = (GAMMA - DP) + THETA
-         Q = (GAMMA + (DX - DP)) + GAMMA
-         R = P/Q
-         IF(R .LT. 0.0 .AND. GAMMA .NE. 0.0) THEN
-            STPC = STP + R*(STX - STP)
-         ELSE IF (STP .GT. STX) THEN
-            STPC = STPMAX
-         ELSE
-            STPC = STPMIN
-         END IF
-         STPQ = STP + (DP/(DP-DX))*(STX - STP)
-         IF(BRACKT) THEN
-            IF(ABS(STP-STPC) .LT. ABS(STP-STPQ)) THEN
-               STPF = STPC
-            ELSE
-               STPF = STPQ
-            END IF
-         ELSE
-            IF(ABS(STP-STPC) .GT. ABS(STP-STPQ)) THEN
-               STPF = STPC
-            ELSE
-               STPF = STPQ
-            END IF
-         END IF
-      ELSE
-         INFO = 4
-*        lower function value and same derivative signs, no der. decrease:
-*        If the minimum is not bracketed, trhe step is either STPMIN or
-*        STPMAX, else the cubic step is taken. 
-         BOUND = .FALSE.
-         IF (BRACKT) THEN
-            THETA = 3*(FP - FY)/(STY - STP) + DY + DP
-            S = MAX(ABS(THETA),ABS(DY),ABS(DP))
-            GAMMA = S*SQRT((THETA/S)**2 - (DY/S)*(DP/S))
-            IF (STP .GT. STY) GAMMA = -GAMMA
-            P = (GAMMA - DP) + THETA
-            Q = ((GAMMA - DP) + GAMMA) + DY
-            R = P/Q
-            STPC = STP + R*(STY - STP)
-            STPF = STPC
-         ELSE IF (STP .GT. STX) THEN
-            STPF = STPMAX
-         ELSE
-            STPF = STPMIN
-         END IF
-      END IF
+*     parabola
 
-*     update the interval of uncertainty (does not depend on thenew step) 
-      IF(FP.GT.FX) THEN
-         STY=STP
-         FY =FP
-         DY =DP
-      ELSE
-         IF(SGND.LT.0.0) THEN
-            STY=STX
-            FY =FX
-            DY =DX
-         END IF
-         STX=STP
-         FX =FP
-         DX =DP
-      END IF
+      CALL PLATT('green full line')   ! parabola
+      DO I=-10,110,5
+       XG=0.01*FLOAT(I)*XMAX
+       FUNG=SFD(3,1)*XG*(1.0-0.5*XG)
+       CALL PDNXY(1,XG,FUNG,'f') ! parabola
+      END DO
 
-      STPF=MAX(STPMIN,MIN(STPF,STPMAX))      
-      STP =STPF                       ! new step
-      IF(BRACKT.AND.BOUND) THEN       ! safeguard the step
-         IF(STY.GT.STX) THEN
-            STP= MIN(STX+0.66*(STY-STX),STP)
-         ELSE
-            STP= MAX(STX+0.66*(STY-STX),STP)
-         END IF
-      END IF
+      CALL PLATT('cyan full line')   ! parabola
+      DO J=2,NSFD
+       DO I=-10,110,5
+        XG=0.01*FLOAT(I)*XMAX
+        IF(SFD(4,J).NE.0.0D0) THEN
+           FUNG=SFD(3,1)*XG-0.5*SFD(3,1)/SFD(4,J)*XG**2
+           CALL PDNXY(1,XG,FUNG,'f') ! parabola
+        END IF   
+       END DO
+       CALL PLATT('cyan full line')  
+      END DO
+
+
+*     next attributes
+
+      CALL PLATT('black bars line 2.0')
+
+*     function value and slopes 
+
+      DELG=0.1
+      DO I=1,NSFD
+       XELG=SFD(1,I)
+       FUNG=SFD(2,I)
+       DELD=DELG*SFD(3,I)
+       CALL PD2XY(XELG-DELG,FUNG-DELD,
+     +            XELG+DELG,FUNG+DELD,'l')
+      END DO 
+
+
+
+      CALL PLATT('red fcircle symbol')
+      DO I=1,NSFD
+       XELG=SFD(1,I)
+       FUNG=SFD(2,I)
+       CALL PDSYMB(XELG,FUNG,0.0,0.0)
+      END DO
+      CALL PLSHOW
+      RETURN
+
+*     ------------------------------------------------------------------      
+      ENTRY PLDERL
+*     plot derivative dependence 
+      CALL PFINIT
+      CALL PTITLE(0,'slope dependence')
+c      CALL PLATT('black full line')
+      CALL PLATT('black plus marker 4.0') 
+      XMAX=0.0D0
+      DO I=1,NSFD
+       XMAX=MAX(XMAX,SFD(1,I))
+       ARG1=SFD(1,I)
+       ARG2=SFD(3,I)
+       CALL PDNXY(1,ARG1,ARG2,'m')
+      END DO
+      CALL PLATT('red full line')
+      CALL PLSHOW
       END
+#endif
 
 
