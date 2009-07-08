@@ -213,10 +213,9 @@ c       END IF
       END IF
       CALL EXPLFC(8)
 
-      WRITE(8,*) ' '
-
-      WRITE(8,*) '  <  Millepede II ending with exit code',ITEXIT,' >'
-      WRITE(8,*) ' '
+      WRITE(*,*) ' '
+      WRITE(*,*) '  <  Millepede II ending with exit code',ITEXIT,' >'
+      WRITE(*,*) ' '
       CALL EXIT(ITEXIT)
 
 
@@ -3355,8 +3354,8 @@ C      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
        IF(REGPRE.EQ.0.0D0.AND.NPRESG.EQ.0) THEN
           WRITE(LUNP,121) 'using pre-sigmas:','no'
        ELSE
-          WRITE(LUNP,122) 'pre-sigmas defined in',
-     +       FLOAT(100*NPRESG)/FLOAT(NVGB),' % of parameters' 
+          WRITE(LUNP,124) 'pre-sigmas defined for',
+     +       FLOAT(100*NPRESG)/FLOAT(NTGB),' % of parameters' 
           WRITE(LUNP,123) 'default pre-sigma=',REGPRE
        END IF 
        IF(NREGUL.EQ.0) THEN
@@ -3383,6 +3382,7 @@ C      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
  121  FORMAT(1X,A40,3X,A)
  122  FORMAT(1X,A40,2X,I2,A)
  123  FORMAT(1X,A40,2X,E9.2)
+ 124  FORMAT(1X,A40,3X,F5.1,A)
       END DO
 
 *     initialization of iterations -------------------------------------
