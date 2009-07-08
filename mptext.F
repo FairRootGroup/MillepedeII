@@ -210,8 +210,11 @@
 *     returns MATCH=3, NPAT=4, NTEXT=8       
 *     ------------------------------------------------------------------
       CHARACTER*(*) PAT,TEXT
-      INTEGER ID(0:100,2)
-
+*GF
+*      INTEGER ID(0:100,2) 
+      PARAMETER (NPATMA=512)
+      INTEGER ID(0:NPATMA,2) 
+* end GF
       LOGICAL START                        ! for case conversion
       CHARACTER*26 CHU,CHL
       INTEGER NJ(0:255)
@@ -253,8 +256,12 @@
        IF(PAT(I:I).NE.' ') IPB=I
       END DO
       NPAT=IPB-IPA+1
-      IF(NPAT.GT.100) STOP 'MATINT: string PAT too long!   '
-
+*GF      IF(NPAT.GT.100) STOP 'MATINT: string PAT too long!   '
+      IF(NPAT.GT.NPATMA) THEN
+         WRITE(*,*) 'too long PAT (', PAT,'):', NPAT, ' >', NPATMA
+         STOP 'MATINT: string PAT too long!   '
+      END IF
+*GF end
       ID(0,1)=0 
       DO I=0,NPAT
        ID(I,2)=I
