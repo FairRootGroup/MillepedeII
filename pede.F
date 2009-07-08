@@ -3140,10 +3140,12 @@ c      WRITE(*,*) 'Number of records ',NREC
 
       CALL FEASMA    ! prepare constraint matrices 
 
-      GBM=1.0E-9*FLOAT(4*MEGA)
+* GF 1/2009 to prevent overflow for 4*MEGA     GBM=1.0E-9*FLOAT(4*MEGA)
+      GBM=1.0E-9*FLOAT(MEGA)*4.
       CALL MEGSPC(NUSE)         ! unused
       NUSE=MEGA-NUSE            !   used  
-      UBM=1.0E-9*FLOAT(4*NUSE)  
+* GF 1/2009      UBM=1.0E-9*FLOAT(4*NUSE)  
+      UBM=1.0E-9*FLOAT(NUSE)*4.  
       WRITE(*,*) ' '
       WRITE(*,104) GBM,UBM,UBM/GBM*100.0
 
