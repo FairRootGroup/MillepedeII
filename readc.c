@@ -10,16 +10,27 @@
    goes through all files as if it were only one, in contrast to the 
    fortran READ used in routine PEREAD of pede.F.
 
-   written by Gero Flucke (gero.flucke@cern.ch),
-   last update on March 1st, 2007
+   if compiled with preprocessor macro USE_SHIFT_RFIO, uses libRFIO,
+   i.e. includes shift.h instead of stdio.h
+
+   written by Gero Flucke (gero.flucke@cern.ch) in 2006/7,
+   last update on July 14th, 2008
 */
 
+#ifdef USE_SHIFT_RFIO
+#include <shift.h>
+// or this??
+// // needed?#define _LARGEFILE64_SOURCE
+//#include <sys/types.h>
+//#include "rfio_api.h"
+#else
 #include <stdio.h>
+#endif
 #include "cfortran.h"
 
 /* ________ global variables used for file handling __________ */
 
-#define MAXNUMFILES 90
+#define MAXNUMFILES 490        /* should roughly match MFILES in mpinds.inc */
 FILE *files[MAXNUMFILES];      /* pointers to opened binary files */
 int fileReadOnce[MAXNUMFILES]; /* flag to printout record number once */
 unsigned int numAllFiles;      /* number of opened files */
@@ -116,7 +127,9 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
    size_t nCheckR = fread(&recordLength, sizeof(recordLength), 1,
  			 files[fileIndex]);
    while (feof(files[fileIndex])) {
-     rewind(files[fileIndex]);
+     /* rewind(files[fileIndex]);  Does not work with rfio, so call: */
+     fseek(files[fileIndex], 0L, SEEK_SET);
+     clearerr(files[fileIndex]); /* These two should be the same as rewind... */
      if (!fileReadOnce[fileIndex]) {
        printf("readC: %d. file read the first time, found %d records.\n",
 	      fileIndex+1, nRec);
