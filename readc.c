@@ -14,7 +14,8 @@
    i.e. includes shift.h instead of stdio.h
 
    written by Gero Flucke (gero.flucke@cern.ch) in 2006/7,
-   last update on July 14th, 2008
+   update on July 14th, 2008
+   last update on October 29th, 2008: return for file number in readC
 */
 
 #ifdef USE_SHIFT_RFIO
@@ -101,22 +102,25 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
 /*______________________________________________________________*/
 
  void readC(float *bufferFloat, int *bufferInt, int *lengthBuffers,
- 	       int *errorFlag)
+	    int *nFileOut, int *errorFlag)
 {
    /* No return value since to be called as subroutine from fortran,
       negative *errorFlag are errors, otherwise fine:
-      * -1: pointer to a buffer or to lengthBuffers are null
+      * -1: pointer to a buffer or lengthBuffers/nFileOut are null
       * -2: problem reading record length
       * -4: given buffers too short for record
       * -8: problem with stream or EOF reading floats
       *-16: problem with stream or EOF reading ints
       *  0: reached end of all files (or read empty record?!)
       * >0: number of words (floats + integers) read and stored in buffers
+      
+      *nFileOut: returns number of the file the record is read from,
+                 starting from 1 (not 0), but only if record read succesfully.
    */
    if (!errorFlag) return;
    *errorFlag = 0;
    if (fileIndex < 0) return; /* no file opened at all... */
-   if (!bufferFloat || !bufferInt || !lengthBuffers) {
+   if (!bufferFloat || !bufferInt || !lengthBuffers || !nFileOut) {
      *errorFlag = -1;
      return;
    }
@@ -184,5 +188,6 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
 
    ++nRec;
    *errorFlag = *lengthBuffers;
+   *nFileOut = fileIndex + 1; /* As output, starting from 1. */
  }
-FCALLSCSUB4(readC,READC,readc,PFLOAT,PINT,PINT,PINT)
+FCALLSCSUB5(readC,READC,readc,PFLOAT,PINT,PINT,PINT,PINT)

@@ -521,7 +521,8 @@ c       DQ(ISOLV/2+I)=-DQ(IGVEC/2+I) ! copy r.h.s. with sign change
       NOUT  =0       ! suppress printout
       ITNLIM=2000    ! iteration limit
       SHIFT =0.0D0   ! not used
-      RTOL  =1.0D-08 !   1.0D-04 ! 1.0D-3
+*GF      RTOL  = 1.0D-08 !   1.0D-04 ! 1.0D-3
+      RTOL = MRESTL ! from steering
       NVAR=NAGB
 
       IF(MBANDW.NE.0) THEN        ! solution with preconditioning
@@ -970,7 +971,9 @@ c      END DO
       NOUT  =0
       ITNLIM=10
       SHIFT =0.0D0
-      RTOL  =1.0D-3
+*GF      RTOL  =1.0D-3
+      RTOL  = MRESTL ! from steering
+
       NVAR=NAGB
       CALL MINRES(NVAR,DQ(IGVEC/2+1),
      +                 DQ(IDUX1/2+1),DQ(IDUX2/2+1),DQ(IDUX3/2+1),
@@ -1561,6 +1564,9 @@ c     +                LABEL,ITGBI,IVGB
       ISUBIT=0  ! subito flag
       WOLFC1=0.0! C_1 of strong Wolfe condition
       WOLFC2=0.0! C_2 of strong Wolfe condition 
+* GF add
+      MRESTL=1.0D-08            ! tolerance criterion for MINRES
+* GF add end
       NOFEAS=0  ! default for making par feasible
       NHISTP=0  ! no histogram printout
       DELFUN=0.0! expected function change
@@ -2231,6 +2237,23 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
             RETURN
          END IF
 
+* GF added:
+* convergence tolerance for minres:
+         KEYSTX='mrestol'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+            IF(NUMS.GT.0) THEN
+               IF (DNUM(1).LT.1.0D-08.OR.DNUM(1).GT.1.0D-04) THEN
+                  WRITE(*,*) 'ERROR: need 1.0D-08 <= MRESTL ',
+     +                 '<= 1.0D-04, but get ', DNUM(1)
+               ELSE
+                  MRESTL=DNUM(1)
+               ENDIF
+            ENDIF
+            RETURN
+         END IF
+* GF added end
+
          KEYSTX='nofeasiblestart'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
@@ -2627,7 +2650,8 @@ c         READ(LUN,END=10) N,(IBUFF(I),I=1,N)
       ELSE         ! C file
          NR=NDIMB
 #ifdef READ_C_FILES
-         CALL READC(GLDER,INDER,NR,IERRC)
+         NCFILE = 0 ! set to number of read file in next line
+         CALL READC(GLDER,INDER,NR,NCFILE,IERRC)
 #else
          IERRC=0
 #endif
@@ -2884,6 +2908,7 @@ c          IND=INTWO(IEXT,JEXT)       ! add pair to set of pairs
          IF(MQ(INDF-1).EQ.MQ(INDF)/2) THEN
             MQ(INDF-5)=MQ(INDF-5)+1      ! overflow
             WRITE(*,*) 'ovfl return with J=',J,MQ(INDF-1),MQ(INDF)/2
+            STOP 'Not enough memory, increase MEGA and recompile.'  ! GF
             GOTO 93
          END IF
          MQ(INDF-1)=MQ(INDF-1)+1         ! increase number of elements
@@ -3060,7 +3085,8 @@ c      WRITE(*,*) 'Number of records ',NREC
       ELSE IF(METSOL.EQ.2) THEN
          WRITE(LU,*) '     METSOL = 2:  diagonalization'
       ELSE IF(METSOL.EQ.3) THEN
-         WRITE(LU,*) '     METSOL = 3:  GMRES'
+*GF         WRITE(LU,*) '     METSOL = 3:  GMRES'
+         WRITE(LU,*) '     METSOL = 3:  GMRES (rtol', MRESTL,')'
       ELSE IF(METSOL.EQ.4) THEN
          WRITE(LU,*) '     METSOL = 4:  limited memory BFGS'
       ELSE IF(METSOL.EQ.5) THEN
@@ -3543,10 +3569,12 @@ C         WRITE(8,113)
      +      STEPL,       NREJEC,NHOUR,MINUT,SECND  
       END IF
 
- 112  FORMAT(I3,I3,F14.2,2(1X,F8.2),I3,F6.2,F5.1,
+*GF  112  FORMAT(I3,I3,F14.2,2(1X,F8.2),I3,F6.2,F5.1,
+ 112  FORMAT(I3,I3,F14.2,2(1X,E8.2),I3,F6.2,F5.1,
      +       1X,I2,I4,I5,1X,I2,I2,F6.2)
 
- 114  FORMAT(3X,I3,F14.2,10X,F8.2,3X,F6.2,5X,
+*GF 114  FORMAT(3X,I3,F14.2,10X,F9.1,3X,F6.2,5X,
+ 114  FORMAT(3X,I3,F14.2,10X,E8.2,3X,F6.2,5X,
      +       1X,I2,I4,I5,1X,I2,I2,F6.2)
 
 c      IF(CVALUE.NE.0.0D0) WRITE(*,102) CVALUE
@@ -4460,6 +4488,7 @@ c            CALL PRTONE
          IF(MQ(INDF-1).EQ.MQ(INDF)/2) THEN
             MQ(INDF-5)=MQ(INDF-5)+1      ! overflow
             WRITE(*,*) 'ovfl return with J=',J,MQ(INDF-1),MQ(INDF)/2
+            STOP 'Not enough memory, increase MEGA and recompile.'  ! GF
             RETURN
          END IF
          MQ(INDF-1)=MQ(INDF-1)+1         ! increase number of elements

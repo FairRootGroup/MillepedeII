@@ -31,6 +31,7 @@
       COMMON/MPFILE/IFILE,NFILES,NFILB,NFILC,MFD,LFD,TFD,NFD
 
       LOGICAL RECPRI,NEWITE
+      DOUBLE PRECISION MRESTL
       COMMON/MPSTER/NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
      +              METSOL,MATSTO,MPRINT,MDEBUG,MREQEN,INTRAC,
      +              MITERA,MBANDW,ICTEST,NAEQN,NREC,NLOOPN,
@@ -39,7 +40,8 @@
      +              ITERAT,NTERAT,TIMES(0:6),GBM,UBM,STEPL,
      +              NRECPR,NRECP2,NREC1,NREC2,VALUE1,VALUE2,
      +              RECPRI,NEWITE,TA(2),DWCUT,ISUBIT,NHISTP,
-     +              WOLFC1,WOLFC2,NOFEAS,DELFUN,ACTFUN,ANGRAS   
+*GF     +              WOLFC1,WOLFC2,NOFEAS,DELFUN,ACTFUN,ANGRAS   
+     +              WOLFC1,WOLFC2,MRESTL,NOFEAS,DELFUN,ACTFUN,ANGRAS   
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
 *     NAGB  = number of fit parameters (incl. Lagrange multiplier)
@@ -54,6 +56,7 @@
 *     LHUBER= flag for Huber outlier down-weighting  
 *     CHICUT= rejection in first iteration
 *     CHIREM= rejection after first iteration
+*     CHHUGE= 'huge' rejection always applied (GF)
 *     DFLIM = delta F limit for convergence
 *     NREJEC(3) = counter for rejected cases
 *     ITERAT= iteration in solution
@@ -81,6 +84,7 @@
 *     WOLFC2 = C_2 constant of strong Wolfe condition
 *              default = 0.9 for Newton and quasi Newton
 *              default = 0.1 for nonlinear CG
+*     MRESTL = tolerance criterion for MINRES (default 10^-8) (GF)
 *     NOFEAS = do not make par feasible at start, if ne zero
 *     DELFUN = expected function change for search step
 *     ACTFUN = actual function change 
