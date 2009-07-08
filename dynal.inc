@@ -1,5 +1,8 @@
 
-      PARAMETER       (MEGA=100 000 000) ! 100 mio words
+       PARAMETER       (MEGA=NUMBER_OF_WORDS) ! make preprocessor decide
+*      PARAMETER       (MEGA=100 000 000) ! 100 mio words: 400 MB
+*         Following needs 64 bit and compiler option -mcmodel=medium:
+*      PARAMETER       (MEGA=1 000 000 000) ! 1000 mio words: 4 GB 
 *                           -----------
       COMMON/COMEGA/MQ(MEGA)
       REAL          QM(MEGA)
