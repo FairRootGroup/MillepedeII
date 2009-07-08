@@ -22,17 +22,16 @@ NUMBER_OF_WORDS = 100000000 # =400 MB
 #
 #
 FCOMP = gcc
-F_FLAGS = -pg -Wall -fno-automatic -fno-backslash -O3 ${LARGE_MEMORY_OPT}
-# Blobel:  -Wunused -fno-automatic -fno-backslash  -O3
+F_FLAGS = -Wall -fno-automatic -fno-backslash -O3 ${LARGE_MEMORY_OPT}
 #
 CCOMP = gcc 
-C_FLAGS = -pg -Wall -O3 -Df2cFortran ${LARGE_MEMORY_OPT}
+C_FLAGS = -Wall -O3 -Df2cFortran ${LARGE_MEMORY_OPT}
 C_INCLUDEDIRS =  # e.g. -I .
 C_LIBS = -lg2c -lfrtbegin
 DEBUG =          # e.g. -g
 #
 LOADER = gcc
-L_FLAGS = -pg -Wall -O3 ${LARGE_MEMORY_OPT}
+L_FLAGS = -Wall -O3 ${LARGE_MEMORY_OPT}
 #
 # objects for this project
 #
