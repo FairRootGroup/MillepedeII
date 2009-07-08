@@ -595,7 +595,7 @@ c       DQ(ISOLV/2+I)=-DQ(IGVEC/2+I) ! copy r.h.s. with sign change
       CONCUT=1.0E-8  ! cut for constraint check
       IF(NOFEAS.NE.0.AND.IACT.NE.0) THEN
          NOFEAS=0
-         WRITE(*,*) ''
+         WRITE(*,*) ! '' GF: removed empty string, problems with gfortran 64-bit
       ELSE IF(IACT.NE.0) THEN
          WRITE(*,*) 'Step is made feasible'
       END IF
@@ -778,7 +778,11 @@ c      RETURN ! error
 
       NVAR=NAGB
       DO I=1,NVAR      ! used in FEASIB
-       DQ(IDUX1/2+I)=DQ(IGMAT/2+(I*I+I)/2) ! save diagonal elements
+*       DQ(IDUX1/2+I)=DQ(IGMAT/2+(I*I+I)/2) ! save diagonal elements
+*     GF: avoid/postpone integer overflow for I*I:
+         INDTMP = I/2*(I+1)                    ! if I is even
+         IF (MOD(I,2).NE.0) INDTMP = (I+1)/2*I ! if I is odd
+         DQ(IDUX1/2+I)=DQ(IGMAT/2+INDTMP) ! save diagonal elements
       END DO
 
 *     IDUX1 = original diagonal elements
@@ -2897,6 +2901,8 @@ c          IND=INTWO(IEXT,JEXT)       ! add pair to set of pairs
       ITEM2=MIN(IEXT,JEXT)
       IND=0
       IF(ITEM1.EQ.ITEM2.OR.ITEM2.LE.0) GOTO 93 ! skip for illegal values
+*GF: critical integer multiplication (as Prof. Blobel says),
+*    see also original INTWO implementation below:
  91   J=1+MOD(ITEM2+(MOD(ITEM1,MQ(INDF-4))*ITEM1-ITEM2)/2,MQ(INDF-4))
      +   +MQ(INDF)/2
  92   K=J
@@ -3029,7 +3035,9 @@ Cno               MQ(IND8+I+1)=ITGBI      !!! label -> total parameter index
       CALL MEGRM('g') ! remove hash pointer
 c      WRITE(*,*) 'Number of records ',NREC
 
-      NOFF=(NAGB*NAGB-NAGB)/2
+* GF      NOFF=(NAGB*NAGB-NAGB)/2
+      NOFF=NAGB/2*(NAGB-1)  ! avoid/postpone integer overflow, but...
+      IF (MOD(NAGB,2).NE.0) NOFF=(NAGB-1)/2*NAGB ! ...correct above for odd NAGB
       NDGN=0
       IF(MATSTO.EQ.2) NDGN=MQ(INDF-1) ! actual number of off-diagonal elements
       NAGBN=MQ(INDC-1) ! max number of global parameters in one event 
@@ -3240,7 +3248,7 @@ c            GOTO 32  ! this would use the maximum band width
       IF(MATSTO.EQ.4.OR.MBANDW.NE.0) THEN      ! block diagonal 
           CALL MEGARR('u I',NAGB,'pointer-array variable-band matrix')
           DO I=1,MIN(MBANDW,NVGB)
-           MQ(INDU+I)=(I*I+I)/2             ! increasing number
+           MQ(INDU+I)=(I*I+I)/2             ! increasing number - non critical multiplication
           END DO  
           DO I=MIN(MBANDW,NVGB)+1,NVGB 
            MQ(INDU+I)=MQ(INDU+I-1)+MBANDW   ! fixed band width
@@ -3571,13 +3579,11 @@ C         WRITE(8,113)
      +      STEPL,       NREJEC,NHOUR,MINUT,SECND  
       END IF
 
-*GF  112  FORMAT(I3,I3,F14.2,2(1X,F8.2),I3,F6.2,F5.1,
  112  FORMAT(I3,I3,F14.2,2(1X,E8.2),I3,F6.2,F5.1,
-     +       1X,I2,I4,I5,1X,I2,I2,F6.2)
+     +       1X,I2,1X,I8,1X,I8,1X,I2,I2,F6.2)
 
-*GF 114  FORMAT(3X,I3,F14.2,10X,F9.1,3X,F6.2,5X,
  114  FORMAT(3X,I3,F14.2,10X,E8.2,3X,F6.2,5X,
-     +       1X,I2,I4,I5,1X,I2,I2,F6.2)
+     +       1X,I2,1X,I8,1X,I8,1X,I2,I2,F6.2)
 
 c      IF(CVALUE.NE.0.0D0) WRITE(*,102) CVALUE
 
@@ -3645,7 +3651,7 @@ c            WRITE(*,*) 'Maximum Chi^2/Ndf',VALUE2,' in record',NREC2
  103  FORMAT(I13,3X,A,G12.4)  
  104  FORMAT(I6,F20.4)
  111  FORMAT(' it fc',5X,'fcn_value   dfc_ex   dfc_ac dg  step cutf',
-     +       1X,' ___rejects  hmm secnd')  
+     +       1X,' _',1X,'____huge',1X,'___large  hmm secnd')  
 
  113  FORMAT(21X,'fcn_value    constr  step  cutf',
      +        1X,' rejects___        sec')   
@@ -3727,7 +3733,7 @@ c            WRITE(*,*) 'Maximum Chi^2/Ndf',VALUE2,' in record',NREC2
  09   DO I=1,NALC
        BLVEC(I)=0.0D0                  ! reset vector
       END DO
-      DO I=1,(NALC*NALC+NALC)/2
+      DO I=1,(NALC*NALC+NALC)/2 ! non-critical multiplication (local parameter number...)
        CLMAT(I)=0.0D0                  ! reset matrix  
       END DO
       NEQ=0
@@ -4063,7 +4069,7 @@ c         WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
 
       IJ=0
       IF(MATSTO.EQ.1) THEN                  ! full symmetric matrix
-         IJ=JA+(IA*IA-IA)/2                 ! ISYM index
+         IJ=JA+(IA*IA-IA)/2                 ! ISYM index 
          DQ(IGMAT/2+IJ)=DQ(IGMAT/2+IJ)+ADD
       ELSE IF(MATSTO.EQ.2) THEN             ! sparse symmetric matrix 
 
@@ -4144,7 +4150,7 @@ C        IJ=IJBAND(I,J)
        IF(IVGBI.GT.0) THEN
           DPA=PAR-QM(IND2+ITGBI)       ! difference
           IF(METSOL.EQ.1) THEN
-             II=(IVGBI*IVGBI+IVGBI)/2
+             II=(IVGBI*IVGBI+IVGBI)/2 ! GF: FIXME - not really since inversion is anyway overflow
              GMATI=DQ(IGMAT/2+II)
              ERR=SQRT(ABS(GMATI))
              IF(GMATI.LT.0.0D0) ERR=-ERR
@@ -4220,7 +4226,7 @@ C        IJ=IJBAND(I,J)
 c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
           WRITE(*,*) 'Eigenvector ',I,' with eigenvalue',DQ(IDUX6/2+I)
           WRITE(LUP,*) 'Eigenvector ',I,' with eigenvalue',DQ(IDUX6/2+I) 
-          DO J=1,NAGB
+          DO J=1,NAGB ! GF: possible integer overflow for NAGB > 46340
            IJ=INDT/2+J+(I-1)*NAGB      ! index with eigenvector array
            IF(J.LE.NVGB) THEN
               ITGBI=JTGBI(J)
@@ -4476,7 +4482,8 @@ c            CALL PRTONE
       END IF
       IF(ITEM1.EQ.ITEM2)           RETURN ! no diagonal elements
       NC1=NC1+1 !!!!!!!!!
-
+*GF: critical integer multiplication (as Prof. Blobel says),
+*    see also where INTWO is inlined around line 2900:
  10   J=1+MOD(ITEM2+(MOD(ITEM1,MQ(INDF-4))*ITEM1-ITEM2)/2,MQ(INDF-4))
      +   +MQ(INDF)/2
 
@@ -4800,7 +4807,7 @@ c 90   CALL VABSLV(NVGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
 #include "dynal.inc"
       SAVE
 #include "mpinds.inc"
-      DOUBLE PRECISION DB,DB1,DB2
+      DOUBLE PRECISION DB,DB1,DB2,DBDOT
 *     ... 
       DB=-DBDOT(NVGB,DQ(ISOLV/2+1),DQ(IGVEC/2+1))
       DB1=DBDOT(NVGB,DQ(ISOLV/2+1),DQ(ISOLV/2+1))
