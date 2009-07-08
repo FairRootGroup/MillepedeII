@@ -486,6 +486,7 @@ c      WRITE(*,*) J,' resulting limits XA XB ',XA,XB
       LOGICAL START
       SAVE
       DATA START/.TRUE./,LUN/7/
+      DATA NSTR/NUMGXY*0/   ! by GF
 *     ...
       IF(START) THEN
          START=.FALSE.
@@ -505,6 +506,7 @@ c      WRITE(*,*) J,' resulting limits XA XB ',XA,XB
       ELSE
          LVERS(IG)=LVERS(IG)+1
       END IF
+      NSTR(IG)=1 ! by GF
 *        remove stored elements
          IF(JFLC(1,IG).NE.0) CALL STMARM(JFLC(1,IG))
          IF(KFLC(1,IG).NE.0) CALL STMARM(KFLC(1,IG))
