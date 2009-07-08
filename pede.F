@@ -998,7 +998,22 @@ c     $                   ISTOP, ITN, Anorm, Acond, rnorm, ynorm )
       END IF
       DIAG=DQ(IGMAT/2+JK)
       IF(GMATI*DIAG.GT.0.0) THEN   ! global correlation
-         GCOR=SQRT(ABS(1.0-1.0/(GMATI*DIAG)))
+* GF                GCOR=SQRT(ABS(1.0-1.0/(GMATI*DIAG)))
+* GF                 why abs??? cf. http://rkb.home.cern.ch/rkb/AN16pp/node40.html#39
+* GF start...
+         GCOR=(1.0-1.0/(GMATI*DIAG))
+         IF(GCOR.LT.0.0) THEN
+            WRITE(*,*) 'ERROR: global correlation^2 = ',GCOR,' set -2.'
+            GCOR=-2.0
+         ELSE 
+            GCOR=SQRT(GCOR)
+            IF(GCOR.GT.1.0) THEN
+               WRITE(*,*) 'ERROR: global correlation = ',
+     +              GCOR,', set -1.'
+               GCOR=-1.0
+            END IF
+         END IF
+* GF end...
       END IF
       WRITE(*,102) ITGBL,PAR,QM(IND1+ITGBI),DPA,ERR,GCOR
  101  FORMAT(1X,'    label    parameter  presigma     differ',
@@ -1508,7 +1523,8 @@ c     +                LABEL,ITGBI,IVGB
 *     open all binary files
 
 
-      CHARACTER*256 TEXT,FILNAM 
+* GF      CHARACTER*256 TEXT,FILNAM 
+      CHARACTER*512 TEXT,FILNAM 
 #include "dynal.inc"
       CHARACTER*14 BITE(3)
       CHARACTER*32 KEYSTX
@@ -1532,6 +1548,9 @@ c     +                LABEL,ITGBI,IVGB
       LHUBER=0  ! Huber down-weighting flag 
       CHICUT=0  ! cut in terms of 3-sigma cut, first iteration
       CHIREM=0  ! cut in terms of 3-sigma cut, other iterations
+* GF add
+      CHHUGE=50.0 ! cut in terms of 3-sigma for unreasonable data, all iterations
+* GF add end
       NRECPR=0  ! record number with printout
       NRECP2=0  ! record number with printout
       NREC1 =0  ! record number with largest residual
@@ -1642,18 +1661,18 @@ c     +                LABEL,ITGBI,IVGB
       END IF
 
       KEYSTX='fortranfiles'
-      MAT=MATINT(TEXT(IA:IB),KEYSTX,NPAT,NTEXT)
-      IF(MAT.GE.NTEXT-NTEXT/10) THEN
-c      IF (TEXT(IA:IB).EQ.KEYSTX) THEN ! exact comparison by GF
+cGF      MAT=MATINT(TEXT(IA:IB),KEYSTX,NPAT,NTEXT)
+cGF      IF(MAT.GE.NTEXT-NTEXT/10) THEN
+      IF (TEXT(IA:IB).EQ.KEYSTX) THEN ! exact comparison by GF
          NUF=3
 c         WRITE(*,*) 'Fortran files'
          GOTO 10   
       END IF
 
       KEYSTX='Cfiles'
-      MAT=MATINT(TEXT(IA:IB),KEYSTX,NPAT,NTEXT)
-      IF(MAT.GE.NTEXT-NTEXT/10) THEN 
-c      IF (TEXT(IA:IB).EQ.KEYSTX) THEN ! exact comparison by GF
+cGF      MAT=MATINT(TEXT(IA:IB),KEYSTX,NPAT,NTEXT)
+cGF      IF(MAT.GE.NTEXT-NTEXT/10) THEN 
+      IF (TEXT(IA:IB).EQ.KEYSTX) THEN ! exact comparison by GF
          NUF=1
 c         WRITE(*,*) 'Cfiles'
          GOTO 10
@@ -1723,13 +1742,17 @@ c         STOP
           WRITE(*,*) 'Opening C file ',NFILC+1, ': ',TFD(I)(1:LFD(I)) ! by GF
           CALL OPENC(TFD(I)(1:LFD(I)),IOS)
           IF(IOS.NE.0) THEN
-             WRITE(*,*) 'Open error for file ',TFD(I)(1:LFD(I))
+*GF             WRITE(*,*) 'Open error for file ',TFD(I)(1:LFD(I))
+             WRITE(*,*) 'Open error ',IOS,' for file ',TFD(I)(1:LFD(I))
              IOSUM=IOSUM+1 ! typo fixed by GF
           ELSE 
              NFILC=NFILC+1
           END IF 
 #else
           WRITE(*,*) 'Opening of C-files not supported.'
+* GF add
+          IOSUM=IOSUM+1
+* GF add end
 #endif
        END IF
       END DO
@@ -2000,9 +2023,19 @@ c      END IF
       SAVE
 *     ...
       NUFILE=0
-      INQUIRE(FILE=FILNAM,IOSTAT=IOS,EXIST=EX)
-      IF(IOS.NE.0) NUFILE=-ABS(IOS)
-      IF(IOS.NE.0) RETURN
+* GF avoid INQUIRE on rfio files (will fail) and assume them to be binary
+      IF(FILNAM(1:5).EQ.'rfio:') THEN
+         LL=LEN(FILNAM) 
+         FILNAM=FILNAM(6:LL)
+         EX=.TRUE.
+         NUFILE=1
+         RETURN
+      ELSE
+* GF end avoid...
+         INQUIRE(FILE=FILNAM,IOSTAT=IOS,EXIST=EX)
+         IF(IOS.NE.0) NUFILE=-ABS(IOS)
+         IF(IOS.NE.0) RETURN
+      END IF ! GF
       IF(EX) THEN
          NUFILE=1                                   ! binary
          LL=LEN(FILNAM) 
@@ -2084,7 +2117,8 @@ C         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN          
 c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             MDEBUG=1
-            IF(NUMS.GT.0) MPRINT=DNUM(1)
+* GF            IF(NUMS.GT.0) MPRINT=DNUM(1)
+            IF(NUMS.GT.0) MDEBUG=DNUM(1)
             RETURN
          END IF
 
@@ -2124,6 +2158,16 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             END IF
             RETURN
          END IF
+
+* GF added:
+         KEYSTX='hugecut'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN          
+            IF(NUMS.GT.0) CHHUGE=DNUM(1)
+            IF(CHHUGE.LT.1.0) CHHUGE=1.0 ! at least (!!) 3-sigma
+            RETURN
+         END IF
+* GF added end
 
          KEYSTX='bandwidth'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
@@ -3833,7 +3877,8 @@ c            NREJEC(3)=NREJEC(3)+1      ! count cases with large chi^2
 c            RETURN
 c         END IF
       CHICHI=CHINDL(3,NDF)*FLOAT(NDF)
-      IF(SUMM.GT.50.0*CHICHI) THEN ! huge 
+* GF      IF(SUMM.GT.50.0*CHICHI) THEN ! huge 
+      IF(SUMM.GT.CHHUGE*CHICHI) THEN ! huge 
           NREJEC(2)=NREJEC(2)+1    ! count cases with huge chi^2
           IF(RECPRI) THEN
                WRITE(1,*) '   ---> rejected!'
@@ -4076,8 +4121,24 @@ C        IJ=IJBAND(I,J)
              GCOR=0.0
              DIAG=DQ(IDUX1/2+IVGBI)
              IF(GMATI*DIAG.GT.0.0) THEN   ! global correlation
-                GCOR=SQRT(ABS(1.0-1.0/(GMATI*DIAG)))
-                IF(GCOR.LT.0.0.OR.GCOR.GT.1.0) GCOR=-1.0
+* GF                GCOR=SQRT(ABS(1.0-1.0/(GMATI*DIAG)))
+* GF                 why abs??? cf. http://rkb.home.cern.ch/rkb/AN16pp/node40.html#39
+* GF                IF(GCOR.LT.0.0.OR.GCOR.GT.1.0) GCOR=-1.0
+* GF start...
+                GCOR=(1.0-1.0/(GMATI*DIAG))
+                IF(GCOR.LT.0.0) THEN
+                   WRITE(*,*) 'ERROR: global correlation^2 = ',
+     +                  GCOR, ' set -2.'
+                   GCOR=-2.0
+                ELSE 
+                   GCOR=SQRT(GCOR)
+                   IF(GCOR.GT.1.0) THEN
+                      WRITE(*,*) 'ERROR: global correlation = ',
+     +                     GCOR,', set -1.'
+                      GCOR=-1.0
+                   END IF
+                END IF
+* GF end...
              END IF
           END IF
        END IF
