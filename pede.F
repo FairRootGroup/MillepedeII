@@ -130,7 +130,7 @@ c       END IF
          WRITE(*,*) 'Misalignment test'
          WRITE(*,*) ' '
 
-         CALL HMPDEF( 9,-0.0015,+0.0015,'True - fitted displacement')           
+         CALL HMPDEF( 9,-0.0015,+0.0015,'True - fitted displacement')
          CALL HMPDEF(10,-0.0015,+0.0015,'True - fitted Vdrift')
          DO I=1,4
           SUMS(I)=0.0D0
@@ -844,7 +844,7 @@ c         WRITE(*,111) ! header line
             GOTO 25
          END IF
  121     FORMAT(/'Measured value and local derivatives'/
-     +   '  i measured std_dev  index...derivative ...')                     
+     +   '  i measured std_dev  index...derivative ...')
  122     FORMAT(I3,2G12.4,3(I3,G12.4)/(27X,3(I3,G12.4)))
 
          IMEAS=0              ! global derivatives
@@ -1055,9 +1055,9 @@ c         IF(NHISTP.NE.0) CALL HMPRNT(5) ! number of degrees of freedom
 
       LASTIT=ITERAT
 
- 101  FORMAT(' LOOPN',I6,' Function value',F22.8,10X,I6,' records') 
- 102  FORMAT('   incl. constraint penalty',F22.8) 
- 103  FORMAT(I13,3X,A,G12.4)  
+c 101  FORMAT(' LOOPN',I6,' Function value',F22.8,10X,I6,' records') 
+c 102  FORMAT('   incl. constraint penalty',F22.8) 
+c 103  FORMAT(I13,3X,A,G12.4)  
       END 
 
 
@@ -1337,7 +1337,7 @@ c         IF(NHISTP.NE.0) CALL HMPRNT(5) ! number of degrees of freedom
 *     ----- second loop ------------------------------------------------
 *     accumulate normal equations for local fit and determine solution
 
- 09   DO I=1,NALC
+      DO I=1,NALC
        BLVEC(I)=0.0D0                  ! reset vector
       END DO
       DO I=1,(NALC*NALC+NALC)/2 ! GF: FIXME - not really, local parameter number...
@@ -2417,7 +2417,7 @@ c          WRITE(*,111) I,ITGBL,QM(IND1+I),QM(IND6+IVGBI)
 c          WRITE(*,111) I,ITGBL,QM(IND1+I)
        END IF  
       END DO
- 111  FORMAT(I5,I10,F10.5,E12.4)       
+c 111  FORMAT(I5,I10,F10.5,E12.4)       
          WRITE(*,101) 'NTGB',NTGB,'total number of parameters'
          WRITE(*,101) 'NVGB',NVGB,'number of variable parameters'
 
@@ -2552,7 +2552,7 @@ c      IF(NREC.LE.100001) WRITE(*,*) 'Record ',NREC
  108        FORMAT(3I11,G12.4)
             IF(NDA.EQ.1) THEN
                WRITE(*,*)
-     +         'total_par_label  __label__   var_par_index   derivative' 
+     +         'total_par_label  __label__   var_par_index   derivative'
             END IF
             GOTO 12
          END IF
@@ -2771,8 +2771,8 @@ c         GOTO 15
 c         FRUSE=FLOAT(MQ(INDF-1))/FLOAT(NOFF)
 c         WRITE(LU,123) 100.0*FRUSE
       END IF 
- 123  FORMAT(' Fraction of non-zero off-diagonal elements is',
-     +       F6.1,' %')
+c 123  FORMAT(' Fraction of non-zero off-diagonal elements is',
+c     +       F6.1,' %')
 
 *     print information about methods and matrix storage modes 
         
@@ -2883,7 +2883,7 @@ c      END IF
  102  FORMAT(22X,A)
  103  FORMAT(1X,A,G12.4)
  104  FORMAT(' Memory space: total',F13.6,' GB'/
-     +       '                used',F13.6,' GB = ',F7.2,' %')             
+     +       '                used',F13.6,' GB = ',F7.2,' %')
  106  FORMAT(I6,2(3X,F9.3,F12.1,3X))
       END 
 
@@ -3729,7 +3729,7 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
       CALL PRTGLO              ! print result
 
  102  FORMAT(' Call FEASIB with cut=',G10.3)
- 103  FORMAT(1X,A,G12.4)
+c 103  FORMAT(1X,A,G12.4)
       END 
 
 
@@ -3860,7 +3860,7 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
          IF(NU.GT.0) THEN
             FILNAM=TEXT
          ELSE
-            STOP 'in FILETC: no steering file.                      .'                   
+            STOP 'in FILETC: no steering file.                      .'
          END IF
       END IF
 
@@ -4130,7 +4130,8 @@ c       WRITE(*,*) TEXT(1:40),'  < interprete text'
  50    WRITE(*,*) ' ' 
        REWIND 10
        CLOSE(UNIT=10)
- 80   END DO
+      END DO
+ 80   CONTINUE
 
       IF(IOSUM.NE.0) THEN
          STOP 'FILETX: open error(s) in text files                     '
@@ -4157,7 +4158,7 @@ c       WRITE(*,*) TEXT(1:40),'  < interprete text'
 
 *     check methods
 
- 90   IF(METSOL.EQ.0) THEN        ! if undefined
+      IF(METSOL.EQ.0) THEN        ! if undefined
          IF(MATSTO.EQ.0) THEN     ! if undefined
 c            METSOL=1 ! default is matrix inversion 
 c            MATSTO=1 ! default is symmetric matrix
@@ -4554,11 +4555,11 @@ c         IF(MAT.GE.(NPAT-NPAT/5)) THEN
          IF(NUMS.NE.0) NKEY=0   
 
          WRITE(*,*) ' '
-         WRITE(*,*) '**************************************************' 
+         WRITE(*,*) '**************************************************'
          WRITE(*,*) ' '
          WRITE(*,*) 'Unknown keyword(s): ',TEXT(1:MIN(NAB,50))
          WRITE(*,*) ' '
-         WRITE(*,*) '**************************************************' 
+         WRITE(*,*) '**************************************************'
          WRITE(*,*) ' '
          LUNKNO=LUNKNO+1
 
@@ -4900,7 +4901,7 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
       WRITE(*,*) 'SPBITS: dimension parameter of matrix',NSPARS(1)-2
       WRITE(*,*) 'SPBITS: index of last used location',NSPARS(N+1)-1 
 c      WRITE(*,101) (NSPARS(I),I=1,K)
- 101  FORMAT(10I6)  
+c 101  FORMAT(10I6)  
       END
 
  

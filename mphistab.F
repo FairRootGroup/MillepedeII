@@ -452,7 +452,8 @@ c      WRITE(*,*) J,' resulting limits XA XB ',XA,XB
           WRITE(LUN,107) (LIST(I),I=IA,IB)
        END IF
        GOTO 10 
- 20   END DO
+      END DO
+ 20   CONTINUE
  101  FORMAT(36I2)
  102  FORMAT(24I3)
  103  FORMAT(18I4)
@@ -750,12 +751,12 @@ C      WRITE(*,*) 'GMPMS ',IG,X,Y
        END IF
       END DO
  102  FORMAT(I12,4G15.7)
- 103  FORMAT('       Index    ___X___       ___Y___     '/   
-     +       '       ----- -------------- --------------')
- 104  FORMAT('       Index    ___X___       ___Y___     ',
-     +                   '    ___DX__       ___DY__     '/    
-     +       '       ----- -------------- --------------',
-     +                   ' -------------- --------------')    
+c 103  FORMAT('       Index    ___X___       ___Y___     '/   
+c     +       '       ----- -------------- --------------')
+c 104  FORMAT('       Index    ___X___       ___Y___     ',
+c     +                   '    ___DX__       ___DY__     '/    
+c     +       '       ----- -------------- --------------',
+c     +                   ' -------------- --------------')    
  201  FORMAT('XY-Data ',I4,10X,'version ',I4,10X,'type',I2)
  203  FORMAT(10X,'stored  not-stored ',2I10)
  204  FORMAT(A)

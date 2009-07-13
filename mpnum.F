@@ -640,13 +640,13 @@ c       WRITE(*,*) 'nach I=',I,'  ',(G((L*L+L)/2),L=1,N)
      +          -VAL(ILPTR(K)-K+I)*VAL(ILPTR(I))*VAL(ILPTR(J)-J+I)
 
 c         WRITE(*,101)  'K J I  KJ KI II JI',K,J,I, K,J, I,I, J,I 
- 101     FORMAT(A,3I4,3(3X,2I4))
+c 101     FORMAT(A,3I4,3(3X,2I4))
         END DO ! 
 
         THETA=MAX(THETA,ABS(VAL(KJ)))  ! maximum value of row
 
 c        WRITE(*,*) '                           K J JJ         ',K,J, J,J 
- 102    FORMAT(A,2I4,3X,2I4)
+c 102    FORMAT(A,2I4,3X,2I4)
         IF(J.NE.K) THEN
            IF(VAL(ILPTR(J)).NE.0.0D0) THEN
               VAL(KJ)=VAL(KJ)/VAL(ILPTR(J))
@@ -687,7 +687,7 @@ c        WRITE(*,*) 'K old new ',OLD,VAL(ILPTR(K))
       DO K=1,N
        IF(VAL(ILPTR(K)).GT.VAL(ILPTR(KS))) KS=K
        IF(VAL(ILPTR(K)).LT.VAL(ILPTR(KR))) KR=K
-       IF(VAL(ILPTR(K)).GT.0.0.AND.VAL(ILPTR(K)).LT.VAL(ILPTR(KP))) KP=K 
+       IF(VAL(ILPTR(K)).GT.0.0.AND.VAL(ILPTR(K)).LT.VAL(ILPTR(KP))) KP=K
       END DO
       WRITE(*,*) '   Index value ',KS,VAL(ILPTR(KS))
       WRITE(*,*) '   Index value ',KP,VAL(ILPTR(KP))
@@ -913,7 +913,8 @@ c       X(K)=X(K)/VAL(ILPTR(K))            ! X_k := X_k/D_kk
        END DO
       END DO
       WRITE(LUN,104)
-  100 RETURN
+c  100 RETURN
+      RETURN
   101 FORMAT(9X,'Param',7X,'error',7X,'correlation coefficients'/)
   102 FORMAT(1X,I5,2G12.4,1X,15I5)
   103 FORMAT(31X,15I5)

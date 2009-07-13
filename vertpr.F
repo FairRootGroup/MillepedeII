@@ -113,8 +113,8 @@
        WRITE(*,*)  PX(J)(1:LC)       ! print
 C       WRITE(*,101)  PX(J)(1:LC)       ! print
       END DO
-  100 RETURN
-  101 FORMAT(A)
+      RETURN
+C  101 FORMAT(A)
       END
 
 

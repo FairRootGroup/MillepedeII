@@ -228,7 +228,7 @@ c      END DO
       WRITE(*,*) NRECDS,' records written.' 
       WRITE(*,*) ' '
  101  FORMAT(A)
- 102  FORMAT(I6,2F10.5)
+c 102  FORMAT(I6,2F10.5)
  103  FORMAT(I8,F10.5)
       END
 
@@ -301,7 +301,7 @@ c     +       SGM(I),YHITS(NHITS),GR,DEL(I)
           END IF
        END IF
   10  END DO 
- 101  FORMAT(2I3,F5.0,7F8.4)
+c 101  FORMAT(2I3,F5.0,7F8.4)
       END
 
 
