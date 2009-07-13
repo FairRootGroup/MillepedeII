@@ -300,7 +300,8 @@ c             WRITE(*,101) NHITS,I,X,YLIN,YBIAS,YMEAS,
 c     +       SGM(I),YHITS(NHITS),GR,DEL(I)
           END IF
        END IF
-  10  END DO 
+      END DO 
+ 10   CONTINUE
 c 101  FORMAT(2I3,F5.0,7F8.4)
       END
 
