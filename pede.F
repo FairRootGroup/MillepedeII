@@ -214,9 +214,9 @@ c       END IF
       CALL EXPLFC(8)
 
       WRITE(*,*) ' '
-      WRITE(*,*) '  <  Millepede II ending with exit code',ITEXIT,' >'
+      WRITE(*,*) '  <  Millepede II ending.' ! with exit code',ITEXIT,' >'
       WRITE(*,*) ' '
-      CALL EXIT(ITEXIT)
+C      CALL EXIT(ITEXIT)
 
 
 
@@ -728,6 +728,9 @@ c      NR=NR-1
 
       IF(NLOOPN.EQ.1) THEN      ! book histograms for 1. iteration
          CALL GMPDEF(1,4,'Function value in iterations') 
+         IF (METSOL.EQ.3) THEN ! extend to GMRES, i.e. 4?
+            CALL GMPDEF(2,3,'Number of MINRES steps vs iteration nr')
+         END IF
          CALL HMPDEF(5,0.0,0.0,'Number of degrees of freedom')
          CALL HMPDEF(13,0.0,0.0,
      +   'SQRT of diagonal elements without presigma')
@@ -1161,9 +1164,9 @@ c 103  FORMAT(I13,3X,A,G12.4)
         WRITE(LUNIT,101) 'costh',
      + 'cosine of angle between search direction and -gradient'
        WRITE(LUNIT,101) 'iit',
-     + 'number of internal iterations in GMRES algorithmus'
+     + 'number of internal iterations in GMRES/MINRES algorithmus'
        WRITE(LUNIT,101) 'st',
-     + 'stop code of GMRES algorithmus'
+     + 'stop code of GMRES/MINRES algorithmus'
        WRITE(LUNIT,102)
      + '< 0:   rhs is very special, with beta2 = 0'
        WRITE(LUNIT,102)
@@ -1270,7 +1273,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
 #include "dynal.inc"
 *     
 *     arrays for local fit
-      PARAMETER (MLOCAL=32) ! local arrays for local parameters
+      PARAMETER (MLOCAL=200) ! local arrays for local parameters
       PARAMETER (MLMSYM=(MLOCAL*MLOCAL+MLOCAL)/2)
       DOUBLE PRECISION BLVEC(MLOCAL),CLMAT(MLMSYM),SCDIAG(MLOCAL)
       INTEGER SCFLAG(MLOCAL)
@@ -1284,7 +1287,11 @@ c 103  FORMAT(I13,3X,A,G12.4)
 *     ... 
 *     ----- reset ------------------------------------------------------
       REC=NREC
-      IF(NALC.LE.0.OR.NALC.GT.MLOCAL) RETURN
+      IF(NALC.LE.0) RETURN
+      IF(NALC.GT.MLOCAL) THEN
+         WRITE(*,*) NALC, ' local parameters (=>skip), max. is', MLOCAL
+         RETURN
+      END IF
       CALL MEGZER('g') ! reset global-local matrix
       CALL MEGZER('w') ! reset residual matrix 
 
@@ -3460,20 +3467,26 @@ C      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
 
  10   IF(JCALCM+1.NE.0) THEN
          IF(ITERAT.EQ.0) THEN
-            CALL PLOOPA(6)
+            CALL PLOOPA(6) ! header
             CALL PLOOPB(6)
-            CALL PLOOPA(LUNLOG)
+            CALL PLOOPA(LUNLOG) ! iteration line
             CALL PLOOPB(LUNLOG)
             ITERAT=1
+            CALL GMPXYD(1,FLOAT(NLOOPN),REAL(FVALUE),0.5,0.) ! fcn-value graph (no Delta)
          ELSE
             IF(ITERAT.NE.LITERA) THEN 
                CALL PLOOPB(6)
                CALL PLOOPA(LUNLOG)
                CALL PLOOPB(LUNLOG)
                LITERA=ITERAT
+               CALL GMPXYD(1,FLOAT(NLOOPN),REAL(FVALUE),0.5,DELFUN) ! fcn-value (with expected)
+               IF(METSOL.EQ.3) THEN ! extend to 4, i.e. GMRES?
+                  CALL GMPXY(2,FLOAT(ITERAT),FLOAT(IITERA)) ! MINRES iterations
+               END IF
             ELSE
-               CALL PLOOPC(6)
+               CALL PLOOPC(6) ! sub-iteration line
                CALL PLOOPC(LUNLOG)
+               CALL GMPXYD(1,FLOAT(NLOOPN),REAL(FVALUE),0.5,0.) ! fcn-value graph (no Delta)
             END IF 
          END IF
          CALL ETIME(TA,RSTART)
@@ -3489,7 +3502,7 @@ C      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
          WRITE(*,*) ' '
          WRITE(*,*) 'Data rejected in previous loop:   ',NREJEC(1),
      +   ' (Ndf=0)   ',NREJEC(2),' (huge)   ',NREJEC(3),' (large)'
-         WRITE(*,*) 'Too many rejects - stop'
+         WRITE(*,*) 'Too many rejects (>33.3%) - stop'
          STOP 
       END IF 
 
@@ -3511,7 +3524,7 @@ C      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
       ELSE IF(METSOL.EQ.3) THEN
          CALL MMINRS                   ! MINRES
       ELSE IF(METSOL.EQ.4) THEN
-         WRITE(*,*) '... reserved for GMRES'
+         WRITE(*,*) '... reserved for GMRES (not yet!)'
          CALL MMINRS                   ! GMRES not yet
       END IF
       
@@ -3625,21 +3638,20 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
       NREJ=NREJEC(1)+NREJEC(2)+NREJEC(3) ! total number of rejects
 
 *     ... the end with exit code ???????????????????????????????????????
-
-      WRITE(*,199)              ! write exit code
-     + '-----------------------------------------------------------'
-      IF(ITEXIT.EQ.0) WRITE(*,199)
-     +  'Exit code = 0:  Convergence reached'
-      IF(ITEXIT.EQ.1) WRITE(*,199)
-     +  'Exit code = 1:  No improvement in last iteration'
-      IF(ITEXIT.EQ.2) WRITE(*,199)
-     +  'Exit code = 2:  Maximum number of iterations reached'
-      IF(ITEXIT.EQ.3) WRITE(*,199)
-     +  'Exit code = 3:  Failure'
-      WRITE(*,199)
-     + '-----------------------------------------------------------'
-      WRITE(*,199) ' '
- 199  FORMAT(7X,A)
+C
+C      WRITE(*,199)              ! write exit code
+C     + '-----------------------------------------------------------'
+C      IF(ITEXIT.EQ.0) WRITE(*,199)
+C     +  'Exit code = 0:  Convergence reached'
+C      IF(ITEXIT.EQ.1) WRITE(*,199)
+C     +  'Exit code = 1:  No improvement in last iteration'
+C      IF(ITEXIT.EQ.2) WRITE(*,199)
+C     +  'Exit code = 2:  Maximum number of iterations reached'
+C      IF(ITEXIT.EQ.3) WRITE(*,199)
+C     +  'Exit code = 3:  Failure'
+C      WRITE(*,199)
+C     + '-----------------------------------------------------------'
+C      WRITE(*,199) ' '
 
 
       NRATI=DFLOAT(10000*NREJ)/DFLOAT(NRECAL)
@@ -3683,7 +3695,7 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
       IF(NRATI.GT. 1) THEN
       WRITE(*,199) ' ' 
       WRITE(*,*) '        Fraction of rejects =',DJRAT,' %',
-     +   '  (should be below 1 %)'  
+     +   '  (should be far below 1 %)'  
       WRITE(*,*) '        => please provide correct mille data' 
       END IF 
 
@@ -3730,6 +3742,7 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
 
  102  FORMAT(' Call FEASIB with cut=',G10.3)
 c 103  FORMAT(1X,A,G12.4)
+ 199  FORMAT(7X,A)
       END 
 
 
@@ -3760,7 +3773,7 @@ c 103  FORMAT(1X,A,G12.4)
 
       INTRAC=0  ! default is non-interactive
       ICTEST=0  ! no test 
-      METSOL=4  ! reset solution method
+      METSOL=0  ! reset solution method
       MATSTO=2  ! reset matrix storage mode
       MPRINT=0  ! reset print flag
       MDEBUG=0  ! reset debug flag
@@ -3796,7 +3809,7 @@ c 103  FORMAT(1X,A,G12.4)
       REGPRE=0.0! default presigma
       MATRIT=0  ! matrix calculation up to iteration MATRIT
       ICALCM=0  ! if nonzero: calculate matrix
-      ISAVES=0  ! save space if non-zero
+      ISAVES=1  ! save space if non-zero
 
       DO I=1,6
        TIMES(I)=0.0
@@ -4163,9 +4176,9 @@ c       WRITE(*,*) TEXT(1:40),'  < interprete text'
 c            METSOL=1 ! default is matrix inversion 
 c            MATSTO=1 ! default is symmetric matrix
          ELSE IF(MATSTO.EQ.1) THEN ! if symmetric  
-            METSOL=3 ! GMRES
+            METSOL=3 ! MINRES
          ELSE IF(MATSTO.EQ.2) THEN ! if sparse
-            METSOL=3 ! GMRES
+            METSOL=3 ! MINRES
          END IF
       ELSE IF(METSOL.EQ.1) THEN   ! if inversion
          MATSTO=1    !            
@@ -4176,20 +4189,20 @@ c            MATSTO=1 ! default is symmetric matrix
       ELSE IF(METSOL.EQ.4) THEN   ! if GMRES
 *        MATSTO=2 or 1 
       ELSE
-         WRITE(*,*) 'GMRES forced with sparse matrix!'
+         WRITE(*,*) 'MINRES forced with sparse matrix!'
          WRITE(*,*) ' '
-         WRITE(*,*) 'GMRES forced with sparse matrix!'
+         WRITE(*,*) 'MINRES forced with sparse matrix!'
          WRITE(*,*) ' '
-         WRITE(*,*) 'GMRES forced with sparse matrix!'
-c         METSOL=4 ! forced
+         WRITE(*,*) 'MINRES forced with sparse matrix!'
+         METSOL=3 ! forced
          MATSTO=2 ! forced
       END IF
       IF(MATSTO.GT.2) THEN
-         WRITE(*,*) 'GMRES forced with sparse matrix!'
+         WRITE(*,*) 'MINRES forced with sparse matrix!'
          WRITE(*,*) ' '
-         WRITE(*,*) 'GMRES forced with sparse matrix!'
+         WRITE(*,*) 'MINRES forced with sparse matrix!'
          WRITE(*,*) ' '
-         WRITE(*,*) 'GMRES forced with sparse matrix!'
+         WRITE(*,*) 'MINRES forced with sparse matrix!'
          METSOL=3 ! forced
          MATSTO=2 ! forced
       END IF
@@ -4314,8 +4327,8 @@ c         METSOL=4 ! forced
 
       SAVE
 #include "mpinds.inc"
-      DATA METHXT/'diagonalization','inversion','fullGMRES',
-     +            'sparseGMRES'/
+      DATA METHXT/'diagonalization','inversion','fullMINRES',
+     +            'sparseMINRES'/
       DATA LKEY/-1/                 ! last keyword
 
 *     ...
@@ -4495,10 +4508,13 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
             RETURN
          END IF
 
-         KEYSTX='savespace'
+         KEYSTX='pairentries'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            ISAVES=1
+c     This option could be implemented to get rid of parameter pairs
+c     that have very few entries - to save matrix memory size. 
+            IF (DNUM(1).GT.1) STOP 'option pairentries not implemented'
+            ISAVES=0
             RETURN
          END IF
 
@@ -4653,11 +4669,11 @@ c               WRITE(*,*) 'LPVS PLVS ',LPVS,PLVS
                ELSE IF(I.EQ.2) THEN       ! inversion
                   METSOL=1
                   MATSTO=1 
-               ELSE IF(I.EQ.3) THEN       ! fullGMRES
+               ELSE IF(I.EQ.3) THEN       ! fullMINRES
                   METSOL=3
                   MATSTO=1
 c                  METSOL=4 !!!
-               ELSE IF(I.EQ.4) THEN       ! sparseGMRES
+               ELSE IF(I.EQ.4) THEN       ! sparseMINRES
 c                  METSOL=4
                   METSOL=3
                   MATSTO=2

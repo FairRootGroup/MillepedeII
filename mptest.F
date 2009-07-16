@@ -83,8 +83,8 @@ CCC      CALL RNTIME
       WRITE(LUNS,101) 'mp2con.txt   ! constraints text file '
       WRITE(LUNS,101) 'mp2tst.bin   ! binary data file'
       WRITE(LUNS,101) 'Cfiles       ! following bin files are Cfiles'  
-      WRITE(LUNS,101) '*outlierrejection 100.0 ! reject if Chi^2/Ndf >'
-      WRITE(LUNS,101) '*outliersuppression 3   ! 3 local_fit iterations'
+C      WRITE(LUNS,101) '*outlierrejection 100.0 ! reject if Chi^2/Ndf >'
+C      WRITE(LUNS,101) '*outliersuppression 3   ! 3 local_fit iterations'
       
       WRITE(LUNS,101)
      +  '*hugecut 50.0     !cut factor in iteration 0'
@@ -92,6 +92,9 @@ CCC      CALL RNTIME
      +  '*chisqcut 1.0 1.0 ! cut factor in iterations 1 and 2' 
       WRITE(LUNS,101)
      +  '*entries  10 ! lower limit on number of entries/parameter'
+      WRITE(LUNS,101)
+     +  '*pairentries 10 ! lower limit on number of parameter pairs',
+     +  '                ! (not yet!)'
       WRITE(LUNS,101) 
      +  '*printrecord   1  2      ! debug printout for records'
       WRITE(LUNS,101)
@@ -113,13 +116,11 @@ CCC      CALL RNTIME
       WRITE(LUNS,101)
      +     'method diagonalization 3 0.001 ! diagonalization      '
       WRITE(LUNS,101)
-     +     'method fullGMRES       3 0.01 ! minimal residual     '
+     +     'method fullMINRES       3 0.01 ! minimal residual     '
       WRITE(LUNS,101)
-     +     'method sparseGMRES     3 0.01 ! minimal residual     '
+     +     'method sparseMINRES     3 0.01 ! minimal residual     '
       WRITE(LUNS,101)
-     +     'savespace                     ! change in loop2'
-      WRITE(LUNS,101)
-     +     '*mrestol      1.0D-8          ! epsilon for GMRES'
+     +     '*mrestol      1.0D-8          ! epsilon for MINRES'
       WRITE(LUNS,101)
      +     'method inversion       3 0.001 ! Gauss matrix inversion'
       WRITE(LUNS,101) '* last method is applied'

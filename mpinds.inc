@@ -39,7 +39,7 @@
      +        ISUBIT,NHISTP,
      +        NOFEAS,
      +        NDFSUM,NREGUL,IITERA,ISTOPA,
-     +        LSINFO,ITEXIT,ICALCM,MATRIT,NPRESG,NRECAL,NMISS1,ISAVES
+     +        LSINFO,ICALCM,MATRIT,NPRESG,NRECAL,NMISS1,ISAVES ! ITEXIT,
       REAL
      +        CHIREM,DFLIM,
      +        TIMES,GBM,UBM,STEPL,
@@ -60,7 +60,7 @@
      +              RECPRI,NEWITE,TA(2),DWCUT,ISUBIT,NHISTP,
      +              WOLFC1,WOLFC2,NOFEAS,DELFUN,ACTFUN,ANGRAS,
      +              NDFSUM,NREGUL,REGULA,REGPRE,IITERA,DELTIM,ISTOPA,
-     +              LSINFO,ITEXIT,ICALCM,RSTART,MATRIT,NPRESG,NRECAL,
+     +              LSINFO,ICALCM,RSTART,MATRIT,NPRESG,NRECAL, ! ITEXIT,
      +              NMISS1,ISAVES
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
@@ -131,8 +131,8 @@
 *     RSTART = start time
 *     ISTOPA = stop code of solution
 *     LSINFO = INFO from line search
-*     ITEXIT = exit code
 *     ICALCM = 
+C removed*     ITEXIT = exit code
 
       DOUBLE PRECISION FVALUE,FLINES
       COMMON/MPDOUB/FVALUE,FLINES
