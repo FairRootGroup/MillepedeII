@@ -110,11 +110,13 @@ c       END IF
 *     ------------------------------------------------------------------
 
       IF(NLOOPN.GT.2.AND.NHISTP.NE.0) THEN       ! last iteration
-         CALL HMPRNT(3) ! scaled residual of single measurement
-         CALL HMPRNT(4) ! chi^2/Ndf
+         CALL HMPRNT(3)  ! scaled residual of single measurement (with global deriv.)
+         CALL HMPRNT(12) ! scaled residual of single measurement (no global deriv.)
+         CALL HMPRNT(4)  ! chi^2/Ndf
       END IF
       IF(NLOOPN.GT.2) THEN
          CALL HMPWRT(3)
+         CALL HMPWRT(12)
          CALL HMPWRT(4)
          CALL GMPWRT(4) ! location, dispersion as a function of record nr
       END IF
@@ -731,7 +733,8 @@ c      NR=NR-1
          IF (METSOL.EQ.3) THEN ! extend to GMRES, i.e. 4?
             CALL GMPDEF(2,3,'Number of MINRES steps vs iteration nr')
          END IF
-         CALL HMPDEF(5,0.0,0.0,'Number of degrees of freedom')
+         CALL HMPDEF( 5,0.0,0.0,'Number of degrees of freedom')
+         CALL HMPDEF(11,0.0,0.0,'Number of local parameters')
          CALL HMPDEF(13,0.0,0.0,
      +   'SQRT of diagonal elements without presigma')
          CALL HMPDEF(14,0.0,0.0,
@@ -744,7 +747,9 @@ c      NR=NR-1
 
 
       CALL HMPDEF(3,0.0,0.0,          ! book  
-     +   'Normalized residuals of single measurement')
+     +   'Normalized residuals of single (global) measurement')
+      CALL HMPDEF(12,0.0,0.0,          ! book  
+     +   'Normalized residuals of single (local) measurement')
       CALL HMPDEF(4,0.0,0.0,'Chi^2/Ndf after local fit')
       CALL GMPDEF(4,5,'location and dispersion vs record nr') 
 
@@ -1041,18 +1046,22 @@ c      END IF
 
       IF(NLOOPN.LE.2) THEN
          IF(NHISTP.NE.0) THEN 
-c            CALL HMPRNT(3) ! scaled residual of single measurement
-c            CALL HMPRNT(4) ! chi^2/Ndf 
+c            CALL HMPRNT(3)  ! scaled residual of single measurement
+c            CALL HMPRNT(12) ! scaled residual of single measurement
+c            CALL HMPRNT(4)  ! chi^2/Ndf 
          END IF 
          CALL HMPWRT(3)
+         CALL HMPWRT(12)   
          CALL HMPWRT(4)   
          CALL GMPWRT(4) ! location, dispersion as a function of record nr         
       END IF
 c      IF(NLOOPN.EQ.2.AND.NHISTP.NE.0) CALL HMPRNT(6)
       IF(NLOOPN.EQ.2) CALL HMPWRT(6) 
       IF(NLOOPN.LE.1) THEN
-c         IF(NHISTP.NE.0) CALL HMPRNT(5) ! number of degrees of freedom  
+c         IF(NHISTP.NE.0) CALL HMPRNT(5)  ! number of degrees of freedom  
+c         IF(NHISTP.NE.0) CALL HMPRNT(11) ! Nlocal  
          CALL HMPWRT(5)
+         CALL HMPWRT(11)
       END IF
 
 
@@ -1433,7 +1442,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
          END DO
          RMEAS=RMEAS-RMLOC             ! reduced to residual  
          
-         IF(ITER.EQ.1) CALL GMPMS(4,REC,RMEAS/RERR) ! residual 
+         IF(ITER.EQ.1.AND.JB.LT.IST) CALL GMPMS(4,REC,RMEAS/RERR) ! residual (with global deriv.)
 
          DCHI2=WGHT*RMEAS*RMEAS
          DCHIT=DCHI2
@@ -1476,12 +1485,20 @@ c         SUWT=SUWT+DCHI2/DCHIT
             GLDER(JA)=RMEAS            ! store remaining residual
             RESMAX=MAX(RESMAX,ABS(RMEAS)/RERR) 
          END IF 
-         IF(ITER.EQ.1) CALL HMPENT(3,RMEAS/RERR) ! histogram norm residual
-         SUMM=SUMM+DCHI2               ! accumulate chi-square sum
+
+         IF(ITER.EQ.1) THEN
+            IF (JB.LT.IST) THEN
+               CALL HMPENT( 3,RMEAS/RERR) ! histogram norm residual
+            ELSE
+               CALL HMPENT(12,RMEAS/RERR) ! histogram norm residual
+            ENDIF
+         ENDIF            
+	 SUMM=SUMM+DCHI2               ! accumulate chi-square sum
          GOTO 30 
       END IF    
       NDF=NEQ-NRANK 
-      IF(ITER.EQ.1) CALL HMPENT(5,FLOAT(NDF)) ! histogram Ndf      
+      IF(ITER.EQ.1) CALL HMPENT( 5,FLOAT(NDF))  ! histogram Ndf      
+      IF(ITER.EQ.1) CALL HMPENT(11,FLOAT(NALC)) ! histogram Nlocal      
       RESING=(FLOAT(NWEIG)-SUWT)/FLOAT(NWEIG)
       IF(NLOOPN.EQ.2.AND.ITER.EQ.NTER) CALL HMPENT(6,RESING)
       IF(RECPRI) THEN
@@ -4489,7 +4506,7 @@ c         WRITE(*,*) KEYSTX,MAT,(NTEXT+NTEXT)/3
 c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             LHUBER=DNUM(1)
-            IF(LHUBER.LE.2) LHUBER=2 ! at least 2 Huber iterations
+            IF(LHUBER.GT.0.AND.LHUBER.LE.2) LHUBER=2 ! at least 2 Huber iterations (if any)
             RETURN
          END IF
 
