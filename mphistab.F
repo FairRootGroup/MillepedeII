@@ -64,7 +64,7 @@
 
       SUBROUTINE HMPDEF(IH,XA,XB,TEXT)           ! book, reset histogram
 *     book millepede histogram, 120 bins
-      PARAMETER (NUMHIS=10)    
+      PARAMETER (NUMHIS=12)    
       INTEGER INHIST(120,NUMHIS),JNHIST(5,NUMHIS),KHIST(NUMHIS)
       REAL    FNHIST(120,NUMHIS)
       EQUIVALENCE (INHIST(1,1),FNHIST(1,1))  
@@ -452,8 +452,8 @@ c      WRITE(*,*) J,' resulting limits XA XB ',XA,XB
           WRITE(LUN,107) (LIST(I),I=IA,IB)
        END IF
        GOTO 10 
+  20   CONTINUE
       END DO
- 20   CONTINUE
  101  FORMAT(36I2)
  102  FORMAT(24I3)
  103  FORMAT(18I4)
