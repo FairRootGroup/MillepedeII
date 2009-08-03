@@ -1493,7 +1493,7 @@ c         SUWT=SUWT+DCHI2/DCHIT
                CALL HMPENT(12,RMEAS/RERR) ! histogram norm residual
             ENDIF
          ENDIF            
-	 SUMM=SUMM+DCHI2               ! accumulate chi-square sum
+         SUMM=SUMM+DCHI2        ! accumulate chi-square sum
          GOTO 30 
       END IF    
       NDF=NEQ-NRANK 
