@@ -252,7 +252,15 @@ c      END IF
           WRITE(LUN,204) ' '
           WRITE(LUN,201) IHC,KVERS(IHC),KHIST(IHC)
           WRITE(LUN,204) HTEXT(IHC)  
-          WRITE(LUN,202) NBIN,XL(1,IHC),XL(2,IHC)
+          IF (JNHIST(1,IHC)+JNHIST(2,IHC)+JNHIST(3,IHC).EQ.0
+     +         .AND.XL(1,IHC).EQ.XL(2,IHC)) THEN
+c     hist is empty and hist range makes no sense
+c     - cause: hist with 'variable edges' was never filled
+c     - workaround: make lower and upper edge of hist differ in output
+             WRITE(LUN,202) NBIN,XL(1,IHC)-0.001,XL(2,IHC)+0.001
+          ELSE
+             WRITE(LUN,202) NBIN,XL(1,IHC),XL(2,IHC)
+          END IF
           WRITE(LUN,203) (JNHIST(J,IHC),J=1,3)
           WRITE(LUN,204) 'bincontent'
           IF(KHIST(IHC).EQ.1.OR.KHIST(IHC).EQ.2) THEN
