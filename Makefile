@@ -38,7 +38,7 @@ L_FLAGS = -Wall -O3 ${LARGE_MEMORY_OPT}
 # objects for this project
 #
 USER_OBJ_PEDE_STATIC = mptest.o mille.o mpnum.o mptext.o mphistab.o \
-	minresblas.o minres.o vertpr.o linesrch.o
+	minresblas.o minres.o vertpr.o linesrch.o bandmatrix/Dbandmatrix.o
 USER_OBJ_PEDE = ${USER_OBJ_PEDE_STATIC} pede.o dynal.o
 #
 # Chose flags/object files for C-binary support:
@@ -91,7 +91,7 @@ install: $(EXECUTABLES) #clean
 # the second also on variable definitions:
 dynal.o : dynal.F dynal.inc Makefile
 	${FCOMP} ${F_FLAGS} -DNUMBER_OF_WORDS=${NUMBER_OF_WORDS} -c $< -o $@
-pede.o : pede.F dynal.inc mpinds.inc Makefile
+pede.o : pede.F dynal.inc mpinds.inc localfit.inc Makefile
 	${FCOMP} ${F_FLAGS} -DNUMBER_OF_WORDS=${NUMBER_OF_WORDS} -c $< -o $@
 #
 %.o: %.c Makefile

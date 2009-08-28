@@ -15,6 +15,9 @@
 *     Solution by Cholesky decomposition of variable-band matrix 
 *        VABDEC
 *
+*     Solution by Cholesky decomposition of bordered band matrix
+CHK      SQMIBB
+*
 *     Matrix/vector products
 *        DBDOT     dot vector product
 *        DBAXPY    multiplication and addition
@@ -22,6 +25,7 @@
 *        DBGAX     general matrix vector
 *        DBAVAT    AVAT product          
 *        DBMPRV    print parameter and matrix 
+CHK      DBPRV     print matrix 
 *     
 *     Chi^2 cut values
 *        CHINDL    
@@ -922,6 +926,31 @@ c  100 RETURN
       END
 
 
+      SUBROUTINE DBPRV(LUN,V,N)
+*     Prints the symmetric N-by-N matrix V
+*
+      DOUBLE PRECISION V
+      DIMENSION V(*)
+      PARAMETER (ISTP=6) 
+*
+      WRITE(LUN,101)
+*
+      DO I=1,N
+         IPS=(I*I-I)/2
+	 IPE=IPS+I
+	 IP =IPS
+  100    CONTINUE
+  	 IPN=IP+ISTP
+	 WRITE(LUN,102), I, IP+1-IPS, (V(K),K=IP+1,MIN(IPN,IPE))
+	 IF (IPN.LT.IPE) THEN
+	    IP=IPN
+	    GOTO 100
+	 ENDIF   
+      ENDDO	 
+      RETURN
+  101 FORMAT(1X,'--- DBPRV -----------------------------------')
+  102 FORMAT(1X,2I3,6G12.4)
+      END
 
 *     accurate summation -----------------------------------------------
 
@@ -1394,4 +1423,205 @@ c         WRITE(*,*) 'S is ',S
       END 
 
 
+*                                                 090817 C. Kleinwort, DESY-FH1
+*     --------- bordered band matrix -----------
 
+      SUBROUTINE SQMIBB(V,B,N,NBDR,NBND,INV,NRANK,JPRI)   
+*     obtain solution of a system of linear equations with symmetric
+*     bordered band matrix 
+*     on request inverse is calculated  
+*
+*                    - - - ---- ---- ---
+*        CALL SQMIBB(V,B,N,NBND,NBDR,INV,NRANK,...,...)      solve  V * X = B
+*                    - -                 -----
+*
+*         V    = symmetric N-by-N matrix in symmetric storage mode
+*                V(1) = V11, V(2) = V12, V(3) = V22, V(4) = V13, . . .
+*                optionally replaced by inverse matrix
+*         B    = N-vector, replaced by solution vector
+*
+*         NBRD = border size
+*         NBND = band width
+*         INV >0 calculate inverse   
+*
+*
+* Double precision scratch arrays:
+*     VBND(N*(NBND+1)) = storage of band   part
+*     VBDR(N* NBDR)    = storage of border part 
+*     AUX (N* NBDR)    = intermediate results
+*
+* cost[dot ops] ~= (N-NBDR)*(NBDR+NBND)*(NBDR+NBND+1) + NBDR**3 (solution only)
+*
+      DOUBLE PRECISION V(*),B(N)
+*
+#include "localfit.inc"
+      DOUBLE PRECISION VBND(MLOCAL*(MXBND+1)),VBDR(MLOCAL*MXBDR),
+     +   AUX(MLOCAL*MXBDR),VBK((MXBDR*MXBDR+MXBDR)/2),
+     +   VZRU(MXBDR),SCDIAG(MXBDR)
+      INTEGER SCFLAG(MXBDR)
+*          
+      SAVE 
+      DATA NPRI / 100 /
+*           ...
+      NRANK=0
+      NB1=NBDR+1      
+      MP1=NBND+1
+      NMB=N-NBDR
+*     copy band part
+      DO I=NB1,N
+         IP=(I*(I+1))/2
+	 IS=0
+         DO J=I,MIN(N,I+NBND)
+	    IP=IP+IS
+	    IS=J
+	    IB=J-I+1
+	    VBND(IB+(I-NB1)*MP1)=V(IP)
+	 ENDDO
+      ENDDO
+*     copy border part
+      IF (NBDR.GT.0) THEN
+         IOFF=0
+         DO I=1,NBDR
+            IP=(I*(I+1))/2
+	    IS=0
+            DO J=I,N
+	       IP=IP+IS
+	       IS=J
+	       VBDR(IOFF+J)=V(IP)
+	    ENDDO
+	    IOFF=IOFF+N
+         ENDDO
+      ENDIF 
+*
+      CALL DBCDEC(VBND,MP1,NMB,AUX)
+C      CALL DBCPRB(VBND,MP1,NMB)
+      IP=1
+      DO I=1, NMB
+         IF (VBND(IP).LE.0.0D0) THEN
+	    NPRI=NPRI-1
+	    IF (NPRI.GE.0) THEN
+	       IF (VBND(IP).EQ.0.0D0) THEN
+	          print *, ' SQMIBB matrix singular', N, NBDR, NBND   
+               ELSE
+	          print *, ' SQMIBB matrix not positive definite', 
+     +                  N, NBDR, NBND
+               ENDIF 
+	    ENDIF     
+*           return zeros	    
+	    DO IP=1,N
+	       B(IP)=0.0D0
+	    ENDDO   
+	    DO IP=1,(N*N+N)/2
+	       V(IP)=0.0D0
+	    ENDDO   
+	    RETURN
+	 ENDIF
+	 IP=IP+MP1
+      ENDDO
+      NRANK=NMB	 	 
+*
+      IF (NBDR.EQ.0) THEN ! special case NBDR=0
+*      
+         CALL DBCSLV(VBND,MP1,NMB,B,B) 
+	 IF (INV.GT.0) CALL DBCINV(VBND,MP1,NMB,V)
+*	 
+      ELSE ! general case NBDR>0
+*        
+         IOFF=NB1 
+         DO IB=1,NBDR
+*           solve for aux. vectors
+            CALL DBCSLV(VBND,MP1,NMB,VBDR(IOFF),AUX(IOFF)) 
+*	    zT ru
+            VZRU(IB)=B(IB)
+            DO I=0,NMB-1
+              VZRU(IB)=VZRU(IB)-B(NB1+I)*AUX(IOFF+I)
+            END DO
+	    IOFF=IOFF+N
+         ENDDO
+*        solve for band part only	 
+         CALL DBCSLV(VBND,MP1,NMB,B(NB1),B(NB1))
+*	 Ck - cT z
+         IP=0
+         IOFF=NB1 
+      	 DO IB=1,NBDR
+            JOFF=NB1 
+	    DO JB=1,IB
+	       IP=IP+1
+	       VBK(IP)=V(IP)
+               DO I=0,NMB-1
+                  VBK(IP)=VBK(IP)-VBDR(IOFF+I)*AUX(JOFF+I)
+	       ENDDO
+	       JOFF=JOFF+N
+	    ENDDO
+	    IOFF=IOFF+N   	                
+         ENDDO
+*        solve border part
+         CALL SQMINV(VBK,VZRU,NBDR,NRANKB,SCDIAG,SCFLAG)	 
+	 IF (NRANKB.EQ.NBDR) THEN
+	    NRANK=NRANK+NBDR
+	 ELSE
+	    NPRI=NPRI-1
+	    IF (NPRI.GE.0) 
+     +	    print *, ' SQMIBB undef border ', N, NBDR, NBND, NRANKB   
+	    DO IB=1,NBDR
+	       VZRU(IB)=0.0D0
+	    ENDDO   
+	    DO IP=(NBDR*NBDR+NBDR)/2,1,-1
+	       VBK(IP)=0.0D0
+	    ENDDO   
+	 ENDIF   
+*        smoothed data points
+         IOFF=NB1
+         DO IB=1, NBDR
+	    B(IB) = VZRU(IB)
+            DO I=0,NMB-1
+               B(NB1+I)=B(NB1+I)-B(IB)*AUX(IOFF+I)
+            ENDDO
+	    IOFF=IOFF+N
+	 ENDDO         
+*        inverse requested ?	 
+	 IF (INV.GT.0) THEN
+	    CALL DBCINV(VBND,MP1,NMB,V) 
+*           expand/correct from NMB to N	    
+	    IP1=(NMB*NMB+NMB)/2
+	    IP2=(N*N+N)/2
+	    DO I=NMB-1,0,-1
+	       DO J=I,0,-1
+	          V(IP2)=V(IP1)
+		  IOFF=NB1
+		  DO IB=1,NBDR
+		     JOFF=NB1
+		     DO JB=1,NBDR
+		        IJ=MAX(IB,JB)
+			IJ=(IJ*IJ-IJ)/2+MIN(IB,JB)
+		        V(IP2)=V(IP2)+VBK(IJ)*AUX(IOFF+I)*AUX(JOFF+J)
+		        JOFF=JOFF+N
+		     ENDDO
+		     IOFF=IOFF+N
+		  ENDDO    
+		  IP1=IP1-1
+		  IP2=IP2-1
+	       ENDDO
+*
+	       DO IB=NBDR,1,-1
+	          V(IP2)=0.0D0
+		  JOFF=NB1
+		  DO JB=1,NBDR
+		     IJ=MAX(IB,JB)
+	             IJ=(IJ*IJ-IJ)/2+MIN(IB,JB)
+	             V(IP2)=V(IP2)-VBK(IJ)*AUX(I+JOFF)
+		     JOFF=JOFF+N
+		  ENDDO
+	          IP2=IP2-1
+	       ENDDO
+	    ENDDO
+*	    
+	    DO IP=(NBDR*NBDR+NBDR)/2,1,-1
+	       V(IP2)=VBK(IP)
+	       IP2=IP2-1 
+	    ENDDO
+*
+         ENDIF	              
+      ENDIF     
+*            
+      END 

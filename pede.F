@@ -22,13 +22,13 @@
       CALL MVOPEN(LUNLOG,'millepede.log')
 
       WRITE(*,*) ' '
-      WRITE(*,*) '     Millepede II  starting ... ',CHDATE 
+      WRITE(*,*) '     Millepede II-B  starting ... ',CHDATE 
       WRITE(*,*) ' '
       CALL MEGNIT             ! initialize dynal memory management
       WRITE(*,*) ' '
 
       WRITE(8,*) ' '
-      WRITE(8,*) 'Log-file Millepede II                          ',
+      WRITE(8,*) 'Log-file Millepede II-B                        ',
      +            CHDATE
 
 C     CALL MEGDEB  ! debug switched on
@@ -187,12 +187,12 @@ c       END IF
       WRITE(8,*) 'In total 2 +',NLOOPN,' loops through the data files'
 
       WRITE(8,104) GBM,UBM,UBM/GBM*100.0
- 104  FORMAT(/' Memory space: total',F13.6,' GB'/
-     +       '                used',F13.6,' GB = ',F9.2,' %')
+ 104  FORMAT(/' Memory space: total   ',F13.6,' GB'/
+     +        '                used   ',F13.6,' GB = ',F9.2,' %')
 
 
-      WRITE(8,103) TIMES(0),TIMES(1),TIMES(2),TIMES(3),TIMES(4),   !!! weg
-     +             TIMES(5),NLOOPN-1,TIMES(6),NLOOPN-1
+      WRITE(8,103) TIMES(0),TIMES(1),TIMES(2),TIMES(4),TIMES(7),   
+     +             TIMES(5),TIMES(8),TIMES(3),TIMES(6)
       CALL ETIME(TA,RST) 
       DELTAT=RST-RSTP
       NTSEC=DELTAT+0.5
@@ -207,29 +207,30 @@ c       END IF
 
 *     Rejects ----------------------------------------------------------
 
-      IF(NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
+      IF(NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
          WRITE(8,*) ' '
-         WRITE(8,*) 'Data rejected in last iteration:   ',NREJEC(1),
-     +   ' (Ndf=0)   ',NREJEC(2),' (huge)   ',NREJEC(3),' (large)'
+         WRITE(8,*) 'Data rejected in last iteration:   '
+	 WRITE(8,*) '     ',
+     +   NREJEC(0), ' (rank deficit) ',NREJEC(1),' (Ndf=0)   ',
+     +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'     
          WRITE(8,*) ' '
       END IF
       CALL EXPLFC(8)
 
       WRITE(*,*) ' '
-      WRITE(*,*) '  <  Millepede II ending.' ! with exit code',ITEXIT,' >'
+      WRITE(*,*) '  <  Millepede II-B ending.' ! with exit code',ITEXIT,' >'
       WRITE(*,*) ' '
 C      CALL EXIT(ITEXIT)
 
 
 
  102  FORMAT(2X,I4,2X,3F10.4,2X,3F10.4)
- 103  FORMAT(' Times [in sec]  for text processing',F12.3/
-     +       '                               LOOP1',F12.3/
-     +       '                               LOOP2',F12.3/
-     +       '                     first data loop',F12.3/
-     +       '                     first  solution',F12.3/
-     +       '                    other data loops',F12.3,' *',I4/
-     +       '                    other  solutions',F12.3,' *',I4)
+ 103  FORMAT(' Times [in sec] for     text processing',F12.3/
+     +       '                                  LOOP1',F12.3/
+     +       '                                  LOOP2',F12.3/
+     +       '   func. value                         ',F12.3,' *',F4.0/
+     +       '   func. value, global matrix, solution',F12.3,' *',F4.0/
+     +       '                           new solution',F12.3,' *',F4.0/)
       END 
 
       SUBROUTINE SOLGLO(IVGBI) ! single error from minres
@@ -770,7 +771,7 @@ c      WRITE(*,*) 'LOOPN executing ICALCM=',ICALCM
          NEWITE=.TRUE.
          FUNREF=FVALUE
          IF(NLOOPN.GT.1) THEN
-            NREJ=NREJEC(1)+NREJEC(2)+NREJEC(3)
+            NREJ=NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3)
 c            CALL MEND
             IF(ITERAT.EQ.1) THEN
                CHICUT=CHIREM
@@ -783,7 +784,7 @@ c            CALL MEND
 c         WRITE(*,111) ! header line 
       END IF 
 
-      DO I=1,3
+      DO I=0,3
        NREJEC(I)=0   ! reset reject counter
       END DO
  
@@ -1021,12 +1022,14 @@ c      WRITE(*,*) 'NREGUL ',NREGUL,NLOOPN
 
 *     rejects ...
 
-      NREJ  =NREJEC(1)+NREJEC(2)+NREJEC(3)
+      NREJ  =NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3)
       IF(NLOOPN.EQ.1) THEN
-         IF(NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
+         IF(NREJ.NE.0) THEN
             WRITE(*,*) ' '
-            WRITE(*,*) 'Data rejected in initial loop:',NREJEC(1),
-     +   ' (Ndf=0)   ',NREJEC(2),' (huge)   ',NREJEC(3),' (large)'
+            WRITE(*,*) 'Data rejected in initial loop:'
+	    WRITE(*,*) '     ',
+     +      NREJEC(0), ' (rank deficit) ',NREJEC(1),' (Ndf=0)   ',
+     +      NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'	    
          END IF 
       END IF
 c      IF(NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
@@ -1064,9 +1067,21 @@ c         IF(NHISTP.NE.0) CALL HMPRNT(11) ! Nlocal
          CALL HMPWRT(11)
       END IF
 
-
+*     local fit: band matrix structure !?
+      IF (NLOOPN.EQ.1.AND.NBNDR.GT.0) THEN
+	 DO LUN=6,8,2
+	    WRITE(LUN,*) ' '
+	    WRITE(LUN,*) 
+     +         ' === local fits have bordered band matrix structure ===' 
+            WRITE(LUN,101) ' NBNDR',NBNDR,'number of records'
+            WRITE(LUN,101) ' NBDRX',NBDRX,'max border size'
+            WRITE(LUN,101) ' NBNDX',NBNDX,'max band width'
+         ENDDO
+      ENDIF
+*	       
       LASTIT=ITERAT
 
+ 101  FORMAT(1X,A6,' =',I10,' = ',A)
 c 101  FORMAT(' LOOPN',I6,' Function value',F22.8,10X,I6,' records') 
 c 102  FORMAT('   incl. constraint penalty',F22.8) 
 c 103  FORMAT(I13,3X,A,G12.4)  
@@ -1077,6 +1092,8 @@ c 103  FORMAT(I13,3X,A,G12.4)
 #include "dynal.inc"                   
 #include "mpinds.inc"
       REAL SLOPES(3),STEPS(3)
+      CHARACTER*4 CCALCM(4)
+      DATA CCALCM / ' end','   S', ' F  ',' FMS' /
       SAVE
 *     .. 
       WRITE(LUNP,*)   ' '
@@ -1085,7 +1102,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
       RETURN
 
       ENTRY PLOOPB(LUNP)                    ! iteration line 
-      NREJ=NREJEC(1)+NREJEC(2)+NREJEC(3)    ! rejects
+      NREJ=NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3)    ! rejects
       IF(NREJ.GT.9999999) NREJ=9999999
       CALL ETIME(TA,RSTB)
       DELTIM=RSTB-RSTART
@@ -1093,19 +1110,19 @@ c 103  FORMAT(I13,3X,A,G12.4)
       NSECND=SECND+0.5
       IF(ITERAT.EQ.0) THEN
          WRITE(LUNP,103) ITERAT,NLOOPN,FVALUE,
-     +                   CHICUT,NREJ,NHOUR,MINUT,NSECND
+     +                   CHICUT,NREJ,NHOUR,MINUT,NSECND,CCALCM(LCALCM)
       ELSE
          CALL PTLOPT(NFA,MA,SLOPES,STEPS)  ! slopes steps
          RATAE=ABS(SLOPES(2)/SLOPES(1)) 
          STEPL=STEPS(2)
          WRITE(LUNP,104) ITERAT,NLOOPN,FVALUE,DELFUN,RATAE,ANGRAS,
-     +                   IITERA,ISTOPA,LSINFO,
-     +                   STEPL,CHICUT,NREJ,NHOUR,MINUT,NSECND
+     +                   IITERA,ISTOPA,LSINFO,STEPL,
+     +                   CHICUT,NREJ,NHOUR,MINUT,NSECND,CCALCM(LCALCM)
       END IF 
       RETURN
 
       ENTRY PLOOPC(LUNP)                    ! sub-iteration line
-      NREJ=NREJEC(1)+NREJEC(2)+NREJEC(3)    ! rejects
+      NREJ=NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3)    ! rejects
       IF(NREJ.GT.9999999) NREJ=9999999
       CALL ETIME(TA,RSTB)
       DELTIM=RSTB-RSTART
@@ -1115,35 +1132,29 @@ c 103  FORMAT(I13,3X,A,G12.4)
       RATAE=ABS(SLOPES(2)/SLOPES(1))
       STEPL=STEPS(2)
       WRITE(LUNP,105) NLOOPN,FVALUE, RATAE,LSINFO,
-     +                STEPL,NREJ,NHOUR,MINUT,NSECND
+     +                STEPL,NREJ,NHOUR,MINUT,NSECND,CCALCM(LCALCM)
       RETURN
 
-      ENTRY PLOOPD(LUNP)                    ! printall
-      NREJ=NREJEC(1)+NREJEC(2)+NREJEC(3)    ! rejects
-      IF(NREJ.GT.9999999) NREJ=9999999
+      ENTRY PLOOPD(LUNP)                     ! solution line (ICALCM=-1)
       CALL ETIME(TA,RSTB)
       DELTIM=RSTB-RSTART
       CALL SECHMS(DELTIM,NHOUR,MINUT,SECND) ! time
       NSECND=SECND+0.5
-      CALL PTLOPT(NFA,MA,SLOPES,STEPS)  ! slopes steps
-      RATAE=ABS(SLOPES(2)/SLOPES(1))
-      STEPL=STEPS(2)
-      WRITE(LUNP,104) ITERAT,NLOOPN,FVALUE,DELFUN,RATAE,ANGRAS,
-     +                IITERA,ISTOPA,LSINFO,
-     +                STEPL,CHICUT,NREJ,NHOUR,MINUT,NSECND
 
-
+      WRITE(LUNP,106) NHOUR,MINUT,NSECND,CCALCM(LCALCM)
+     
  101  FORMAT(' it fc','   fcn_value dfcn_exp  slpr costh  iit st',
-     +       ' ls  step cutf',1X,'rejects hmmsec')
+     +       ' ls  step cutf',1X,'rejects hmmsec FMS')
  102  FORMAT(' -- --',' ----------- --------  ---- -----  --- --',
-     +       ' --  ---- ----',1X,'------- ------')
+     +       ' --  ---- ----',1X,'------- ------ ---')
 
  103  FORMAT(I3,I3,E12.5,38X,F5.1,
-     +      1X,I7,  I2,I2,I3)
+     +      1X,I7,  I2,I2,I3,A4)
  104  FORMAT(I3,I3,E12.5,1X,E8.2,F6.3,F6.3,I5,2I3,F6.2,F5.1,
-     +      1X,I7,  I2,I2,I3)
+     +      1X,I7,  I2,I2,I3,A4)
  105  FORMAT(3X,I3,E12.5,9X,     F6.3,14X,I3,F6.2,6X,
-     +         I7,  I2,I2,I3)
+     +         I7,  I2,I2,I3,A4)
+ 106  FORMAT(69X,I2,I2,I3,A4)
       END 
 
 
@@ -1279,13 +1290,20 @@ c 103  FORMAT(I13,3X,A,G12.4)
 
       SUBROUTINE FITLOC(NALC,NALG) ! number of local, global parameters
 *     fit after end of local block 
+*
+*     090817 C. Kleinwort, DESY-FH1
+*     for local fits with bordered band matrices use band matrix algebra 
+*     (implements Broken Line Track fit:
+*      A new fast track-fit algorithm based on broken lines, V. Blobel, 
+*      Nuclear Instruments and Methods A, 566 (October 2006), pp. 14-17)
+*
 #include "dynal.inc"
 *     
 *     arrays for local fit
-      PARAMETER (MLOCAL=200) ! local arrays for local parameters
+#include "localfit.inc"     
       PARAMETER (MLMSYM=(MLOCAL*MLOCAL+MLOCAL)/2)
       DOUBLE PRECISION BLVEC(MLOCAL),CLMAT(MLMSYM),SCDIAG(MLOCAL)
-      INTEGER SCFLAG(MLOCAL)
+      INTEGER SCFLAG(MLOCAL),IBANDH(MLOCAL)
 *       
       DOUBLE PRECISION DCHI2
       CHARACTER*3 CHAST
@@ -1339,6 +1357,13 @@ c 103  FORMAT(I13,3X,A,G12.4)
       NTER=1                         ! first loop without down-weighting
       IF(NLOOPN.NE.1.AND.LHUBER.NE.0) NTER=LHUBER
 
+*     check matrix for bordered band structure      
+      MBND=-1
+      MBDR=0
+      DO I=1, NALC
+         IBANDH(I)=0
+      ENDDO      
+      
       ITER=0
  02   ITER=ITER+1                  ! outlier suppresssion iteration
       RESMAX=0.0
@@ -1401,16 +1426,57 @@ c 103  FORMAT(I13,3X,A,G12.4)
 
          DO J=1,JB-JA-1 ! normal equations, local parameter loop
           IJ=INDER(JA+J)          ! local parameter index J
-          BLVEC(IJ)=BLVEC(IJ)+WGHT*RMEAS*GLDER(JA+J)
+          BLVEC(IJ)=BLVEC(IJ)+DBLE(WGHT)*DBLE(RMEAS)*DBLE(GLDER(JA+J))
           DO K=1,J
            IK=INDER(JA+K)         ! local parameter index K
            JK=IJSYM(IJ,IK)        ! index in symmetric matrix
-           CLMAT(JK)=CLMAT(JK)+WGHT*GLDER(JA+J)*GLDER(JA+K)
+           CLMAT(JK)=CLMAT(JK)    ! force double precision
+     +	      +DBLE(WGHT)*DBLE(GLDER(JA+J))*DBLE(GLDER(JA+K))
+*          check for band matrix substructure
+	   IF (ITER.EQ.1) THEN
+	     ID=IABS(IJ-IK)+1
+	     IM=MIN(IJ,IK)
+             IBANDH(ID)=MAX(IBANDH(ID),IM)
+	   ENDIF
           END DO
          END DO
          GOTO 10
-      END IF                  ! inversion and solution
-      CALL SQMINV(CLMAT,BLVEC,NALC,NRANK,SCDIAG,SCFLAG)
+      END IF                  
+*     for non trivial fits check for bordered band matrix structure     
+      IF (ITER.EQ.1.AND.NALC.GT.5) THEN
+	 KX=-1
+	 ICMN=NALC**3/2 ! cost should improve by at least factor 2
+	 DO K=2,MIN(NALC,MXBND+2)
+	    KBND=K-2
+	    KBDR=IBANDH(K)
+	    ICOST=(NALC-KBDR)*(KBND+KBDR)*(KBND+KBDR+1)+KBDR**3
+            IF (ICOST.LT.ICMN.AND.KBDR.LE.MXBDR) THEN
+	       ICMN=ICOST
+	       KX=K
+	    ENDIF
+	 ENDDO
+         IF (KX.GT.0) THEN
+            MBND=KX-2
+            MBDR=IBANDH(KX)
+         ENDIF          
+      ENDIF
+*
+      IF (MBND.GE.0) THEN
+*     fast solution for border banded matrix (inverse for ICALCM=1)
+         IF (NLOOPN.EQ.1) THEN
+	    NBNDR=NBNDR+1
+	    NBDRX=MAX(NBDRX,MBDR)
+	    NBNDX=MAX(NBNDX,MBND)
+	 ENDIF
+*	  
+         INV=0
+	 IF (ICALCM.EQ.1.OR.RECPRI) INV=1        
+         CALL SQMIBB(CLMAT,BLVEC,NALC,MBDR,MBND,INV,NRANK,JPR)
+      ELSE
+*     full inversion and solution   
+         CALL SQMINV(CLMAT,BLVEC,NALC,NRANK,SCDIAG,SCFLAG)
+      ENDIF
+      
       IF(RECPRI) THEN 
          WRITE(1,*) ' '
          WRITE(1,*) 'Parameter determination:',NALC,' parameters,',
@@ -1509,6 +1575,13 @@ c         SUWT=SUWT+DCHI2/DCHIT
          WRITE(1,*) SUWT,' is sum of factors, compared to',NWEIG,
      +              ' Downweight fraction:',RESING    
       END IF
+      IF(NRANK.NE.NALC) THEN
+         NREJEC(0)=NREJEC(0)+1         ! count cases
+         IF(RECPRI) THEN
+            WRITE(1,*) '   ---> rejected!'
+         END IF
+         RETURN
+      END IF 
       IF(NDF.LE.0) THEN
          NREJEC(1)=NREJEC(1)+1         ! count cases
          IF(RECPRI) THEN
@@ -1516,7 +1589,7 @@ c         SUWT=SUWT+DCHI2/DCHIT
          END IF
          RETURN
       END IF 
-
+      
       CHNDF=SUMM/FLOAT(NDF)
 
       IF(ITER.EQ.1) CALL HMPENT(4,CHNDF) ! histogram chi^2/Ndf
@@ -3482,43 +3555,59 @@ C      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
 
 *     Block 1: data loop with vector (and matrix) calculation ---------- 
 
- 10   IF(JCALCM+1.NE.0) THEN
-         IF(ITERAT.EQ.0) THEN
-            CALL PLOOPA(6) ! header
-            CALL PLOOPB(6)
-            CALL PLOOPA(LUNLOG) ! iteration line
-            CALL PLOOPB(LUNLOG)
-            ITERAT=1
-            CALL GMPXYD(1,FLOAT(NLOOPN),REAL(FVALUE),0.5,0.) ! fcn-value graph (no Delta)
-         ELSE
-            IF(ITERAT.NE.LITERA) THEN 
+ 10   CONTINUE
+      IF(ITERAT.GE.0) THEN
+         LCALCM=JCALCM+3 ! mode (1..4) of last loop
+         IF(JCALCM+1.NE.0) THEN
+            IF(ITERAT.EQ.0) THEN
+               CALL PLOOPA(6) ! header
                CALL PLOOPB(6)
-               CALL PLOOPA(LUNLOG)
+               CALL PLOOPA(LUNLOG) ! iteration line
                CALL PLOOPB(LUNLOG)
-               LITERA=ITERAT
-               CALL GMPXYD(1,FLOAT(NLOOPN),REAL(FVALUE),0.5,DELFUN) ! fcn-value (with expected)
-               IF(METSOL.EQ.3) THEN ! extend to 4, i.e. GMRES?
-                  CALL GMPXY(2,FLOAT(ITERAT),FLOAT(IITERA)) ! MINRES iterations
-               END IF
-            ELSE
-               CALL PLOOPC(6) ! sub-iteration line
-               CALL PLOOPC(LUNLOG)
+               ITERAT=1
                CALL GMPXYD(1,FLOAT(NLOOPN),REAL(FVALUE),0.5,0.) ! fcn-value graph (no Delta)
-            END IF 
+            ELSE
+               IF(ITERAT.NE.LITERA) THEN 
+                  CALL PLOOPB(6)
+C                  CALL PLOOPA(LUNLOG)
+                  CALL PLOOPB(LUNLOG)
+                  LITERA=ITERAT
+                  CALL GMPXYD(1,FLOAT(NLOOPN),REAL(FVALUE),0.5,DELFUN) ! fcn-value (with expected)
+                  IF(METSOL.EQ.3) THEN ! extend to 4, i.e. GMRES?
+                     CALL GMPXY(2,FLOAT(ITERAT),FLOAT(IITERA)) ! MINRES iterations
+                  END IF
+               ELSE
+                  CALL PLOOPC(6) ! sub-iteration line
+                  CALL PLOOPC(LUNLOG)
+                  CALL GMPXYD(1,FLOAT(NLOOPN),REAL(FVALUE),0.5,0.) ! fcn-value graph (no Delta)
+               END IF 
+            END IF       
+         ELSE
+            CALL PLOOPD(6) ! solution line
+            CALL PLOOPD(LUNLOG)      
          END IF
          CALL ETIME(TA,RSTART)
-      END IF
-      JCALCM=ICALCM 
-
+* CHK 
+         IF (IABS(JCALCM).LE.1) THEN     
+            IDX=JCALCM+4
+            TIMES(IDX  )=(TIMES(IDX  )*TIMES(IDX+3)+DELTIM)
+     +                  /(TIMES(IDX+3)+1.0)
+            TIMES(IDX+3)= TIMES(IDX+3)+1.0
+         ENDIF
+      ENDIF	 
+      JCALCM=ICALCM	 
+*  
       IF(ICALCM.LT.0) GOTO 20          ! ICALCM = +1 & 0 
       CALL LOOPN                       ! data loop
       CALL ADDCST                      ! constraints
       LREJ=NREJ
-      NREJ=NREJEC(1)+NREJEC(2)+NREJEC(3) ! total number of rejects
+      NREJ=NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3) ! total number of rejects
       IF(3*NREJ.GT.NRECAL) THEN
          WRITE(*,*) ' '
-         WRITE(*,*) 'Data rejected in previous loop:   ',NREJEC(1),
-     +   ' (Ndf=0)   ',NREJEC(2),' (huge)   ',NREJEC(3),' (large)'
+         WRITE(*,*) 'Data rejected in previous loop:   '
+	 WRITE(*,*) '     ',
+     +   NREJEC(0), ' (rank deficit) ',NREJEC(1),' (Ndf=0)   ',
+     +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'	 
          WRITE(*,*) 'Too many rejects (>33.3%) - stop'
          STOP 
       END IF 
@@ -3634,10 +3723,12 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
 
  90   ICALCM=-2
       GOTO 10
- 91   IF(NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
+ 91   IF(NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
          WRITE(*,*) ' '
-         WRITE(*,*) 'Data rejected in last loop:   ',NREJEC(1),
-     +   ' (Ndf=0)   ',NREJEC(2),' (huge)   ',NREJEC(3),' (large)'
+         WRITE(*,*) 'Data rejected in last loop:   '
+	 WRITE(*,*) '     ',
+     +   NREJEC(0), ' (rank deficit) ',NREJEC(1),' (Ndf=0)   ',
+     +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'
       END IF
 
       RATIO=FVALUE/FLOAT(NDFSUM)
@@ -3652,7 +3743,7 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
        IF(LHUBER.NE.0) WRITE(LUNP,*)
      + '            with correction for down-weighting   ',CATIO     
       END DO
-      NREJ=NREJEC(1)+NREJEC(2)+NREJEC(3) ! total number of rejects
+      NREJ=NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3) ! total number of rejects
 
 *     ... the end with exit code ???????????????????????????????????????
 C
@@ -3827,8 +3918,11 @@ c 103  FORMAT(1X,A,G12.4)
       MATRIT=0  ! matrix calculation up to iteration MATRIT
       ICALCM=0  ! if nonzero: calculate matrix
       ISAVES=1  ! save space if non-zero
-
-      DO I=1,6
+      NBNDR =0  ! number of records with bordered band matrix for local fit
+      NBDRX =0  ! max border size for local fit
+      NBNDX =0  ! max band width for local fit
+            
+      DO I=1,8
        TIMES(I)=0.0
       END DO
 
@@ -4971,5 +5065,4 @@ c            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
          IJIND=K+KK
       END IF
       END
-
 

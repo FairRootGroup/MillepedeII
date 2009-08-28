@@ -54,14 +54,14 @@
      +              NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
      +              METSOL,MATSTO,MPRINT,MDEBUG,MREQEN,INTRAC,
      +              MITERA,MBANDW,ICTEST,NAEQN,NREC,NLOOPN,
-     +              LUNKNO,LHUBER,CHIREM,CHHUGE,DFLIM,NREJEC(3),
-     +              ITERAT,NTERAT,TIMES(0:6),GBM,UBM,STEPL,
+     +              LUNKNO,LHUBER,CHIREM,CHHUGE,DFLIM,NREJEC(0:3),
+     +              ITERAT,NTERAT,TIMES(0:8),GBM,UBM,STEPL,
      +              NRECPR,NRECP2,NREC1,NREC2,VALUE1,VALUE2,
      +              RECPRI,NEWITE,TA(2),DWCUT,ISUBIT,NHISTP,
      +              WOLFC1,WOLFC2,NOFEAS,DELFUN,ACTFUN,ANGRAS,
      +              NDFSUM,NREGUL,REGULA,REGPRE,IITERA,DELTIM,ISTOPA,
      +              LSINFO,ICALCM,RSTART,MATRIT,NPRESG,NRECAL, ! ITEXIT,
-     +              NMISS1,ISAVES
+     +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
@@ -131,7 +131,12 @@
 *     RSTART = start time
 *     ISTOPA = stop code of solution
 *     LSINFO = INFO from line search
-*     ICALCM = 
+*     ICALCM = -1: new solutiuon, 0: function value, 1: all
+*     LCALCM = mode (ICALCM+3, 1..4) of last loop
+*** local fit ***
+*     NBNDR  = number of records with bordered band matrix
+*     NBDRX  = max border size 
+*     NBNDX  = max band width
 C removed*     ITEXIT = exit code
 
       DOUBLE PRECISION FVALUE,FLINES
