@@ -1426,7 +1426,7 @@ c         WRITE(*,*) 'S is ',S
 *                                                 090817 C. Kleinwort, DESY-FH1
 *     --------- bordered band matrix -----------
 
-      SUBROUTINE SQMIBB(V,B,N,NBDR,NBND,INV,NRANK,JPRI)   
+      SUBROUTINE SQMIBB(V,B,N,NBDR,NBND,INV,NRANK)   
 *     obtain solution of a system of linear equations with symmetric
 *     bordered band matrix 
 *     on request inverse is calculated  

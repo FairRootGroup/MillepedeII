@@ -21,12 +21,13 @@
       LUNLOG=8
       CALL MVOPEN(LUNLOG,'millepede.log')
 
+      WRITE(*,*) '($Rev$)'     
       WRITE(*,*) ' '
       WRITE(*,*) '     Millepede II-B  starting ... ',CHDATE 
       WRITE(*,*) ' '
       CALL MEGNIT             ! initialize dynal memory management
       WRITE(*,*) ' '
-
+            
       WRITE(8,*) ' '
       WRITE(8,*) 'Log-file Millepede II-B                        ',
      +            CHDATE
@@ -1441,14 +1442,15 @@ c 103  FORMAT(I13,3X,A,G12.4)
           END DO
          END DO
          GOTO 10
-      END IF                  
+      END IF           
 *     for non trivial fits check for bordered band matrix structure     
       IF (ITER.EQ.1.AND.NALC.GT.5) THEN
 	 KX=-1
+	 KBDR=0
 	 ICMN=NALC**3/2 ! cost should improve by at least factor 2
-	 DO K=2,MIN(NALC,MXBND+2)
+	 DO K=MIN(NALC,MXBND+2),2,-1
 	    KBND=K-2
-	    KBDR=IBANDH(K)
+	    KBDR=MAX(KBDR,IBANDH(K))
 	    ICOST=(NALC-KBDR)*(KBND+KBDR)*(KBND+KBDR+1)+KBDR**3
             IF (ICOST.LT.ICMN.AND.KBDR.LE.MXBDR) THEN
 	       ICMN=ICOST
@@ -1471,7 +1473,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
 *	  
          INV=0
 	 IF (ICALCM.EQ.1.OR.RECPRI) INV=1        
-         CALL SQMIBB(CLMAT,BLVEC,NALC,MBDR,MBND,INV,NRANK,JPR)
+         CALL SQMIBB(CLMAT,BLVEC,NALC,MBDR,MBND,INV,NRANK)
       ELSE
 *     full inversion and solution   
          CALL SQMINV(CLMAT,BLVEC,NALC,NRANK,SCDIAG,SCFLAG)
@@ -3692,11 +3694,19 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
       LSINFO=INFO
 
       STEPL=STP      
+      NAN=0
       DO I=1,NVGB
        ITGBI=JTGBI(I)
+       IF ((.NOT.(DQ(IDUX2/2+I).LE.0.0D0)).AND.
+     +     (.NOT.(DQ(IDUX2/2+I).GT.0.0D0))) NAN=NAN+1
        DQ(IND0/2+ITGBI)=DQ(IDUX2/2+I) ! current parameter values
       END DO
       SFUN=FVALUE
+      
+      IF (NAN.GT.0) THEN
+         WRITE(*,*) 'Result vector containes ', NAN,' NaNs - stop'
+	 STOP
+      ENDIF
 
       IF(INFO.EQ.0) THEN
          WRITE(*,*) 'INFO=0 should not happen'
