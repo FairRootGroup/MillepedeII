@@ -61,7 +61,7 @@
      +              WOLFC1,WOLFC2,NOFEAS,DELFUN,ACTFUN,ANGRAS,
      +              NDFSUM,NREGUL,REGULA,REGPRE,IITERA,DELTIM,ISTOPA,
      +              LSINFO,ICALCM,RSTART,MATRIT,NPRESG,NRECAL, ! ITEXIT,
-     +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX
+     +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
@@ -138,6 +138,7 @@
 *     NBDRX  = max border size 
 *     NBNDX  = max band width
 C removed*     ITEXIT = exit code
+*     NRECER = (1.) record with error (rank deficit or Not-a-Number)
 
       DOUBLE PRECISION FVALUE,FLINES
       COMMON/MPDOUB/FVALUE,FLINES

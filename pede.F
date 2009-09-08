@@ -184,6 +184,10 @@ c       END IF
             WRITE(8,*) 'Record',NREC2,' has largest Chi^2/Ndf:',VALUE2
          END IF
       END IF
+      IF(NRECER.GT.0) THEN
+         WRITE(8,*) 'Record',NRECER,
+     +               ' is first with error (rank deficit/NaN)'
+      ENDIF
       WRITE(8,*) ' '
       WRITE(8,*) 'In total 2 +',NLOOPN,' loops through the data files'
 
@@ -211,8 +215,8 @@ c       END IF
       IF(NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
          WRITE(8,*) ' '
          WRITE(8,*) 'Data rejected in last iteration:   '
-	 WRITE(8,*) '     ',
-     +   NREJEC(0), ' (rank deficit) ',NREJEC(1),' (Ndf=0)   ',
+	 WRITE(8,*) '   ',
+     +   NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'     
          WRITE(8,*) ' '
       END IF
@@ -806,6 +810,8 @@ c         WRITE(*,111) ! header line
       IF(NEWITE.AND.(ITERAT.EQ.1.OR.ITERAT.EQ.3)) THEN
          IF(NREC.EQ.NRECPR) RECPRI=.TRUE.
          IF(NREC.EQ.NRECP2) RECPRI=.TRUE.
+	 IF((NRECPR.NE.0.OR.NRECP2.NE.0)
+     +     .AND.NREC.EQ.NRECER) RECPRI=.TRUE.
       END IF
       IF(RECPRI) THEN
          WRITE(1,*) ' '
@@ -1028,8 +1034,8 @@ c      WRITE(*,*) 'NREGUL ',NREGUL,NLOOPN
          IF(NREJ.NE.0) THEN
             WRITE(*,*) ' '
             WRITE(*,*) 'Data rejected in initial loop:'
-	    WRITE(*,*) '     ',
-     +      NREJEC(0), ' (rank deficit) ',NREJEC(1),' (Ndf=0)   ',
+	    WRITE(*,*) '   ',
+     +      NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +      NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'	    
          END IF 
       END IF
@@ -1358,9 +1364,9 @@ c 103  FORMAT(I13,3X,A,G12.4)
       NTER=1                         ! first loop without down-weighting
       IF(NLOOPN.NE.1.AND.LHUBER.NE.0) NTER=LHUBER
 
-*     check matrix for bordered band structure      
+*     check matrix for bordered band structure (MBDR+MBND+1 <= NALC)     
       MBND=-1
-      MBDR=0
+      MBDR=NALC
       DO I=1, NALC
          IBANDH(I)=0
       ENDDO      
@@ -1447,11 +1453,11 @@ c 103  FORMAT(I13,3X,A,G12.4)
       IF (ITER.EQ.1.AND.NALC.GT.5) THEN
 	 KX=-1
 	 KBDR=0
-	 ICMN=NALC**3/2 ! cost should improve by at least factor 2
+	 ICMN=NALC**3 ! cost (*6) should improve by at least factor 2
 	 DO K=MIN(NALC,MXBND+2),2,-1
 	    KBND=K-2
 	    KBDR=MAX(KBDR,IBANDH(K))
-	    ICOST=(NALC-KBDR)*(KBND+KBDR)*(KBND+KBDR+1)+KBDR**3
+	    ICOST=6*(NALC-KBDR)*(KBND+KBDR+1)**2+2*KBDR**3
             IF (ICOST.LT.ICMN.AND.KBDR.LE.MXBDR) THEN
 	       ICMN=ICOST
 	       KX=K
@@ -1478,7 +1484,13 @@ c 103  FORMAT(I13,3X,A,G12.4)
 *     full inversion and solution   
          CALL SQMINV(CLMAT,BLVEC,NALC,NRANK,SCDIAG,SCFLAG)
       ENDIF
-      
+*     check for NaNs
+      NAN=0
+      DO K=1, NALC
+         IF ((.NOT.(BLVEC(K).LE.0.0D0)).AND.
+     +	     (.NOT.(BLVEC(K).GT.0.0D0))) NAN=NAN+1
+      ENDDO
+            
       IF(RECPRI) THEN 
          WRITE(1,*) ' '
          WRITE(1,*) 'Parameter determination:',NALC,' parameters,',
@@ -1577,10 +1589,12 @@ c         SUWT=SUWT+DCHI2/DCHIT
          WRITE(1,*) SUWT,' is sum of factors, compared to',NWEIG,
      +              ' Downweight fraction:',RESING    
       END IF
-      IF(NRANK.NE.NALC) THEN
+      IF(NRANK.NE.NALC.OR.NAN.GT.0) THEN
          NREJEC(0)=NREJEC(0)+1         ! count cases
+	 IF (NRECER.LE.0) NRECER=NREC
          IF(RECPRI) THEN
-            WRITE(1,*) '   ---> rejected!'
+	    WRITE(1,*) ' rank deficit/NaN ', NALC, NRANK, NAN
+	    WRITE(1,*) '   ---> rejected!'
          END IF
          RETURN
       END IF 
@@ -3607,8 +3621,8 @@ C                  CALL PLOOPA(LUNLOG)
       IF(3*NREJ.GT.NRECAL) THEN
          WRITE(*,*) ' '
          WRITE(*,*) 'Data rejected in previous loop:   '
-	 WRITE(*,*) '     ',
-     +   NREJEC(0), ' (rank deficit) ',NREJEC(1),' (Ndf=0)   ',
+	 WRITE(*,*) '   ',
+     +   NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'	 
          WRITE(*,*) 'Too many rejects (>33.3%) - stop'
          STOP 
@@ -3736,8 +3750,8 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
  91   IF(NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
          WRITE(*,*) ' '
          WRITE(*,*) 'Data rejected in last loop:   '
-	 WRITE(*,*) '     ',
-     +   NREJEC(0), ' (rank deficit) ',NREJEC(1),' (Ndf=0)   ',
+	 WRITE(*,*) '   ',
+     +   NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'
       END IF
 
@@ -3931,6 +3945,7 @@ c 103  FORMAT(1X,A,G12.4)
       NBNDR =0  ! number of records with bordered band matrix for local fit
       NBDRX =0  ! max border size for local fit
       NBNDX =0  ! max band width for local fit
+      NRECER=0  ! (1.) record with error (rank deficit or Not-a-Number)
             
       DO I=1,8
        TIMES(I)=0.0

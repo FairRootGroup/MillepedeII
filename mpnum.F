@@ -1450,7 +1450,7 @@ c         WRITE(*,*) 'S is ',S
 *     VBDR(N* NBDR)    = storage of border part 
 *     AUX (N* NBDR)    = intermediate results
 *
-* cost[dot ops] ~= (N-NBDR)*(NBDR+NBND)*(NBDR+NBND+1) + NBDR**3 (solution only)
+* cost[dot ops] ~= (N-NBDR)*(NBDR+NBND+1)**2 + NBDR**3/3 (leading term, solution only)
 *
       DOUBLE PRECISION V(*),B(N)
 *
