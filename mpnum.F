@@ -1494,6 +1494,7 @@ c         WRITE(*,*) 'S is ',S
       ENDIF 
 *
       CALL DBCDEC(VBND,MP1,NMB,AUX)
+* use? CALL DBFDEC(VBND,MP1,NMB) ! modified decomp., numerically more stable
 C      CALL DBCPRB(VBND,MP1,NMB)
       IP=1
       DO I=1, NMB

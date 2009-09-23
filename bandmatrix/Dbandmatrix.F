@@ -165,7 +165,7 @@
 *     diagonal elements of matrix D are stored in those places.
 *
 *     In the  solution routines ...SLV the array B is the right-hand matrix,
-*     the array is the resulting solution. The same array can be use
+*     the array is the resulting solution. The same array can be used
 *     for B and X.    
 *
 *
@@ -174,6 +174,9 @@
 *     SUBROUTINE DCHDEC(W,N, AUX)      ! decomposition, symmetric matrix
 *          ENTRY DCHSLV(W,N,B, X)      ! solution B -> X
 *          ENTRY DCHINV(W,N, V)        ! inversion
+*
+*     SUBROUTINE DCFDEC(W,N)           ! modified composition, symmetric
+*                                      ! alternative to DCHDEC                                       
 *
 *     W(.) and V(.) are band matrices, n rows, band width m (i.e. the total
 *          width of the band is (2m+1).
@@ -184,6 +187,9 @@
 *          ENTRY DBCSLV(W,MP1,N,B, X)  ! solution B -> X
 *          ENTRY DBCIEL(W,MP1,N, V)    ! V = inverse band matrix elements
 *          ENTRY DBCINV(W,MP1,N, VS)   ! V = inverse symmetric matrix
+*
+*     SUBROUTINE DBFDEC(W,MP1,N)       ! modified decomposition, bandwidth M
+*                                      ! alternative to DBCDEC
 *
 *     SUBROUTINE DBCPRB(W,MP1,N)       ! print band matrix 
 *     SUBROUTINE DBCPRV(W,MP1,N,B)     ! print corr band matrix and pars
@@ -638,4 +644,88 @@ c       IF(I.LT.N-1) CI(3,I)=CI(3,I)+FK*AU(I)*AU(I+2) ! next diagonal
 c      END DO
 
 c      END 
+
+
+      SUBROUTINE DCFDEC(W,N)      ! decomposition of symmetric matrix
+*     modified Cholesky decomposition 
+*     Philip E.Gill, Walter Murray and Margarete H.Wright:
+*       Practical Optimization, Academic Press, 1981 
+      IMPLICIT NONE
+      INTEGER N,I,J,K
+      DOUBLE PRECISION W(*),EPSM,GAMM,XCHI,BETA,DELTA,THETA
+*
+      EPSM=2.2D-16 ! machine precision
+      GAMM=0.0D0   ! max diagonal element
+      XCHI=0.0D0   ! max off-diagonal element
+      DO K=1,N
+       GAMM=MAX(GAMM,ABS(W((K*K+K)/2)))
+       DO J=K+1,N
+        XCHI=MAX(XCHI,ABS(W((J*J-J)/2+K)))
+       END DO
+      END DO
+      BETA=SQRT(MAX(GAMM,XCHI/MAX(1.0D0,SQRT(DFLOAT(N*N-1))),EPSM))
+      DELTA=EPSM*MAX(1.0D0,GAMM+XCHI)
+
+      DO K=1,N
+       DO I=1,K-1
+         W((K*K-K)/2+I)=W((K*K-K)/2+I)*W((I*I+I)/2)   
+       END DO
+       DO J=K+1,N
+        DO I=1,K-1
+         W((J*J-J)/2+K)=W((J*J-J)/2+K)-W((K*K-K)/2+I)*W((J*J-J)/2+I)
+        END DO
+       END DO
+       THETA=0.0D0
+       DO J=K+1,N 
+        THETA=MAX(THETA,ABS(W((J*J-J)/2+K)))
+       END DO
+       W((K*K+K)/2)=1.0D0/MAX(ABS(W((K*K+K)/2)),(THETA/BETA)**2,DELTA)
+       DO J=K+1,N
+        W((J*J+J)/2)=W((J*J+J)/2)-W((J*J-J)/2+K)**2*W((K*K+K)/2)
+       END DO
+      END DO ! K
+
+      END
+
+      SUBROUTINE DBFDEC(W,MP1,N)
+*     band matrix modified Cholesky decomposition
+*     Philip E.Gill, Walter Murray and Margarete H.Wright:
+*       Practical Optimization, Academic Press, 1981
+      IMPLICIT NONE
+      INTEGER MP1,N,I,J,K  
+      DOUBLE PRECISION W(MP1,N),EPSM,GAMM,XCHI,BETA,DELTA,THETA
+*     
+      EPSM=2.2D-16 ! machine precision
+      GAMM=0.0D0   ! max diagonal element
+      XCHI=0.0D0   ! max off-diagonal element
+      DO K=1,N
+       GAMM=MAX(GAMM,ABS(W(1,K)))
+       DO J=2,MIN(MP1,N-K+1)
+        XCHI=MAX(XCHI,ABS(W(J,K)))
+       END DO
+      END DO
+      BETA=SQRT(MAX(GAMM,XCHI/MAX(1.0D0,SQRT(DFLOAT(N*N-1))),EPSM))
+      DELTA=EPSM*MAX(1.0D0,GAMM+XCHI)
+
+      DO K=1,N
+       DO I=2,MIN(MP1,K)
+        W(I,K-I+1)=W(I,K-I+1)*W(1,K-I+1)
+       END DO
+       DO J=2,MIN(MP1,N-K+1)
+        DO I=MAX(2,J+K+1-MP1),K
+         W(J,K)=W(J,K)-W(K-I+2,I-1)*W(J-I+K+1,I-1)
+        END DO
+       END DO
+       THETA=0.0D0
+       DO J=2,MIN(MP1,N-K+1)
+        THETA=MAX(THETA,ABS(W(J,K))) 
+       END DO
+       W(1,K)=1.0D0/MAX(ABS(W(1,K)),(THETA/BETA)**2,DELTA) 
+       DO J=2,MIN(MP1,N-K+1)
+        W(1,K+J-1)=W(1,K+J-1)-W(1,K)*W(J,K)**2
+       END DO
+      END DO ! K
+
+      END
+
 

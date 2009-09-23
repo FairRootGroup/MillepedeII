@@ -1,15 +1,23 @@
 
       PROGRAM MPTWO                              ! Millepede II main program
 
-*     Millepede II main program 
+*     Millepede II main program
 
       CHARACTER*24 CHDATE 
       REAL RST,RSTP
 #include "dynal.inc"
 #include "mpinds.inc"
+* MPTEST      
       PARAMETER (NPLAN=100)                ! test data ...
       COMMON/TDETEC/DEL(NPLAN),DVD(NPLAN)  ! ...of misalignment
-      DOUBLE PRECISION SUMS(4)
+* MPTST2      
+      PARAMETER (NLYR=10)                  ! #layers
+      PARAMETER (NMX=10)                    ! #module in X
+      PARAMETER (NMY=5)                    ! #module in Y 
+      PARAMETER (NTOT=NLYR*NMX*NMY)      
+      COMMON/SDEVEC/SDEVX(NTOT),SDEVY(NTOT)
+*         
+      DOUBLE PRECISION SUMS(9)
 
       SAVE
 *     ...
@@ -130,7 +138,7 @@ c       END IF
 
       IF(ICTEST.EQ.1) THEN
          WRITE(*,*) ' '
-         WRITE(*,*) 'Misalignment test'
+         WRITE(*,*) 'Misalignment test wire chamber'
          WRITE(*,*) ' '
 
          CALL HMPDEF( 9,-0.0015,+0.0015,'True - fitted displacement')
@@ -174,7 +182,103 @@ c       END IF
          CALL HMPWRT( 9)
          CALL HMPWRT(10)
       END IF
-      
+      IF(ICTEST.GT.1) THEN
+         WRITE(*,*) ' '
+         WRITE(*,*) 'Misalignment test Si tracker'
+         WRITE(*,*) ' '
+
+         CALL HMPDEF( 9,-0.005,+0.005,'True - fitted displacement X')
+         CALL HMPDEF(10,-0.005,+0.005,'True - fitted displacement Y')
+         DO I=1,9
+          SUMS(I)=0.0D0
+         END DO
+	 NMXY=NMX*NMY
+	 IX=0
+	 IY=NTOT
+	 DO I=1,NLYR
+	  DO K=1,NMXY
+	   IX=IX+1
+           DIFF=-SDEVX((I-1)*NMXY+K)-DQ(IND0/2+IX)
+	   SUMS(1)=SUMS(1)+1.0D0
+           SUMS(2)=SUMS(2)+DIFF
+           SUMS(3)=SUMS(3)+DIFF*DIFF
+	   IXV=JVGBI(IX)
+	   IF (IXV.GT.0.AND.METSOL.EQ.1.OR.METSOL.EQ.2) THEN
+            II=(IXV*IXV+IXV)/2
+            GMATI=DQ(IGMAT/2+II)
+            ERR=SQRT(ABS(GMATI))
+	    DIFF=DIFF/ERR
+	    SUMS(7)=SUMS(7)+1.0D0
+            SUMS(8)=SUMS(8)+DIFF
+            SUMS(9)=SUMS(9)+DIFF*DIFF
+	   END IF
+	  END DO
+	  IF (MOD(I,3).EQ.1) THEN
+	   DO K=1,NMXY
+	    IY=IY+1
+            DIFF=-SDEVY((I-1)*NMXY+K)-DQ(IND0/2+IY)
+	    SUMS(4)=SUMS(4)+1.0D0
+            SUMS(5)=SUMS(5)+DIFF
+            SUMS(6)=SUMS(6)+DIFF*DIFF
+	    IXV=JVGBI(IY)
+	    IF (IXV.GT.0.AND.METSOL.EQ.1.OR.METSOL.EQ.2) THEN
+             II=(IXV*IXV+IXV)/2
+             GMATI=DQ(IGMAT/2+II)
+             ERR=SQRT(ABS(GMATI))
+	     DIFF=DIFF/ERR
+	     SUMS(7)=SUMS(7)+1.0D0
+             SUMS(8)=SUMS(8)+DIFF
+             SUMS(9)=SUMS(9)+DIFF*DIFF
+	    END IF
+	   END DO	  
+	  END IF
+         END DO
+         SUMS(2)=SUMS(2)/SUMS(1)
+         SUMS(3)=SQRT(SUMS(3)/SUMS(1)) 
+         SUMS(5)=SUMS(5)/SUMS(4)
+         SUMS(6)=SQRT(SUMS(6)/SUMS(4))
+         WRITE(*,143) 'Parameters   1 - 500: mean =',SUMS(2),
+     +               'rms =',SUMS(3)                       
+         WRITE(*,143) 'Parameters 501 - 700: mean =',SUMS(5),
+     +               'rms =',SUMS(6)                       
+         IF (SUMS(7).GT.0.5D0) THEN
+          SUMS(8)=SUMS(8)/SUMS(7)
+          SUMS(9)=SQRT(SUMS(9)/SUMS(7))
+          WRITE(*,143) 'Parameter pulls, all: mean =',SUMS(8),
+     +               'rms =',SUMS(9)               
+     	 END IF
+	 WRITE(*,*) ' '
+         WRITE(*,*) ' ' 
+         WRITE(*,*) '    I '
+         WRITE(*,*) '   --- '             
+	 IX=0
+	 IY=NTOT
+         DO I=1,NLYR
+	  DO K=1,NMXY
+	   IX=IX+1
+           DIFF=-SDEVX((I-1)*NMXY+K)-DQ(IND0/2+IX)
+           CALL HMPENT( 9,DIFF)	              
+           WRITE(*,102) IX,-SDEVX((I-1)*NMXY+K),DQ(IND0/2+IX),-DIFF
+	  END DO
+	 END DO 
+         DO I=1,NLYR
+	  IF (MOD(I,3).EQ.1) THEN
+	   DO K=1,NMXY
+	    IY=IY+1
+            DIFF=-SDEVY((I-1)*NMXY+K)-DQ(IND0/2+IY)
+            CALL HMPENT(10,DIFF)	              
+            WRITE(*,102) IY,-SDEVY((I-1)*NMXY+K),DQ(IND0/2+IY),-DIFF
+	   END DO	  
+	  END IF
+         END DO         
+         IF(NHISTP.NE.0) THEN
+            CALL HMPRNT( 9)
+            CALL HMPRNT(10)
+         END IF  
+         CALL HMPWRT( 9)
+         CALL HMPWRT(10)
+      END IF
+           
       IF(NREC1+NREC2.GT.0) THEN
          WRITE(8,*) ' '
          IF(NREC1.GT.0) THEN
@@ -229,7 +333,7 @@ C      CALL EXIT(ITEXIT)
 
 
 
- 102  FORMAT(2X,I4,2X,3F10.4,2X,3F10.4)
+ 102  FORMAT(2X,I4,2X,3F10.5,2X,3F10.5)
  103  FORMAT(' Times [in sec] for     text processing',F12.3/
      +       '                                  LOOP1',F12.3/
      +       '                                  LOOP2',F12.3/
@@ -1791,8 +1895,8 @@ c         WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
 *     error (standard deviation)
 
 #include "dynal.inc"
-c      INTEGER LABELE(3)
-c      REAL    COMPNT(3)
+      INTEGER LABELE(3)
+      REAL    COMPNT(3)
       SAVE
 #include "mpinds.inc"
 *     ...
@@ -1852,10 +1956,53 @@ c      REAL    COMPNT(3)
       REWIND LUP
       CLOSE(UNIT=LUP) 
 
+      IF(METSOL.EQ.2) THEN        ! diagonalisation: write eigenvectors
+         CALL MVOPEN(LUP,'millepede.eve')
+         DO I=NAGB,1,-1
+          IF(DQ(IDUX6/2+I).GT.0.0D0) GOTO 20
+         END DO
+         I=1
+  20     IMIN=I                        ! index of smallest pos. eigenvalue
+         IEV=0
+
+         DO ISUB=0,MIN(15,IMIN-1)
+          IF(ISUB.LT.10) THEN
+             I=IMIN-ISUB
+          ELSE
+             I=ISUB-9
+          END IF 
+         
+c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
+          WRITE(*,*) 'Eigenvector ',I,' with eigenvalue',DQ(IDUX6/2+I)
+          WRITE(LUP,*) 'Eigenvector ',I,' with eigenvalue',DQ(IDUX6/2+I) 
+          DO J=1,NAGB
+           IJ=INDT/2+J+(I-1)*NAGB      ! index with eigenvector array
+           IF(J.LE.NVGB) THEN
+              ITGBI=JTGBI(J)
+              LABEL=JTGBL(ITGBI)
+           ELSE
+              LABEL=NVGB-J             ! label negative for constraints 
+           END IF
+           IEV=IEV+1
+           LABELE(IEV)=LABEL
+           COMPNT(IEV)=DQ(IJ)                ! component
+           IF(IEV.EQ.3) THEN
+              WRITE(LUP,103) (LABELE(IE),COMPNT(IE),IE=1,IEV)
+              IEV=0
+           END IF 
+          END DO
+          IF(IEV.NE.0) WRITE(LUP,103) (LABELE(IE),COMPNT(IE),IE=1,IEV)
+          IEV=0
+          WRITE(LUP,*) ' '
+         END DO
+
+      END IF   
+      
  101  FORMAT(1X,'    label       parameter      presigma        differ',
      +                   '         error'/
      +       1X,'-----------',4X,4('-------------'))
  102  FORMAT(I10,2X,4G14.5,F8.3)
+ 103  FORMAT(3(I11,F11.7,2X))
       END
 
 
@@ -3984,7 +4131,18 @@ c 103  FORMAT(1X,A,G12.4)
               INTRAC=1 ! ... and interactive
               WRITE(*,*) 'Debugging requested'
           END IF
-          IF(INDEX(TEXT(IA:IB),'t').NE.0) ICTEST=1  ! internal test files
+	  IT=INDEX(TEXT(IA:IB),'t')
+          IF(IT.NE.0) THEN
+	     ICTEST=1  ! internal test files
+	     IEQ=INDEX(TEXT(IA+IT:IB),'=')+IT
+	     IF (IT.NE.IEQ) THEN
+	        IF (INDEX(TEXT(IA+IEQ:IB),'SL0' ).NE.0) ICTEST=2
+	        IF (INDEX(TEXT(IA+IEQ:IB),'SLE' ).NE.0) ICTEST=3
+	        IF (INDEX(TEXT(IA+IEQ:IB),'BP'  ).NE.0) ICTEST=4
+	        IF (INDEX(TEXT(IA+IEQ:IB),'BRLF').NE.0) ICTEST=5
+	        IF (INDEX(TEXT(IA+IEQ:IB),'BRLC').NE.0) ICTEST=6
+	     ENDIF
+	  ENDIF   
           IF(INDEX(TEXT(IA:IB),'s').NE.0) ISUBIT=1  ! like "subito"
        END IF
        IF(I.EQ.IARGC()) WRITE(*,*) '--------------------- '
@@ -3993,9 +4151,13 @@ c 103  FORMAT(1X,A,G12.4)
 
 *     create test files for option -t ----------------------------------
 
-      IF(ICTEST.EQ.1) THEN
+      IF(ICTEST.GE.1) THEN
          WRITE(*,*) ' ' 
-         CALL MPTEST
+	 IF (ICTEST.EQ.1) THEN
+            CALL MPTEST ! 'wire chamber'
+	 ELSE
+	    CALL MPTST2(ICTEST-2) ! 'silicon tracker'
+	 ENDIF     
          IF(FILNAM.EQ.' ') FILNAM='mp2str.txt'
          WRITE(*,*) ' '  
       END IF   

@@ -37,7 +37,7 @@ L_FLAGS = -Wall -O3 ${LARGE_MEMORY_OPT}
 #
 # objects for this project
 #
-USER_OBJ_PEDE_STATIC = mptest.o mille.o mpnum.o mptext.o mphistab.o \
+USER_OBJ_PEDE_STATIC = mptest.o mptst2.o mille.o mpnum.o mptext.o mphistab.o \
 	minresblas.o minres.o vertpr.o linesrch.o bandmatrix/Dbandmatrix.o
 USER_OBJ_PEDE = ${USER_OBJ_PEDE_STATIC} pede.o dynal.o
 #
