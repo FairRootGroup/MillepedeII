@@ -187,51 +187,51 @@ c       END IF
          WRITE(*,*) 'Misalignment test Si tracker'
          WRITE(*,*) ' '
 
-         CALL HMPDEF( 9,-0.005,+0.005,'True - fitted displacement X')
-         CALL HMPDEF(10,-0.005,+0.005,'True - fitted displacement Y')
+         CALL HMPDEF( 9,-0.0025,+0.0025,'True - fitted displacement X')
+         CALL HMPDEF(10,-0.025,+0.025,'True - fitted displacement Y')
          DO I=1,9
           SUMS(I)=0.0D0
          END DO
-	 NMXY=NMX*NMY
-	 IX=0
-	 IY=NTOT
-	 DO I=1,NLYR
-	  DO K=1,NMXY
-	   IX=IX+1
-           DIFF=-SDEVX((I-1)*NMXY+K)-DQ(IND0/2+IX)
-	   SUMS(1)=SUMS(1)+1.0D0
-           SUMS(2)=SUMS(2)+DIFF
-           SUMS(3)=SUMS(3)+DIFF*DIFF
-	   IXV=JVGBI(IX)
-	   IF (IXV.GT.0.AND.METSOL.EQ.1.OR.METSOL.EQ.2) THEN
+        NMXY=NMX*NMY
+        IX=0
+        IY=NTOT
+        DO I=1,NLYR
+         DO K=1,NMXY
+          IX=IX+1
+          DIFF=-SDEVX((I-1)*NMXY+K)-DQ(IND0/2+IX)
+          SUMS(1)=SUMS(1)+1.0D0
+          SUMS(2)=SUMS(2)+DIFF
+          SUMS(3)=SUMS(3)+DIFF*DIFF
+          IXV=JVGBI(IX)
+          IF (IXV.GT.0.AND.METSOL.EQ.1.OR.METSOL.EQ.2) THEN
+           II=(IXV*IXV+IXV)/2
+           GMATI=DQ(IGMAT/2+II)
+           ERR=SQRT(ABS(GMATI))
+           DIFF=DIFF/ERR
+           SUMS(7)=SUMS(7)+1.0D0
+           SUMS(8)=SUMS(8)+DIFF
+           SUMS(9)=SUMS(9)+DIFF*DIFF
+          END IF
+         END DO
+         IF (MOD(I,3).EQ.1) THEN
+          DO K=1,NMXY
+           IY=IY+1
+           DIFF=-SDEVY((I-1)*NMXY+K)-DQ(IND0/2+IY)
+           SUMS(4)=SUMS(4)+1.0D0
+           SUMS(5)=SUMS(5)+DIFF
+           SUMS(6)=SUMS(6)+DIFF*DIFF
+           IXV=JVGBI(IY)
+           IF (IXV.GT.0.AND.METSOL.EQ.1.OR.METSOL.EQ.2) THEN
             II=(IXV*IXV+IXV)/2
             GMATI=DQ(IGMAT/2+II)
             ERR=SQRT(ABS(GMATI))
-	    DIFF=DIFF/ERR
-	    SUMS(7)=SUMS(7)+1.0D0
+            DIFF=DIFF/ERR
+            SUMS(7)=SUMS(7)+1.0D0
             SUMS(8)=SUMS(8)+DIFF
             SUMS(9)=SUMS(9)+DIFF*DIFF
-	   END IF
-	  END DO
-	  IF (MOD(I,3).EQ.1) THEN
-	   DO K=1,NMXY
-	    IY=IY+1
-            DIFF=-SDEVY((I-1)*NMXY+K)-DQ(IND0/2+IY)
-	    SUMS(4)=SUMS(4)+1.0D0
-            SUMS(5)=SUMS(5)+DIFF
-            SUMS(6)=SUMS(6)+DIFF*DIFF
-	    IXV=JVGBI(IY)
-	    IF (IXV.GT.0.AND.METSOL.EQ.1.OR.METSOL.EQ.2) THEN
-             II=(IXV*IXV+IXV)/2
-             GMATI=DQ(IGMAT/2+II)
-             ERR=SQRT(ABS(GMATI))
-	     DIFF=DIFF/ERR
-	     SUMS(7)=SUMS(7)+1.0D0
-             SUMS(8)=SUMS(8)+DIFF
-             SUMS(9)=SUMS(9)+DIFF*DIFF
-	    END IF
-	   END DO	  
-	  END IF
+           END IF
+          END DO       
+         END IF
          END DO
          SUMS(2)=SUMS(2)/SUMS(1)
          SUMS(3)=SQRT(SUMS(3)/SUMS(1)) 
@@ -246,30 +246,30 @@ c       END IF
           SUMS(9)=SQRT(SUMS(9)/SUMS(7))
           WRITE(*,143) 'Parameter pulls, all: mean =',SUMS(8),
      +               'rms =',SUMS(9)               
-     	 END IF
-	 WRITE(*,*) ' '
+        END IF
+        WRITE(*,*) ' '
          WRITE(*,*) ' ' 
          WRITE(*,*) '    I '
          WRITE(*,*) '   --- '             
-	 IX=0
-	 IY=NTOT
+        IX=0
+        IY=NTOT
          DO I=1,NLYR
-	  DO K=1,NMXY
-	   IX=IX+1
+         DO K=1,NMXY
+          IX=IX+1
            DIFF=-SDEVX((I-1)*NMXY+K)-DQ(IND0/2+IX)
-           CALL HMPENT( 9,DIFF)	              
+           CALL HMPENT( 9,DIFF)                  
            WRITE(*,102) IX,-SDEVX((I-1)*NMXY+K),DQ(IND0/2+IX),-DIFF
-	  END DO
-	 END DO 
+         END DO
+        END DO 
          DO I=1,NLYR
-	  IF (MOD(I,3).EQ.1) THEN
-	   DO K=1,NMXY
-	    IY=IY+1
+         IF (MOD(I,3).EQ.1) THEN
+          DO K=1,NMXY
+           IY=IY+1
             DIFF=-SDEVY((I-1)*NMXY+K)-DQ(IND0/2+IY)
-            CALL HMPENT(10,DIFF)	              
+            CALL HMPENT(10,DIFF)                 
             WRITE(*,102) IY,-SDEVY((I-1)*NMXY+K),DQ(IND0/2+IY),-DIFF
-	   END DO	  
-	  END IF
+          END DO       
+         END IF
          END DO         
          IF(NHISTP.NE.0) THEN
             CALL HMPRNT( 9)
@@ -319,7 +319,7 @@ c       END IF
       IF(NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
          WRITE(8,*) ' '
          WRITE(8,*) 'Data rejected in last iteration:   '
-	 WRITE(8,*) '   ',
+        WRITE(8,*) '   ',
      +   NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'     
          WRITE(8,*) ' '
@@ -845,13 +845,13 @@ c      NR=NR-1
          END IF
          CALL HMPDEF( 5,0.0,0.0,'Number of degrees of freedom')
          CALL HMPDEF(11,0.0,0.0,'Number of local parameters')
-         CALL HMPDEF(13,0.0,0.0,
+         CALL HMPDEF(23,0.0,0.0,
      +   'SQRT of diagonal elements without presigma')
-         CALL HMPDEF(14,0.0,0.0,
+         CALL HMPDEF(24,0.0,0.0,
      +   'Log10 of off-diagonal elements')
-         CALL HMPDEF(15,0.0,0.0,
+         CALL HMPDEF(25,0.0,0.0,
      +   'Relative individual pre-sigma')
-         CALL HMPDEF(16,0.0,0.0,
+         CALL HMPDEF(26,0.0,0.0,
      +   'Relative global pre-sigma')
       END IF
 
@@ -860,10 +860,14 @@ c      NR=NR-1
      +   'Normalized residuals of single (global) measurement')
       CALL HMPDEF(12,0.0,0.0,          ! book  
      +   'Normalized residuals of single (local) measurement')
+      CALL HMPDEF(13,0.0,0.0,          ! book  
+     +   'Pulls of single (global) measurement')
+      CALL HMPDEF(14,0.0,0.0,          ! book  
+     +   'Pulls of single (local) measurement')
       CALL HMPDEF(4,0.0,0.0,'Chi^2/Ndf after local fit')
       CALL GMPDEF(4,5,'location and dispersion vs record nr') 
 
-c      WRITE(*,*) 'LOOPN executing ICALCM=',ICALCM 
+C      WRITE(*,*) 'LOOPN ', NLOOPN, ' executing ICALCM=', ICALCM 
 
 *     reset
 
@@ -914,7 +918,7 @@ c         WRITE(*,111) ! header line
       IF(NEWITE.AND.(ITERAT.EQ.1.OR.ITERAT.EQ.3)) THEN
          IF(NREC.EQ.NRECPR) RECPRI=.TRUE.
          IF(NREC.EQ.NRECP2) RECPRI=.TRUE.
-	 IF((NRECPR.NE.0.OR.NRECP2.NE.0)
+        IF((NRECPR.NE.0.OR.NRECP2.NE.0)
      +     .AND.NREC.EQ.NRECER) RECPRI=.TRUE.
       END IF
       IF(RECPRI) THEN
@@ -1012,7 +1016,7 @@ c         WRITE(*,111) ! header line
           IF(MATSTO.EQ.3) II=I
           IF(II.NE.0) THEN
              ELMT=DQ(IGMAT/2+II)
-             IF(ELMT.GT.0.0) CALL HMPENT(13,1.0/SQRT(ELMT))
+             IF(ELMT.GT.0.0) CALL HMPENT(23,1.0/SQRT(ELMT))
           END IF
          END DO 
       END IF  
@@ -1032,10 +1036,10 @@ c          WRITE(*,*) 'Index ',IVGB,IVGB,QM(IND6+IVGB)
          END DO
       END IF
 
-      CALL HMPWRT(13)
-      CALL HMPWRT(14) 
-      CALL HMPWRT(15)
-      CALL HMPWRT(16) 
+      CALL HMPWRT(23)
+      CALL HMPWRT(24) 
+      CALL HMPWRT(25)
+      CALL HMPWRT(26) 
 
 
 *     add regularization term to F and to rhs --------------------------
@@ -1138,9 +1142,9 @@ c      WRITE(*,*) 'NREGUL ',NREGUL,NLOOPN
          IF(NREJ.NE.0) THEN
             WRITE(*,*) ' '
             WRITE(*,*) 'Data rejected in initial loop:'
-	    WRITE(*,*) '   ',
+           WRITE(*,*) '   ',
      +      NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
-     +      NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'	    
+     +      NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'           
          END IF 
       END IF
 c      IF(NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
@@ -1165,7 +1169,9 @@ c            CALL HMPRNT(12) ! scaled residual of single measurement
 c            CALL HMPRNT(4)  ! chi^2/Ndf 
          END IF 
          CALL HMPWRT(3)
-         CALL HMPWRT(12)   
+         CALL HMPWRT(12)
+         CALL HMPWRT(13)
+         CALL HMPWRT(14)         
          CALL HMPWRT(4)   
          CALL GMPWRT(4) ! location, dispersion as a function of record nr         
       END IF
@@ -1180,16 +1186,16 @@ c         IF(NHISTP.NE.0) CALL HMPRNT(11) ! Nlocal
 
 *     local fit: band matrix structure !?
       IF (NLOOPN.EQ.1.AND.NBNDR.GT.0) THEN
-	 DO LUN=6,8,2
-	    WRITE(LUN,*) ' '
-	    WRITE(LUN,*) 
-     +         ' === local fits have bordered band matrix structure ===' 
+        DO LUN=6,8,2
+           WRITE(LUN,*) ' '
+           WRITE(LUN,*) 
+     +         ' === local fits have bordered band matrix structure ==='
             WRITE(LUN,101) ' NBNDR',NBNDR,'number of records'
             WRITE(LUN,101) ' NBDRX',NBDRX,'max border size'
             WRITE(LUN,101) ' NBNDX',NBNDX,'max band width'
          ENDDO
       ENDIF
-*	       
+*             
       LASTIT=ITERAT
 
  101  FORMAT(1X,A6,' =',I10,' = ',A)
@@ -1416,7 +1422,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
       DOUBLE PRECISION BLVEC(MLOCAL),CLMAT(MLMSYM),SCDIAG(MLOCAL)
       INTEGER SCFLAG(MLOCAL),IBANDH(MLOCAL)
 *       
-      DOUBLE PRECISION DCHI2
+      DOUBLE PRECISION DCHI2,DVAR
       CHARACTER*3 CHAST
       DATA CHUBER/1.345/  ! constant for Huber down-weighting
       DATA CAUCHY/2.3849/ ! constant for Cauchy down-weighting 
@@ -1542,31 +1548,31 @@ c 103  FORMAT(I13,3X,A,G12.4)
            IK=INDER(JA+K)         ! local parameter index K
            JK=IJSYM(IJ,IK)        ! index in symmetric matrix
            CLMAT(JK)=CLMAT(JK)    ! force double precision
-     +	      +DBLE(WGHT)*DBLE(GLDER(JA+J))*DBLE(GLDER(JA+K))
+     +       +DBLE(WGHT)*DBLE(GLDER(JA+J))*DBLE(GLDER(JA+K))
 *          check for band matrix substructure
-	   IF (ITER.EQ.1) THEN
-	     ID=IABS(IJ-IK)+1
-	     IM=MIN(IJ,IK)
+           IF (ITER.EQ.1) THEN
+             ID=IABS(IJ-IK)+1
+             IM=MIN(IJ,IK)
              IBANDH(ID)=MAX(IBANDH(ID),IM)
-	   ENDIF
+           ENDIF
           END DO
          END DO
          GOTO 10
-      END IF           
+      END IF  
 *     for non trivial fits check for bordered band matrix structure     
       IF (ITER.EQ.1.AND.NALC.GT.5) THEN
-	 KX=-1
-	 KBDR=0
-	 ICMN=NALC**3 ! cost (*6) should improve by at least factor 2
-	 DO K=MIN(NALC,MXBND+2),2,-1
-	    KBND=K-2
-	    KBDR=MAX(KBDR,IBANDH(K))
-	    ICOST=6*(NALC-KBDR)*(KBND+KBDR+1)**2+2*KBDR**3
+        KX=-1
+        KBDR=0
+        ICMN=NALC**3 ! cost (*6) should improve by at least factor 2
+        DO K=MIN(NALC,MXBND+2),2,-1
+           KBND=K-2
+           KBDR=MAX(KBDR,IBANDH(K))
+           ICOST=6*(NALC-KBDR)*(KBND+KBDR+1)**2+2*KBDR**3
             IF (ICOST.LT.ICMN.AND.KBDR.LE.MXBDR) THEN
-	       ICMN=ICOST
-	       KX=K
-	    ENDIF
-	 ENDDO
+              ICMN=ICOST
+              KX=K
+           ENDIF
+        ENDDO
          IF (KX.GT.0) THEN
             MBND=KX-2
             MBDR=IBANDH(KX)
@@ -1574,25 +1580,27 @@ c 103  FORMAT(I13,3X,A,G12.4)
       ENDIF
 *
       IF (MBND.GE.0) THEN
-*     fast solution for border banded matrix (inverse for ICALCM=1)
+*     fast solution for border banded matrix (inverse for ICALCM>0)
          IF (NLOOPN.EQ.1) THEN
-	    NBNDR=NBNDR+1
-	    NBDRX=MAX(NBDRX,MBDR)
-	    NBNDX=MAX(NBNDX,MBND)
-	 ENDIF
-*	  
+            NBNDR=NBNDR+1
+            NBDRX=MAX(NBDRX,MBDR)
+            NBNDX=MAX(NBNDX,MBND)
+         ENDIF
+*        
          INV=0
-	 IF (ICALCM.EQ.1.OR.RECPRI) INV=1        
+         IF (NLOOPN.LE.2.AND.ITER.EQ.1) INV=1 ! band part of inverse (for pulls)
+         IF (ICALCM.EQ.1.OR.RECPRI) INV=2     ! complete inverse     
          CALL SQMIBB(CLMAT,BLVEC,NALC,MBDR,MBND,INV,NRANK)
       ELSE
-*     full inversion and solution   
+*     full inversion and solution 
+         INV=2
          CALL SQMINV(CLMAT,BLVEC,NALC,NRANK,SCDIAG,SCFLAG)
       ENDIF
 *     check for NaNs
       NAN=0
       DO K=1, NALC
          IF ((.NOT.(BLVEC(K).LE.0.0D0)).AND.
-     +	     (.NOT.(BLVEC(K).GT.0.0D0))) NAN=NAN+1
+     +      (.NOT.(BLVEC(K).GT.0.0D0))) NAN=NAN+1
       ENDDO
             
       IF(RECPRI) THEN 
@@ -1624,8 +1632,30 @@ c 103  FORMAT(I13,3X,A,G12.4)
           IJ=INDER(JA+J)
           RMLOC=RMLOC+GLDER(JA+J)*BLVEC(IJ) ! local fit result
          END DO
-         RMEAS=RMEAS-RMLOC             ! reduced to residual  
-         
+         RMEAS=RMEAS-RMLOC             ! reduced to residual
+
+*        calculate pulls? (needs covariance matrix)
+         IF(ITER.EQ.1.AND.INV.GT.0.AND.NLOOPN.LE.2) THEN
+          DVAR=0.0D0
+          DO J=1,JB-JA-1
+           IJ=INDER(JA+J)
+           DO K=1,JB-JA-1
+            IK=INDER(JA+K)
+            JK=IJSYM(IJ,IK)
+            DVAR=DVAR+CLMAT(JK)*DBLE(GLDER(JA+J))*DBLE(GLDER(JA+K))
+           ENDDO
+          ENDDO
+*         some variance left to define a pull?          
+          IF (0.999999D0/DBLE(WGHT).GT.DVAR) THEN
+           PULL=RMEAS/DSQRT(1.0D0/DBLE(WGHT)-DVAR)
+           IF (JB.LT.IST) THEN
+            CALL HMPENT(13,PULL) ! histogram pull
+           ELSE
+            CALL HMPENT(14,PULL) ! histogram pull
+           ENDIF
+          ENDIF
+         ENDIF
+
          IF(ITER.EQ.1.AND.JB.LT.IST) CALL GMPMS(4,REC,RMEAS/RERR) ! residual (with global deriv.)
 
          DCHI2=WGHT*RMEAS*RMEAS
@@ -1695,10 +1725,10 @@ c         SUWT=SUWT+DCHI2/DCHIT
       END IF
       IF(NRANK.NE.NALC.OR.NAN.GT.0) THEN
          NREJEC(0)=NREJEC(0)+1         ! count cases
-	 IF (NRECER.LE.0) NRECER=NREC
+        IF (NRECER.LE.0) NRECER=NREC
          IF(RECPRI) THEN
-	    WRITE(1,*) ' rank deficit/NaN ', NALC, NRANK, NAN
-	    WRITE(1,*) '   ---> rejected!'
+           WRITE(1,*) ' rank deficit/NaN ', NALC, NRANK, NAN
+           WRITE(1,*) '   ---> rejected!'
          END IF
          RETURN
       END IF 
@@ -1974,7 +2004,7 @@ c         WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
          
 c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
           WRITE(*,*) 'Eigenvector ',I,' with eigenvalue',DQ(IDUX6/2+I)
-          WRITE(LUP,*) 'Eigenvector ',I,' with eigenvalue',DQ(IDUX6/2+I) 
+          WRITE(LUP,*) 'Eigenvector ',I,' with eigenvalue',DQ(IDUX6/2+I)
           DO J=1,NAGB
            IJ=INDT/2+J+(I-1)*NAGB      ! index with eigenvector array
            IF(J.LE.NVGB) THEN
@@ -3757,8 +3787,8 @@ C                  CALL PLOOPA(LUNLOG)
      +                  /(TIMES(IDX+3)+1.0)
             TIMES(IDX+3)= TIMES(IDX+3)+1.0
          ENDIF
-      ENDIF	 
-      JCALCM=ICALCM	 
+      ENDIF    
+      JCALCM=ICALCM   
 *  
       IF(ICALCM.LT.0) GOTO 20          ! ICALCM = +1 & 0 
       CALL LOOPN                       ! data loop
@@ -3768,9 +3798,9 @@ C                  CALL PLOOPA(LUNLOG)
       IF(3*NREJ.GT.NRECAL) THEN
          WRITE(*,*) ' '
          WRITE(*,*) 'Data rejected in previous loop:   '
-	 WRITE(*,*) '   ',
+        WRITE(*,*) '   ',
      +   NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
-     +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'	 
+     +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'    
          WRITE(*,*) 'Too many rejects (>33.3%) - stop'
          STOP 
       END IF 
@@ -3866,7 +3896,7 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
       
       IF (NAN.GT.0) THEN
          WRITE(*,*) 'Result vector containes ', NAN,' NaNs - stop'
-	 STOP
+        STOP
       ENDIF
 
       IF(INFO.EQ.0) THEN
@@ -3897,7 +3927,7 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
  91   IF(NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
          WRITE(*,*) ' '
          WRITE(*,*) 'Data rejected in last loop:   '
-	 WRITE(*,*) '   ',
+        WRITE(*,*) '   ',
      +   NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'
       END IF
@@ -4131,18 +4161,18 @@ c 103  FORMAT(1X,A,G12.4)
               INTRAC=1 ! ... and interactive
               WRITE(*,*) 'Debugging requested'
           END IF
-	  IT=INDEX(TEXT(IA:IB),'t')
+         IT=INDEX(TEXT(IA:IB),'t')
           IF(IT.NE.0) THEN
-	     ICTEST=1  ! internal test files
-	     IEQ=INDEX(TEXT(IA+IT:IB),'=')+IT
-	     IF (IT.NE.IEQ) THEN
-	        IF (INDEX(TEXT(IA+IEQ:IB),'SL0' ).NE.0) ICTEST=2
-	        IF (INDEX(TEXT(IA+IEQ:IB),'SLE' ).NE.0) ICTEST=3
-	        IF (INDEX(TEXT(IA+IEQ:IB),'BP'  ).NE.0) ICTEST=4
-	        IF (INDEX(TEXT(IA+IEQ:IB),'BRLF').NE.0) ICTEST=5
-	        IF (INDEX(TEXT(IA+IEQ:IB),'BRLC').NE.0) ICTEST=6
-	     ENDIF
-	  ENDIF   
+            ICTEST=1  ! internal test files
+            IEQ=INDEX(TEXT(IA+IT:IB),'=')+IT
+            IF (IT.NE.IEQ) THEN
+               IF (INDEX(TEXT(IA+IEQ:IB),'SL0' ).NE.0) ICTEST=2
+               IF (INDEX(TEXT(IA+IEQ:IB),'SLE' ).NE.0) ICTEST=3
+               IF (INDEX(TEXT(IA+IEQ:IB),'BP'  ).NE.0) ICTEST=4
+               IF (INDEX(TEXT(IA+IEQ:IB),'BRLF').NE.0) ICTEST=5
+               IF (INDEX(TEXT(IA+IEQ:IB),'BRLC').NE.0) ICTEST=6
+            ENDIF
+         ENDIF   
           IF(INDEX(TEXT(IA:IB),'s').NE.0) ISUBIT=1  ! like "subito"
        END IF
        IF(I.EQ.IARGC()) WRITE(*,*) '--------------------- '
@@ -4153,11 +4183,11 @@ c 103  FORMAT(1X,A,G12.4)
 
       IF(ICTEST.GE.1) THEN
          WRITE(*,*) ' ' 
-	 IF (ICTEST.EQ.1) THEN
+        IF (ICTEST.EQ.1) THEN
             CALL MPTEST ! 'wire chamber'
-	 ELSE
-	    CALL MPTST2(ICTEST-2) ! 'silicon tracker'
-	 ENDIF     
+        ELSE
+           CALL MPTST2(ICTEST-2) ! 'silicon tracker'
+        ENDIF     
          IF(FILNAM.EQ.' ') FILNAM='mp2str.txt'
          WRITE(*,*) ' '  
       END IF   

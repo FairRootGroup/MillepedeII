@@ -64,7 +64,7 @@
 
       SUBROUTINE HMPDEF(IH,XA,XB,TEXT)           ! book, reset histogram
 *     book millepede histogram, 120 bins
-      PARAMETER (NUMHIS=12)    
+      PARAMETER (NUMHIS=15)    
       INTEGER INHIST(120,NUMHIS),JNHIST(5,NUMHIS),KHIST(NUMHIS)
       REAL    FNHIST(120,NUMHIS)
       EQUIVALENCE (INHIST(1,1),FNHIST(1,1))  

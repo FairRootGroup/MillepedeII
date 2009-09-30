@@ -2,7 +2,11 @@
 #
 import array
 ### read millepede binary file #################
-#   print information
+#   print information (tested with SL4)
+#   for C files
+Cfiles = 1
+#   or Fortran files
+#Cfiles = 0 
 #
 # input file
 f = open("milleBinaryISN.dat","rb")
@@ -17,6 +21,10 @@ nrec=0
 try:
     while (nrec<mrec):
 # read 1 record    
+        if (Cfiles == 0): 
+           lenf=array.array('l')
+           lenf.fromfile(f,2)
+           
         len=array.array('l')
         len.fromfile(f,1)
         nr=len[0]/2
@@ -28,6 +36,10 @@ try:
 
         inder=array.array('l')
         inder.fromfile(f,nr)
+        
+        if (Cfiles == 0): 
+           lenf=array.array('l')
+           lenf.fromfile(f,2)
 
         i=0
         nh=0
@@ -65,6 +77,7 @@ try:
             if (jb+1<i+1):
                print " global ",inder[jb+1:i+1]
                print " global ",glder[jb+1:i+1]
+
                
 except EOFError:
      pass

@@ -145,12 +145,12 @@
 *
 *
 *                        
-*     symmetric          decomposit. solution    inv-element inverse 
-*     ----------------  |-----------|-----------|-----------|-----------|       
-*     n x n matrix        DCHDEC      DCHSLV      -           DCHINV
-*     band matrix m,n     DBCDEC      DBCSLV      DBCIEL      DBCINV 
-*     bandwidth m=1       DB2DEC      DB2SLV      DB2IEL      - 
-*     bandwidth m=2       DB3DEC      DB3SLV      DB3IEL      -
+*     symmetric          decomposit. solution    inv-element    inverse 
+*     ----------------  |-----------|-----------|--------------|-----------|       
+*     n x n matrix        DCHDEC      DCHSLV      -              DCHINV
+*     band matrix m,n     DBCDEC      DBCSLV      DBCIEL/DBCINB  DBCINV 
+*     bandwidth m=1       DB2DEC      DB2SLV      DB2IEL         - 
+*     bandwidth m=2       DB3DEC      DB3SLV      DB3IEL         -
 *
 *     The DB2... and DB3... routines are special routines for a fixed bandwidth 
 *     of 1 and 2, they are faster versions of the general DBG... routines.
@@ -382,6 +382,23 @@
       END DO
       RETURN
 
+      ENTRY DBCINB(W,MP1,N, VS)   ! VS = band part of inverse symmetric matrix
+*                                             N*M*(M-1) dot operations
+      DO I=N,1,-1 
+       RXW=W(1,I) 
+       DO J=I,MAX(1,I-MP1+1),-1
+        DO K=J+1,MIN(N,J+MP1-1)
+         RXW=RXW-VS((MAX(I,K)*(MAX(I,K)-1))/2+MIN(I,K))*W(1+K-J,J)
+        END DO 
+        VS((I*I-I)/2+J)=RXW
+        RXW=0.0
+       END DO
+C       DO J=MAX(1,I-MP1+1)-1,1,-1
+C        VS((I*I-I)/2+J)=0.0
+C       END DO
+      END DO
+      RETURN
+      
       ENTRY DBCINV(W,MP1,N, VS)   ! V = inverse symmetric matrix
 *                                             N*N/2*(M-1) dot operations
       DO I=N,1,-1 
@@ -394,8 +411,8 @@
         RXW=0.0
        END DO
       END DO
+      RETURN
       END
-
 
       SUBROUTINE DBCPRV(W,MP1,N,B)     ! print corr band matrix and pars
       DOUBLE PRECISION W(MP1,N),B(N)

@@ -80,9 +80,9 @@ CCC      CALL RNTIME
         ISLYR(I)=LAYER       ! layer
         SARC(I)=S+OFFS      ! arclength stereo module
         SSIG(I)=0.002       ! resolution 
-	SPRO(1,I)=SQRT(1.0-STEREO**2)
-	SPRO(2,I)=STEREO    ! module measures both 'X' and 'Y'
-	STEREO=-STEREO     
+       SPRO(1,I)=SQRT(1.0-STEREO**2)
+       SPRO(2,I)=STEREO    ! module measures both 'X' and 'Y'
+       STEREO=-STEREO     
        ENDIF
        S=S+DISS
       END DO
@@ -94,16 +94,16 @@ CCC      CALL RNTIME
       DO K=1,2
        DO I=1, NMLYR
         IF (ABS(SARC(I)-SOLD).GT.CMBBRL(K)) NBRL(K)=NBRL(K)+1 
-	LB=NBRL(K)
-	LBRL(I,K)=LB
-	SBRL(LB,K)=SBRL(LB,K)+SARC(I)
-	WBRL(LB,K)=WBRL(LB,K)+1.0 
+       LB=NBRL(K)
+       LBRL(I,K)=LB
+       SBRL(LB,K)=SBRL(LB,K)+SARC(I)
+       WBRL(LB,K)=WBRL(LB,K)+1.0 
         SOLD=SARC(I)
        END DO
        DO I=1,NBRL(K)
         SBRL(I,K)=SBRL(I,K)/WBRL(I,K)
-	WBRL(I,K)=SQRT(WBRL(I,K))
-       END DO	
+       WBRL(I,K)=SQRT(WBRL(I,K))
+       END DO 
       END DO
       IBRL=IMODEL-2 
       
@@ -117,7 +117,7 @@ CCC      CALL RNTIME
          DO L=1,NMX
            SDEVX(((I*NMY+K)*NMX+L))=DISPXM*GRAN()     ! shift in x
            SDEVY(((I*NMY+K)*NMX+L))=DISPYM*GRAN()     ! shift in y
-	 ENDDO
+        ENDDO
        ENDDO
       END DO
 *     write text files -------------------------------------------------
@@ -187,13 +187,13 @@ C      WRITE(LUNS,101) '*outliersuppression 3   ! 3 local_fit iterations'
        DO K=0,NMY-1
         LABELT=(I*NMY+K)*NMX+NCX-1
         IF(.NOT.EX2) WRITE(LUNT,103) LABELT,ONE
-	SDEVX(((I-1)*NMY+K)*NMX+NCX)=0.0      ! fix center modules at 0.
-       END DO	
+       SDEVX(((I-1)*NMY+K)*NMX+NCX)=0.0      ! fix center modules at 0.
+       END DO 
        IF(.NOT.EX2) WRITE(LUNT,*) 'Constraint  0.0'
        DO K=0,NMY-1
         LABELT=(I*NMY+K)*NMX+NCX+1000-1
         IF(.NOT.EX2) WRITE(LUNT,103) LABELT,ONE
-	SDEVY(((I-1)*NMY+K)*NMX+NCX)=0.0      ! fix center modules at 0.
+       SDEVY(((I-1)*NMY+K)*NMX+NCX)=0.0      ! fix center modules at 0.
        END DO
       END DO 
       
@@ -215,74 +215,74 @@ C       IF (ICOUNT.LE.3) IP=1
        DO I=1,NHITS 
 * simple straight line  
         LYR=IHITS(I)/NMXY+1
-  	IM =MOD(IHITS(I),NMXY)
-	NALC=4
+        IM =MOD(IHITS(I),NMXY)
+        NALC=4
         DERLC(1)=SPRO(1,LYR)
         DERLC(2)=SPRO(2,LYR)
-	DERLC(3)=XHITS(I)*SPRO(1,LYR)
-	DERLC(4)=XHITS(I)*SPRO(2,LYR)
+        DERLC(3)=XHITS(I)*SPRO(1,LYR)
+        DERLC(4)=XHITS(I)*SPRO(2,LYR)
         DERGL(1)=SPRO(1,LYR)
         DERGL(2)=SPRO(2,LYR)
         LABEL(1)=IM+NMXY*ISLYR(LYR)
         LABEL(2)=IM+NMXY*ISLYR(LYR)+1000
 * add multiple scattering errors (no correlations)
         IF (IMODEL.EQ.1) THEN
-	 DO J=I,NHITS
-	  SIGMA(J)=SQRT(SIGMA(J)**2+((XHITS(J)-XHITS(I))*THE0)**2)
-	 END DO
-	END IF  
+        DO J=I,NHITS
+         SIGMA(J)=SQRT(SIGMA(J)**2+((XHITS(J)-XHITS(I))*THE0)**2)
+        END DO
+       END IF  
 * add 'break points' for multiple scattering
         IF (IMODEL.EQ.2.AND.I.GT.1) THEN
-	 DO J=1,I-1
-* 2 scattering angles from each layer in front of current	  
-	  NALC=NALC+1
-	  DERLC(NALC)=(XHITS(I)-XHITS(J))*SPRO(1,LYR)
-	  NALC=NALC+1
-	  DERLC(NALC)=(XHITS(I)-XHITS(J))*SPRO(2,LYR)
-	 END DO 
-	END IF  
+        DO J=1,I-1
+* 2 scattering angles from each layer in front of current        
+         NALC=NALC+1
+         DERLC(NALC)=(XHITS(I)-XHITS(J))*SPRO(1,LYR)
+         NALC=NALC+1
+         DERLC(NALC)=(XHITS(I)-XHITS(J))*SPRO(2,LYR)
+        END DO 
+       END IF  
 * add 'broken lines' offsets for multiple scattering
         IF (IMODEL.GE.3) THEN
          NALC=2*NBRL(IBRL)
-	 DO K=1, NALC
-	  DERLC(K)=0.0
-	 END DO
+        DO K=1, NALC
+         DERLC(K)=0.0
+        END DO
 * 2 offsets
-         LB=LBRL(LYR,IBRL)	  
-	 DERLC(LB*2-1)=SPRO(1,LYR)
-	 DERLC(LB*2  )=SPRO(2,LYR)
-	END IF  
-*	 
+         LB=LBRL(LYR,IBRL)    
+        DERLC(LB*2-1)=SPRO(1,LYR)
+        DERLC(LB*2  )=SPRO(2,LYR)
+       END IF  
+*       
         CALL MILLE(NALC,DERLC,2,DERGL,LABEL,YHITS(I),SIGMA(I))
         NTHITS=NTHITS+1  ! count hits
        END DO
 * additional measurements from MS
        IF (IMODEL.EQ.2) THEN
         DO I=1,(NHITS-1)*2
-	 NALC=I+4
+        NALC=I+4
          DO K=1,NALC
-	  DERLC(K)=0.0
-	 END DO
-	 DERLC(NALC)=1.0     
-	 CALL MILLE(NALC,DERLC,0,DERGL,LABEL,0.0,THE0)
-	END DO
+         DERLC(K)=0.0
+        END DO
+        DERLC(NALC)=1.0     
+        CALL MILLE(NALC,DERLC,0,DERGL,LABEL,0.0,THE0)
+       END DO
        END IF
 *       
        IF (IMODEL.GE.3) THEN
         DO I=2,NBRL(IBRL)-1
-	 DP=1.0/(SBRL(I,IBRL)-SBRL(I-1,IBRL))
-	 DN=1.0/(SBRL(I+1,IBRL)-SBRL(I,IBRL))
-	 NALC=(I+1)*2
-	 DO L=-1,0
+        DP=1.0/(SBRL(I,IBRL)-SBRL(I-1,IBRL))
+        DN=1.0/(SBRL(I+1,IBRL)-SBRL(I,IBRL))
+        NALC=(I+1)*2
+        DO L=-1,0
           DO K=1,NALC
-	   DERLC(K)=0.0
-	  END DO
-	  DERLC(2*(I-1)+L)= DP     
-	  DERLC(2* I   +L)=-DP-DN     
-	  DERLC(2*(I+1)+L)= DN     	 
-	  CALL MILLE(NALC,DERLC,0,DERGL,LABEL,0.0,THE0*WBRL(I,IBRL))
-	 END DO 
-	END DO
+          DERLC(K)=0.0
+         END DO
+         DERLC(2*(I-1)+L)= DP     
+         DERLC(2* I   +L)=-DP-DN     
+         DERLC(2*(I+1)+L)= DN       
+         CALL MILLE(NALC,DERLC,0,DERGL,LABEL,0.0,THE0*WBRL(I,IBRL))
+        END DO 
+       END DO
        END IF             
 *             
        CALL ENDLE
@@ -328,7 +328,7 @@ c 102  FORMAT(I6,2F10.5)
       COMMON/SDEVEC/SDEVX(NTOT),SDEVY(NTOT)   
       COMMON/SDETEC/SARC(NMLYR),SSIG(NMLYR),SPRO(2,NMLYR),
      +      ISLYR(NMLYR),SIZE,THE0, 
-     +      NHITS,IHITS(NMLYR),XHITS(NMLYR),YHITS(NMLYR),SIGMA(NMLYR)         
+     +      NHITS,IHITS(NMLYR),XHITS(NMLYR),YHITS(NMLYR),SIGMA(NMLYR)
 *     track parameters      
       XNULL=SIZE*(URAN()-0.5)   ! uniform vertex
       YNULL=SIZE*(URAN()-0.5)   ! uniform vertex   
