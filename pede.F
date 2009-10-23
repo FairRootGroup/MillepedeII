@@ -2630,7 +2630,7 @@ c      STOP
           IN=INONE(LABEL)
           IF(IN.NE.0) THEN
              DQ(IND0/2+IN)=PARAM
-             IF(PRESG.GT.0.0) NPRESG=NPRESG+1 
+             IF(PRESG.GT.0.0) NPRESG=NPRESG+1 ! FIXME: check if enough 'entries'?
              QM(IND1+IN)=PRESG              ! insert pre-sigma 0 or > 0
 c             IF(PRESG.GT.0.0) QM(IND6+IN)=PRESG ! pre-sigma copy > 0
              QM(IND2+IN)=PARAM
@@ -3644,8 +3644,9 @@ C      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
        IF(REGPRE.EQ.0.0D0.AND.NPRESG.EQ.0) THEN
           WRITE(LUNP,121) 'using pre-sigmas:','no'
        ELSE
+C FIXME: NPRESG contains parameters that failed the 'entries' cut...
           WRITE(LUNP,124) 'pre-sigmas defined for',
-     +       FLOAT(100*NPRESG)/FLOAT(NTGB),' % of parameters' 
+     +       FLOAT(100*NPRESG)/FLOAT(NVGB),' % of variable parameters' 
           WRITE(LUNP,123) 'default pre-sigma=',REGPRE
        END IF 
        IF(NREGUL.EQ.0) THEN
