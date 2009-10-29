@@ -11,15 +11,16 @@ Cfiles = 1
 # input file
 f = open("milleBinaryISN.dat","rb")
 #
-# number of records (tracks)
+# number of records (tracks) to show
 mrec = 10
+# number of records (track) to skip before 
+skiprec = 0
 #
 ### C. Kleinwort - DESY ########################
 
 nrec=0
-
 try:
-    while (nrec<mrec):
+    while (nrec<mrec+skiprec):
 # read 1 record    
         if (Cfiles == 0): 
            lenf=array.array('l')
@@ -29,7 +30,6 @@ try:
         len.fromfile(f,1)
         nr=len[0]/2
         nrec+=1
-        print " === NR ", nrec, nr
 
         glder=array.array('f')
         glder.fromfile(f,nr)
@@ -40,6 +40,11 @@ try:
         if (Cfiles == 0): 
            lenf=array.array('l')
            lenf.fromfile(f,2)
+
+        if (nrec < skiprec): # must be after last fromfile
+            continue
+
+        print " === NR ", nrec, nr
 
         i=0
         nh=0
