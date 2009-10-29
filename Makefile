@@ -74,7 +74,7 @@ pede : 	${USER_OBJ_PEDE} Makefile
 #
 #
 clean:
-	rm -f *.o *~
+	rm -f *.o *~ */*.o */*~
 #
 clobber: clean 
 	rm -f $(EXECUTABLES)
