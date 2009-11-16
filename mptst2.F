@@ -1,11 +1,12 @@
 
 
       SUBROUTINE MPTST2(IMODEL)         ! generate test files
-*     MC for simple 10-layer silicon strip tracker, 5 modules per layer (2*10cm)
+*     MC for simple 10-layer silicon strip tracker, 50 modules per layer (1*2cm)
 *                   10 cm spacing, no B-field,
 *                   layers 1,4,7,10 have additional +/-5deg stereo modules
 *                   intrinsic resolution 20mu, 2% X0 per strip module, 
-*                   uniform track offsets/slopes, momentum given  
+*                   uniform track offsets/slopes, 
+*                   momentum: log10(p) 10..100 GeV uniform  
 *     different track models IMODEL
 *           0: 'straight line', ignoring multiple scattering
 *           1: 'straight line', using diagonal of m.s. error matrix

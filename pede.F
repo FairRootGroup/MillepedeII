@@ -1571,11 +1571,12 @@ c 103  FORMAT(I13,3X,A,G12.4)
             IF (ICOST.LT.ICMN.AND.KBDR.LE.MXBDR) THEN
               ICMN=ICOST
               KX=K
+              KBDRX=KBDR
            ENDIF
         ENDDO
          IF (KX.GT.0) THEN
             MBND=KX-2
-            MBDR=IBANDH(KX)
+            MBDR=KBDRX
          ENDIF          
       ENDIF
 *
