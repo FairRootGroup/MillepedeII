@@ -1771,28 +1771,31 @@ c            RETURN
 c         END IF
       CHICHI=CHINDL(3,NDF)*FLOAT(NDF)
 * GF      IF(SUMM.GT.50.0*CHICHI) THEN ! huge 
-      IF(SUMM.GT.CHHUGE*CHICHI) THEN ! huge 
-          NREJEC(2)=NREJEC(2)+1    ! count cases with huge chi^2
-          IF(RECPRI) THEN
-               WRITE(1,*) '   ---> rejected!'
-          END IF
-          RETURN
-      END IF
-
-      IF(CHICUT.NE.0.0) THEN      
-         CHLIMT=CHICUT*CHICHI
-c         WRITE(*,*) 'chi^2 ',SUMM,CHLIMT,CHICUT,CHINDL(3,NDF),NDF
-         IF(SUMM.GT.CHLIMT) THEN
+* CHK CHICUT<0: NO cut (1st iteration)
+      IF(CHICUT.GE.0) THEN
+        IF(SUMM.GT.CHHUGE*CHICHI) THEN ! huge 
+            NREJEC(2)=NREJEC(2)+1    ! count cases with huge chi^2
             IF(RECPRI) THEN
-               WRITE(1,*) '   ---> rejected!'   
+                 WRITE(1,*) '   ---> rejected!'
             END IF
-*           add to FVALUE
-            DCHI2=CHLIMT               ! total contribution limit
-            CALL ADDSUM(DCHI2)         ! add total contribution
-            NREJEC(3)=NREJEC(3)+1      ! count cases with large chi^2
-            RETURN
-         END IF 
-      END IF
+           RETURN
+        END IF
+
+        IF(CHICUT.GT.0.0) THEN      
+           CHLIMT=CHICUT*CHICHI
+c         WRITE(*,*) 'chi^2 ',SUMM,CHLIMT,CHICUT,CHINDL(3,NDF),NDF
+           IF(SUMM.GT.CHLIMT) THEN
+              IF(RECPRI) THEN
+                WRITE(1,*) '   ---> rejected!'   
+             END IF
+*             add to FVALUE
+              DCHI2=CHLIMT               ! total contribution limit
+              CALL ADDSUM(DCHI2)         ! add total contribution
+             NREJEC(3)=NREJEC(3)+1      ! count cases with large chi^2
+             RETURN
+           END IF 
+        END IF
+      ENDIF
 
       IF(LHUBER.GT.1.AND.DWCUT.NE.0.0.AND.RESING.GT.DWCUT) THEN
 *        add to FVALUE
@@ -2809,7 +2812,10 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
       END IF
 
 *     reading events===reading events===reading events===reading events=
-
+      NRECF =0  ! records with fixed global parameters
+      NAEQNG=0  ! count number of equations (with global der.)
+      NAEQNF=0  ! count number of equations ( " , fixed)
+      NAEQNA=0  ! all
       WRITE(LUNLOG,*) 'LOOP2: start event reading' 
  10   CALL PEREAD(NR) ! next "event"
       IF(NR.EQ.0) GOTO 20 ! EOD = end of data
@@ -2849,16 +2855,20 @@ c      IF(NREC.LE.100001) WRITE(*,*) 'Record ',NREC
          END IF
       END IF
 
-      NAGBN=0                     ! count number of global derivatives
-      NALCN=0                     ! count number of local  derivatives
-      NAEQN=0                     ! count number of equations 
+      NAGBN =0                     ! count number of global derivatives
+      NALCN =0                     ! count number of local  derivatives
+      NAEQN =0                     ! count number of equations
+      MAEQNF=NAEQNF
       NST=NR
       IST=1      
  15   CALL ISJAJB(IST,JA,JB)
       IF(JA.EQ.0.AND.JB.EQ.0) GOTO 18
       NAEQN=NAEQN+1
+      NAEQNA=NAEQNA+1
       IF(JA.NE.0) THEN
-         DO J=1,IST-JB
+          IF (IST.GT.JB) NAEQNG=NAEQNG+1
+          NFIXED=0
+          DO J=1,IST-JB
           IJ=INDER(JB+J)           ! index of global parameter
           IJ=JVGBI(IJ)             ! change to variable parameter
           IF(IJ.GT.0) THEN
@@ -2868,8 +2878,11 @@ c      IF(NREC.LE.100001) WRITE(*,*) 'Record ',NREC
                 MQ(INDC+NAGBN)=IJ    ! store variable index
                 MQ(INDE+IJ   )=NAGBN ! store back index 
              END IF
+          ELSE
+             NFIXED=NFIXED+1   
           END IF 
          END DO
+         IF (NFIXED.GT.0) NAEQNF=NAEQNF+1         
       END IF
 
       IF(JA.NE.0.AND.JB.NE.0) THEN 
@@ -2882,6 +2895,7 @@ c         GOTO 15
       GOTO 15
 
  18   CONTINUE ! end-of-event
+      IF (NAEQNF.GT.MAEQNF) NRECF=NRECF+1
 *     end-of-event-end-of-event-end-of-event-end-of-event-end-of-event-e
 
       MQ(INDC-1)=MAX(NAGBN,MQ(INDC-1)) ! maximum number of global parameters
@@ -3057,7 +3071,16 @@ c         GOTO 15
      +       'NALCN',NALCN,'max number of local parameters in an event' 
       WRITE(LU,101)
      +       'NAEQN',NAEQN,'max number of equations in an event' 
-      WRITE(*,*) ' '
+      IF (MDEBUG.GT.0) THEN
+         WRITE(LU,101) 'NAEQNA',NAEQNA,'number of equations'       
+         WRITE(LU,101) 'NAEQNG',NAEQNG,
+     +   'number of equations with       global derivatives'             
+         WRITE(LU,101) 'NAEQNF',NAEQNF,             
+     +   'number of equations with fixed global derivatives'                   
+         WRITE(LU,101) 'NRECF',NRECF,             
+     +   'number of records   with fixed global derivatives'        
+      ENDIF
+      WRITE(LU,*) ' '
       IF(MATSTO.EQ.2) THEN
 c         FRUSE=FLOAT(MQ(INDF-1))/FLOAT(NOFF)
 c         WRITE(LU,123) 100.0*FRUSE
@@ -3900,7 +3923,14 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
          WRITE(*,*) 'Result vector containes ', NAN,' NaNs - stop'
         STOP
       ENDIF
+      
+*     subito exit, if required -----------------------------------------
 
+      IF(ISUBIT.NE.0) THEN ! subito
+         WRITE(*,*) 'Subito!     Exit after first step.'
+         GOTO 90
+      END IF
+      
       IF(INFO.EQ.0) THEN
          WRITE(*,*) 'INFO=0 should not happen'
          GOTO 09
@@ -4707,8 +4737,9 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN          
 c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
-            MREQEN=1
+            MREQEN=0
             IF(NUMS.GT.0) MREQEN=DNUM(1)
+            IF (MREQEN.LE.0) MREQEN=1
             RETURN
          END IF
 
@@ -4728,13 +4759,13 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
                CHIREM=1.0
             ELSE
                CHICUT=DNUM(1)
-               IF(CHICUT.LT.1.0) CHICUT=1.0
+               IF(CHICUT.LT.1.0) CHICUT=-1.0
                IF(NUMS.EQ.1) THEN 
                   CHIREM=1.0  ! 3-sigma cut, if not specified
                ELSE  
                   CHIREM=DNUM(2)
                   IF(CHIREM.LT.1.0) CHIREM=1.0
-                  CHIREM=MIN(CHIREM,CHICUT)
+                  IF(CHICUT.GE.1.0) CHIREM=MIN(CHIREM,CHICUT)
                END IF
             END IF
             RETURN
