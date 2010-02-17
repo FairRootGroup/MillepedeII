@@ -3072,13 +3072,13 @@ c         GOTO 15
       WRITE(LU,101)
      +       'NAEQN',NAEQN,'max number of equations in an event' 
       IF (MDEBUG.GT.0) THEN
-         WRITE(LU,101) 'NAEQNA',NAEQNA,'number of equations'       
+         WRITE(LU,101) 'NAEQNA',NAEQNA,'number of equations'
          WRITE(LU,101) 'NAEQNG',NAEQNG,
-     +   'number of equations with       global derivatives'             
+     +   'number of equations with       global derivatives'
          WRITE(LU,101) 'NAEQNF',NAEQNF,             
-     +   'number of equations with fixed global derivatives'                   
+     +   'number of equations with fixed global derivatives'
          WRITE(LU,101) 'NRECF',NRECF,             
-     +   'number of records   with fixed global derivatives'        
+     +   'number of records   with fixed global derivatives'
       ENDIF
       WRITE(LU,*) ' '
       IF(MATSTO.EQ.2) THEN
@@ -4503,8 +4503,8 @@ c       WRITE(*,*) TEXT(1:40),'  < interprete text'
  50    WRITE(*,*) ' ' 
        REWIND 10
        CLOSE(UNIT=10)
-      END DO
  80   CONTINUE
+      END DO
 
       IF(IOSUM.NE.0) THEN
          STOP 'FILETX: open error(s) in text files                     '
