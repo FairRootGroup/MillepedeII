@@ -10,7 +10,7 @@
       CHARACTER*1 CHBYI
       CHARACTER*36 CHARRA
       LOGICAL FULLPR,DONE,DEBUG
-      INTEGER NWORDS,NDL,LENSML,LENDIF,IBYCH,LLT,LUNDEB,MQI,ICI
+      INTEGER NWORDS,NDL,LENSML,LENDIF,IBYCH,LLT,LUNDEB,MQI,ICI,MQU9
       INTEGER I,ISTOP,IU,IL,ID,IP,IAI,IA,IBI,IFMT,LCH,ICH,ND,IND,NDC  
       DATA CHARRA/'0123456789abcdefghijklmnopqrstuvwxyz'/
       DATA DONE/.FALSE./
@@ -229,7 +229,9 @@
          SUTEXT(IAI)=' '                !
          IF(ND.LT.0) RETURN   
 c         WRITE(*,*) 'Compare MQU+10+ND.GT.MEGA ',MQU,ND,MEGA                 
-         IF(MQU+10+ND.GT.MEGA) GOTO 01
+         MQU9=MQU+10+ND
+         IF(.NOT.(MQU9.LE.MEGA)) GOTO 01 ! will work for MQU+10+ND > 2**31-1 (NaN)
+         IF(MQU9.LT.0) GOTO 01           ! integer overflow into negative numbers
          IND=MQU+10
          INDICS(IAI)=IND                ! new index
          DO I=-9,ND
@@ -274,8 +276,9 @@ c            WRITE(*,*) '   new  ',TEXT
          IF(NDC.EQ.0) RETURN
         
 c         WRITE(*,*)'Compare MQU+10+NDC.GT.MEGA ',MQU,NDC,MEGA,ND,MQ(IND)
- 
-         IF(MQU+NDC.GT.MEGA) GOTO 01
+         MQU9=MQU+NDC
+         IF(.NOT.(MQU9.LE.MEGA)) GOTO 01 ! will work for MQU+NDC > 2**31-1 (NaN)
+         IF(MQU9.LT.0) GOTO 01           ! integer overflow into negative numbers
          IA=IND+MQ(IND)                 ! last word old array
          IF(NDC.LT.0) THEN
             DO I=1+IA,MQU         
@@ -371,7 +374,9 @@ C      IBI=IAI
       END IF
       ND=MQ(INDICS(IAI))             ! copy-length
       SUTEXT(IBI)='copy of '//SUTEXT(IAI)                !
-      IF(MQU+10+ND.GT.MEGA) GOTO 01
+      MQU9=MQU+10+ND
+      IF(.NOT.(MQU9.LE.MEGA)) GOTO 01 ! will work for MQU+10+ND > 2**31-1 (NaN)
+      IF(MQU9.LT.0) GOTO 01           ! integer overflow into negative numbers
       IND=MQU+10
       INDICS(IBI)=IND                ! new index
       DO I=-9,ND

@@ -3767,7 +3767,8 @@ C FIXME: NPRESG contains parameters that failed the 'entries' cut...
       CALL ETIME(TA,RSTART) 
       ITERAT=-1
       LITERA= 0
-      JCALCM=-1 
+      JCALCM=-1
+      IAGAIN= 0 
 
  09   ICALCM=1
 
@@ -3890,23 +3891,38 @@ C                  CALL PLOOPA(LUNLOG)
       DELFUN=DB
       ANGRAS=DB/SQRT(DB1*DB2) 
 
-      IF(DB.LE.0.0D0) THEN
+      IF(DB.LE.0.0D0) THEN 
          WRITE(*,*) 'Function not decreasing:',DB
-         WRITE(*,*) '... again matrix calculation' 
-         GOTO 09 
+         IF(DB.LE.-1.0D-3) THEN ! 100311, VB/CK: allow some margin for numerics
+            IAGAIN=IAGAIN+1
+            IF (IAGAIN.LE.1) THEN
+               WRITE(*,*) '... again matrix calculation' 
+               GOTO 09
+            ELSE
+               WRITE(*,*) '... aborting iterations' 
+               GOTO 90
+            ENDIF
+         ELSE
+            WRITE(*,*) '... stopping iterations' 
+            IAGAIN=0
+            GOTO 90
+         ENDIF
+      ELSE
+         IAGAIN=0 
       END IF
       ICALCM=0                         ! switch 
 
 *     Block 3: line searching ------------------------------------------
 
- 30   IF(ICALCM+2.EQ.0) GOTO 91 
+ 30   CONTINUE
+      IF(ICALCM+2.EQ.0) GOTO 91 
       CALL PTLINE(NAGB,DQ(IDUX2/2+1),    ! current parameter values
      +            FLINES,           ! chi^2 dunction value
      +            DQ(IGVEC/2+1),    ! gradient
      +            DQ(ISOLV/2+1),    ! step vector
      +            STP,              ! returned step factor
      +            INFO)             ! returned information
-c      WRITE(*,*) 'PTLINE returns INFO=',INFO
+C      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
       LSINFO=INFO
 
       STEPL=STP      
@@ -3932,8 +3948,8 @@ c      WRITE(*,*) 'PTLINE returns INFO=',INFO
       END IF
       
       IF(INFO.EQ.0) THEN
-         WRITE(*,*) 'INFO=0 should not happen'
-         GOTO 09
+         WRITE(*,*) 'INFO=0 should not happen (line search input err)'
+         IF (IAGAIN.LE.0) GOTO 09
       END IF
       IF(INFO.LT.0) GOTO 10
 
@@ -4006,6 +4022,7 @@ C      WRITE(*,199) ' '
       IF(MRATI.LT.90.OR.MRATI.GT.110) WARNER=.TRUE.
       IF(NRATI.GT. 1) WARNER=.TRUE.
       IF(NMISS1.NE.0) WARNER=.TRUE.
+      IF(IAGAIN.NE.0) WARNER=.TRUE.
 
       IF(.NOT.WARNER) GOTO 95 
       WRITE(*,199) ' '
@@ -4037,6 +4054,13 @@ C      WRITE(*,199) ' '
       WRITE(*,199) ' ' 
       WRITE(*,*) '        Fraction of rejects =',DJRAT,' %',
      +   '  (should be far below 1 %)'  
+      WRITE(*,*) '        => please provide correct mille data' 
+      END IF 
+
+      IF(IAGAIN.NE.0) THEN
+      WRITE(*,199) ' ' 
+      WRITE(*,*) '        Matrix not positiv definite '//
+     +    '(function not decreasing)'  
       WRITE(*,*) '        => please provide correct mille data' 
       END IF 
 

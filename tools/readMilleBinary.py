@@ -7,6 +7,10 @@ import array
 Cfiles = 1
 #   or Fortran files
 #Cfiles = 0 
+# SL5, gcc-4
+intfmt = 'i'
+# SL4, gcc-3
+#intfmt = 'l'
 #
 # input file
 f = open("milleBinaryISN.dat","rb")
@@ -23,10 +27,10 @@ try:
     while (nrec<mrec+skiprec):
 # read 1 record    
         if (Cfiles == 0): 
-           lenf=array.array('l')
+           lenf=array.array(intfmt)
            lenf.fromfile(f,2)
            
-        len=array.array('l')
+        len=array.array(intfmt)
         len.fromfile(f,1)
         nr=len[0]/2
         nrec+=1
@@ -34,11 +38,11 @@ try:
         glder=array.array('f')
         glder.fromfile(f,nr)
 
-        inder=array.array('l')
+        inder=array.array(intfmt)
         inder.fromfile(f,nr)
         
         if (Cfiles == 0): 
-           lenf=array.array('l')
+           lenf=array.array(intfmt)
            lenf.fromfile(f,2)
 
         if (nrec < skiprec): # must be after last fromfile
