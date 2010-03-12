@@ -1683,7 +1683,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
          R1=RESID/RERR
          R2=RESID/DOWN
 c         SUWT=SUWT+DCHI2/DCHIT
-         SUWT=SUWT+R2/R1
+         SUWT=SUWT+RERR/DOWN
          IF(RECPRI) THEN
             IF(IMEAS.EQ.0) WRITE(1,*) 'Third loop: single residuals'
             IF(IMEAS.EQ.0) WRITE(1,105)
