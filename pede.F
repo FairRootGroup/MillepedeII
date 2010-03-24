@@ -1379,6 +1379,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
          DQ(IGMAT/2+IJ)=DQ(IGMAT/2+IJ)+ADD
       ELSE IF(MATSTO.EQ.2) THEN             ! sparse symmetric matrix
          IJ=IJADD(I,J) !  inline code requires same time
+         IF (IJ.LE.0) RETURN                ! pair is suppressed
          DQ(IGMAT/2+IJ)=DQ(IGMAT/2+IJ)+ADD
       END IF
       IF(METSOL.GE.3) THEN
@@ -2088,7 +2089,7 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
          KU=MQ(INDD+ITEM1+1)-1-KK
          INDIJ=INDD+KK
          IF(KU.LT.KL) THEN
-            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
+*            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
             RETURN
          END IF
  10      K=(KL+KU)/2                  ! binary search
@@ -2101,6 +2102,8 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
                KL=K+1
             END IF
             IF(KL.LE.KU) GOTO 10
+*            WRITE(*,*) ITEM1,ITEM2,' IJADD not found',KK,KL,KU,K
+            RETURN
          END IF
          IJADD=K+KK
       END IF
@@ -2722,6 +2725,8 @@ c 111  FORMAT(I5,I10,F10.5,E12.4)
          WRITE(*,*) ' '
          WRITE(*,101) '  NREC',NREC,'number of records'
          WRITE(*,101) 'MREQEN',MREQEN,'required number of entries'
+         IF (MREQPE.GT.1) WRITE(*,101) 
+     &      'MREQPE',MREQPE,'required number of pair entries'
          WRITE(*,101) 'NTGB',NTGB,'total number of parameters'
          WRITE(*,101) 'NVGB',NVGB,'number of variable parameters'
          IF(MPRINT.GT.1) THEN
@@ -2805,9 +2810,9 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
             IDUM=INTWO(1,1)               ! for sparse storage    
          ELSE
             NAGB=NVGB+NCGB                ! matrix dimension parameter
-            CALL CLBITS(NAGB,NDIMBI)       ! get dimension for bit storage
+            CALL CLBITS(NAGB,NDIMBI,ISAVES)       ! get dimension for bit storage
             CALL MEGARR('f I',NDIMBI,'INBITS: bit storage')
-            CALL INBITS(1,1,MQ(INDF+1))
+            CALL INBITS(1,1,1,MQ(INDF+1))
          END IF  
       END IF
 
@@ -2913,7 +2918,7 @@ c         GOTO 15
               IND=INTWO(IEXT,JEXT)       ! add pair to set of pairs
 *             inline INTWO version removed - only 3 % faster than function
            ELSE
-              CALL INBITS(IEXT,JEXT,MQ(INDF+1)) ! save space
+              CALL INBITS(IEXT,JEXT,1,MQ(INDF+1)) ! save space
            END IF
           END DO
          END DO
@@ -2957,7 +2962,7 @@ c         GOTO 15
                   IF(ISAVES.EQ.0) THEN
                      IND=INTWO(NVGB+NCGB,IJ) ! add index pair
                   ELSE
-                     CALL INBITS(NVGB+NCGB,IJ,MQ(INDF+1)) 
+                     CALL INBITS(NVGB+NCGB,IJ,MREQPE,MQ(INDF+1)) 
                   END IF
                END IF
             END IF
@@ -3005,7 +3010,7 @@ c         GOTO 15
               IF(ISAVES.EQ.0) THEN  
                  IND=INTWO(IVGBIJ,IVGBIK)
               ELSE
-                 CALL INBITS(IVGBIJ,IVGBIK,MQ(INDF+1))
+                 CALL INBITS(IVGBIJ,IVGBIK,MREQPE,MQ(INDF+1))
               END IF
               WRITE(*,*) 'add index pair ',IVGBIJ,IVGBIK 
            END IF
@@ -3031,7 +3036,7 @@ c         GOTO 15
          IF(ISAVES.EQ.0) THEN
             NDGN=MQ(INDF-1)    ! actual number of off-diagonal elements
          ELSE 
-            CALL NDBITS(NDIMSA,MQ(INDF+1))
+            CALL NDBITS(NDIMSA,MQ(INDF+1),MREQPE)
             NDGN=NDIMSA-1-NAGB ! actual number of off-diagonal elements 
          END IF
       END IF 
@@ -4898,8 +4903,17 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
 c     This option could be implemented to get rid of parameter pairs
 c     that have very few entries - to save matrix memory size. 
-            IF (DNUM(1).GT.1) STOP 'option pairentries not implemented'
-            ISAVES=0
+            IF (DNUM(1).GT.1.0) THEN
+               MREQPE=DNUM(1)
+               ISAVES=1
+               MXCNT=2
+               DO K=1,30
+                  IF (MREQPE.GE.MXCNT) THEN
+                     ISAVES=ISAVES+1
+                     MXCNT=MXCNT*2
+                  ENDIF
+               ENDDO
+            ENDIF
             RETURN
          END IF
 
@@ -5193,29 +5207,32 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
       END
 
 
-*     Sparse matrix structure using bits (no counting)
+*     Sparse matrix structure using bits (no counting) or bit fields (some counting)
 *
-*     CALL CLBITS(N,NDIMB)        ! reset for N x N symmetric matrix
+*     CALL CLBITS(N,NDIMB,NBFW)   ! reset for N x N symmetric matrix
 *                                 ! N     = matrix dimension
 *                                 ! NDIMB = dimension for NBITS(.) 
+*                                 ! NBFW  = bit field width
 *
 *     do 
-*        CALL INBITS(I,J,NBITS)   ! add index pair (i,j)
+*       CALL INBITS(I,J,INC,NBITS)! add index pair (i,j)
 *                                 ! I, J         = indices
-*     end do                      ! NBITS(NDIMB) = array for bits 
+*                                 ! INC          = increment (usually 1)
+*     end do                      ! NBITS(NDIMB) = array for bits (bit fields) 
 *   
 *
-*     CALL NDBITS(NDIMS,NBITS)    ! return dimension parameter for sparse
+*     CALL NDBITS(NDIMS,NBITS,MNPAIR)    ! return dimension parameter for sparse
 *                                 ! NDIMS        = dimension for NSPARS 
-*                                 ! NBITS(NDIMB) = array for bits
+*                                 ! NBITS(NDIMB) = array for bits (bit fields)
+*                                 ! MNPAIR       = min. entries for pairs
 *     
 *     CALL SPBITS(NSPARS,NBITS)   ! build sparse structure  
 *                                 ! NSPARS(NDIMS) = sparse structure
-*                                 ! NBITS(NDIMB)  = array for bits 
+*                                 ! NBITS(NDIMB)  = array for bits (bit fields)
 *     array NBITS(NDIMB) no longer used after SPBITS(NSPARS,NBITS)
 
 
-      SUBROUTINE INBITS(IM,JM,NBITS)        ! include element (I,J)
+      SUBROUTINE INBITS(IM,JM,INC,NBITS)        ! include element (I,J)
       INTEGER NBITS(*),NSPARS(*)
       LOGICAL BTEST,RESET
       DATA RESET/.TRUE./
@@ -5236,28 +5253,114 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
          RESET=.FALSE. 
       END IF 
 
-      L=1+INT((DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)/32.0D0)
-      M=DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0-32.0*DBLE(L-1)
-      NBITS(L)=IBSET(NBITS(L),M)
+      IF (IBFW.LE.1) THEN
+         L=1+INT((DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)/32.0D0)
+         M=(DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)-32.0*DBLE(L-1)
+         NBITS(L)=IBSET(NBITS(L),M)
+      ELSE
+         L=1+INT((DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)*DBLE(IBFW)/32.0D0)
+         M=(DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)*DBLE(IBFW)-32.0*DBLE(L-1)
+*        get counter from bit field
+         LL=L
+         MM=M
+         ICOUNT=0
+         DO IB=0,IBFW-1
+            IF (BTEST(NBITS(LL),MM)) ICOUNT=IBSET(ICOUNT,IB)
+            MM=MM+1
+            IF (MM.GE.32) THEN
+               LL=LL+1
+               MM=MM-32
+            ENDIF
+         ENDDO
+*        increment
+         JCOUNT=ICOUNT
+         ICOUNT=MIN(ICOUNT+INC,MXCNT)
+*        store counter into bit field
+         IF (ICOUNT.NE.JCOUNT) THEN
+            LL=L
+            MM=M
+            DO IB=0,IBFW-1
+               IF (BTEST(ICOUNT,IB)) THEN
+                  NBITS(LL)=IBSET(NBITS(LL),MM)
+               ELSE
+                  NBITS(LL)=IBCLR(NBITS(LL),MM)
+               ENDIF
+               MM=MM+1
+               IF (MM.GE.32) THEN
+                 LL=LL+1
+                 MM=MM-32
+               ENDIF
+            ENDDO
+         ENDIF
+      ENDIF
       RETURN
 
 *     ------------------------------------------------------------------ 
 
-      ENTRY CLBITS(IN,NDIMB)           ! reset for I,J =< IN
+      ENTRY CLBITS(IN,NDIMB,JBFW)           ! reset for I,J =< IN
       N=IN
-      NDIMB=1+INT(DBLE(N)*DBLE(N+1)/64.0D0) 
+      IBFW=JBFW
+      MXCNT=2**IBFW-1
+      NDIMB=1+INT(DBLE(N)*DBLE(N+1)*DBLE(IBFW)/64.0D0) 
       MDIMB=NDIMB
       RESET=.TRUE.
       WRITE(*,*) ' '
       WRITE(*,*) 'CLBITS: symmetric matrix of dimension',N
-      WRITE(*,*) 'CLBITS: dimension of bit-array',MDIMB  
+      WRITE(*,*) 'CLBITS: dimension of bit-array',MDIMB 
+      IF (IBFW.GT.1) WRITE(*,*) 'CLBITS: bit field width',IBFW 
       RETURN
 
 *     ------------------------------------------------------------------
       
-      ENTRY NDBITS(NDIMS,NBITS)           ! total number of elements
+      ENTRY NDBITS(NDIMS,NBITS,MNPAIR)           ! total number of elements
       NDIMS=0
       IF(RESET) RETURN                 ! no data          
+      WRITE(*,*) ' '
+*     reduce bit field counters to bits
+      IF (IBFW.GT.1) THEN
+         LL=1
+         MM=0
+         LB=1
+         MB=0
+         NTOT=0
+         NIN=0
+         DO I=1,N
+            DO J=1,I-1 
+               ICOUNT=0
+               DO IB=0,IBFW-1
+                  IF (BTEST(NBITS(LL),MM)) ICOUNT=IBSET(ICOUNT,IB)
+                  MM=MM+1
+                  IF (MM.GE.32) THEN
+                     LL=LL+1
+                     MM=MM-32
+                  ENDIF
+               ENDDO
+               IF (ICOUNT.GT.0) NTOT=NTOT+1
+*              keep pair ?
+               IF (ICOUNT.GE.MNPAIR) THEN
+                  NIN=NIN+1
+                  NBITS(LB)=IBSET(NBITS(LB),MB)
+               ELSE
+                  NBITS(LB)=IBCLR(NBITS(LB),MB)
+               ENDIF
+               MB=MB+1
+               IF (MB.GE.32) THEN
+                  LB=LB+1
+                  MB=MB-32
+               ENDIF
+            ENDDO
+         ENDDO
+         FRAC=100.*FLOAT(NIN)/FLOAT(NTOT)
+         WRITE(*,*) 'NDBITS: fraction of non-zero off-diagonal elements'
+         WRITE(*,1000) '        passing pairentries cut ', FRAC, ' %'
+ 1000    FORMAT(A,F6.2,A)
+         IBFW=1
+         MDIMB=LB
+         DO IB=MB,31
+            NBITS(LB)=IBCLR(NBITS(LB),IB)
+         ENDDO
+      ENDIF
+*
       MDIMS=N
       DO L=1,MDIMB
        IF(NBITS(L).NE.0) THEN
@@ -5335,6 +5438,8 @@ c            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
                KL=K+1
             END IF
             IF(KL.LE.KU) GOTO 10
+c            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
+            RETURN
          END IF
          IJIND=K+KK
       END IF
