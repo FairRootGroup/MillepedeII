@@ -2772,7 +2772,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
 #include "dynal.inc"
       SAVE
 #include "mpinds.inc"
-      DOUBLE PRECISION DGBM,DUBM
+      DOUBLE PRECISION DGBM,DUBM,DNOFF
 *     ...
       WRITE(LUNLOG,*) ' '
       WRITE(LUNLOG,*) 'LOOP2: starting'
@@ -2802,6 +2802,8 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
       END IF
       WRITE(*,*) 'LOOP2:',NCGB,' constraints'
 
+      NAGB=NVGB+NCGB ! total number of fit parameters
+      DNOFF=0.5D0*(DFLOAT(NAGB)*DFLOAT(NAGB)-DFLOAT(NAGB)) ! total number of off-diagonal elements
 
 *     read all data files and add all variable index pairs -------------
 
@@ -2809,9 +2811,24 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
          IF(ISAVES.EQ.0) THEN  
             IDUM=INTWO(1,1)               ! for sparse storage    
          ELSE
-            NAGB=NVGB+NCGB                ! matrix dimension parameter
+            CALL MEGSPC(NFREE)
+            MXBITS=INT(DFLOAT(NFREE-11)*32.0D0/DNOFF) ! max bit field size fitting into free memory
+            IF (MXBITS.LE.0) THEN
+               WRITE(*,*)  'STOP: not enough memory '//
+     &            'for bit storage of off-diagonal elements'
+               STOP
+            ELSEIF (ISAVES.GT.MXBITS) THEN
+               ISAVES=MXBITS
+               MXCNT=2**MXBITS-1
+               IF (MHISPE.GT.MXCNT) MHISPE=MXCNT
+               IF (MREQPE.GT.MXCNT) THEN
+                  MREQPE=MXCNT
+                  WRITE(*,*) 'Pairentries cut reset to (memory limit)',
+     &               MREQPE
+               ENDIF
+            ENDIF
             CALL CLBITS(NAGB,NDIMBI,ISAVES)       ! get dimension for bit storage
-            CALL MEGARR('f I',NDIMBI,'INBITS: bit storage')
+            CALL MEGARR('f I',NDIMBI*ISAVES,'INBITS: bit storage')
             CALL INBITS(1,1,1,MQ(INDF+1))
          END IF  
       END IF
@@ -3021,7 +3038,6 @@ c         GOTO 15
 
 *     print numbers ----------------------------------------------------
 
-      NAGB=NVGB+NCGB
       IF(MATSTO.EQ.2) THEN
          IF(ISAVES.EQ.0) THEN 
             CALL UPTWO        ! final update
@@ -3030,14 +3046,31 @@ c         GOTO 15
      +                      ' is total number NTGB of labels pairs'
          END IF
       END IF         
-      NOFF=0.5D0*(DFLOAT(NAGB)*DFLOAT(NAGB)+DFLOAT(NAGB))
+      IF (NAGB.GE.65536) THEN
+        NOFF=INT(DNOFF*0.001+0.5D0)
+      ELSE
+        NOFF=INT(DNOFF+0.5D0)
+      ENDIF
       NDGN=0
       IF(MATSTO.EQ.2) THEN
          IF(ISAVES.EQ.0) THEN
             NDGN=MQ(INDF-1)    ! actual number of off-diagonal elements
          ELSE 
-            CALL NDBITS(NDIMSA,MQ(INDF+1),MREQPE)
+            IHIS=0
+            IF (MHISPE.GT.0) THEN
+               IHIS=15
+               CALL HMPDEF(IHIS,0.0,FLOAT(MHISPE+1),
+     &           'NDBITS: #off-diagonal elements')
+            ENDIF
+*
+            CALL NDBITS(NDIMSA,MQ(INDF+1),MREQPE,IHIS)
+            CALL MEGARR('f I',NDIMBI,'INBITS: bit storage') ! resize to bits
             NDGN=NDIMSA-1-NAGB ! actual number of off-diagonal elements 
+*
+            IF (MHISPE.GT.0) THEN
+               IF (NHISTP.NE.0) CALL HMPRNT(IHIS)
+               CALL HMPWRT(IHIS)
+            ENDIF
          END IF
       END IF 
       NAGBN=MQ(INDC-1) ! max number of global parameters in one event 
@@ -3066,7 +3099,11 @@ c         GOTO 15
       WRITE(LU,102) '(including Lagrange multiplier or reduced)'
       WRITE(LU,101) 'MBANDW',MBANDW,'band width of band matrix'
       WRITE(LU,102) '(if =0, no band matrix)'
-      WRITE(LU,101) 'NOFF',NOFF,'max number of off-diagonal elements'
+      IF (NAGB.GE.65536) THEN
+       WRITE(LU,101) 'NOFF/K',NOFF,'max number of off-diagonal elements'
+      ELSE
+       WRITE(LU,101) 'NOFF',NOFF,'max number of off-diagonal elements'
+      ENDIF
       IF(NDGN.NE.0) 
      +WRITE(LU,101) 'NDGN',NDGN,'actual number of off-diagonal elements'
       WRITE(LU,101) 'NCGB',NCGB,'number of constraints' 
@@ -4184,6 +4221,8 @@ c 103  FORMAT(1X,A,G12.4)
       NBDRX =0  ! max border size for local fit
       NBNDX =0  ! max band width for local fit
       NRECER=0  ! (1.) record with error (rank deficit or Not-a-Number)
+      MREQPE=0  ! min number of pair entries
+      MHISPE=0  ! upper bound for pair entry histogrammimg
             
       DO I=1,8
        TIMES(I)=0.0
@@ -4903,12 +4942,14 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
 c     This option could be implemented to get rid of parameter pairs
 c     that have very few entries - to save matrix memory size. 
-            IF (DNUM(1).GT.1.0) THEN
+            IF (DNUM(1).GT.0.0) THEN
                MREQPE=DNUM(1)
-               ISAVES=1
+               IF (NUMS.GE.2.AND.DNUM(2).GE.DNUM(1)) MHISPE=DNUM(2)
+               ICOUNT=MAX(MREQPE,MHISPE)
+               ISAVES=1 ! number of bits needed to count up to ICOUNT
                MXCNT=2
                DO K=1,30
-                  IF (MREQPE.GE.MXCNT) THEN
+                  IF (ICOUNT.GE.MXCNT) THEN
                      ISAVES=ISAVES+1
                      MXCNT=MXCNT*2
                   ENDIF
@@ -5211,7 +5252,8 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
 *
 *     CALL CLBITS(N,NDIMB,NBFW)   ! reset for N x N symmetric matrix
 *                                 ! N     = matrix dimension
-*                                 ! NDIMB = dimension for NBITS(.) 
+*                                 ! NDIMB = dimension for bit array 
+*                                 !         (NBITS= bit field array: NDIMB*NBFW)
 *                                 ! NBFW  = bit field width
 *
 *     do 
@@ -5221,10 +5263,11 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
 *     end do                      ! NBITS(NDIMB) = array for bits (bit fields) 
 *   
 *
-*     CALL NDBITS(NDIMS,NBITS,MNPAIR)    ! return dimension parameter for sparse
+*     CALL NDBITS(NDIMS,NBITS,MNPAIR,IHST)  ! return dimension parameter for sparse
 *                                 ! NDIMS        = dimension for NSPARS 
 *                                 ! NBITS(NDIMB) = array for bits (bit fields)
 *                                 ! MNPAIR       = min. entries for pairs
+*                                 ! IHST         = >0: histogram number
 *     
 *     CALL SPBITS(NSPARS,NBITS)   ! build sparse structure  
 *                                 ! NSPARS(NDIMS) = sparse structure
@@ -5301,21 +5344,21 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
       N=IN
       IBFW=JBFW
       MXCNT=2**IBFW-1
-      NDIMB=1+INT(DBLE(N)*DBLE(N+1)*DBLE(IBFW)/64.0D0) 
-      MDIMB=NDIMB
+      NDIMB=1+INT(DBLE(N)*DBLE(N-1)/64.0D0) 
+      MDIMB=NDIMB*IBFW
+      MB=INT(4.0E-6*FLOAT(MDIMB))
       RESET=.TRUE.
       WRITE(*,*) ' '
       WRITE(*,*) 'CLBITS: symmetric matrix of dimension',N
-      WRITE(*,*) 'CLBITS: dimension of bit-array',MDIMB 
+      WRITE(*,*) 'CLBITS: dimension of bit-array',MDIMB , '(',MB,'MB)'
       IF (IBFW.GT.1) WRITE(*,*) 'CLBITS: bit field width',IBFW 
       RETURN
 
 *     ------------------------------------------------------------------
       
-      ENTRY NDBITS(NDIMS,NBITS,MNPAIR)           ! total number of elements
+      ENTRY NDBITS(NDIMS,NBITS,MNPAIR,IHST)           ! total number of elements
       NDIMS=0
       IF(RESET) RETURN                 ! no data          
-      WRITE(*,*) ' '
 *     reduce bit field counters to bits
       IF (IBFW.GT.1) THEN
          LL=1
@@ -5324,6 +5367,7 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
          MB=0
          NTOT=0
          NIN=0
+*
          DO I=1,N
             DO J=1,I-1 
                ICOUNT=0
@@ -5335,6 +5379,7 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
                      MM=MM-32
                   ENDIF
                ENDDO
+               IF (IHST.GT.0) CALL HMPENT(IHST,FLOAT(ICOUNT))
                IF (ICOUNT.GT.0) NTOT=NTOT+1
 *              keep pair ?
                IF (ICOUNT.GE.MNPAIR) THEN
@@ -5350,15 +5395,15 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
                ENDIF
             ENDDO
          ENDDO
-         FRAC=100.*FLOAT(NIN)/FLOAT(NTOT)
-         WRITE(*,*) 'NDBITS: fraction of non-zero off-diagonal elements'
-         WRITE(*,1000) '        passing pairentries cut ', FRAC, ' %'
- 1000    FORMAT(A,F6.2,A)
+*
          IBFW=1
          MDIMB=LB
          DO IB=MB,31
             NBITS(LB)=IBCLR(NBITS(LB),IB)
          ENDDO
+      ELSE
+         NTOT=-1
+         NIN=-1
       ENDIF
 *
       MDIMS=N
@@ -5371,12 +5416,18 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
       END DO
       MDIMS=MDIMS+1
       NDIMS=MDIMS
-      NFRAC=INT(200.0D0*DFLOAT(MDIMS-N-1)/DFLOAT(N)/DFLOAT(N-1)+0.5D0)
+      IF (NTOT.LT.0) THEN
+         NTOT=MDIMS-N-1
+         NIN=NTOT
+      ENDIF
+      FRACZ=200.0D0*DFLOAT(NTOT)/DFLOAT(N)/DFLOAT(N-1)
+      FRACU=200.0D0*DFLOAT(NIN)/DFLOAT(N)/DFLOAT(N-1)
       WRITE(*,*) ' '
       WRITE(*,*) 'NDBITS: number of diagonal elements',N
-      WRITE(*,*) 'NDBITS: number of off-diagonal elements',MDIMS-N-1
-      WRITE(*,*) 'NDBITS: fraction of non-zero off-diagonal elements',
-     +            NFRAC,' %'
+      WRITE(*,*) 'NDBITS: number of used off-diagonal elements',NIN
+      WRITE(*,1000) 'fraction of non-zero off-diagonal elements', FRACZ
+      WRITE(*,1000) 'fraction of used off-diagonal elements', FRACU
+ 1000 FORMAT(' NDBITS: ',A,F6.2,' %')
       WRITE(*,*) 'NDBITS: dimension for sparse structure',MDIMS
       RETURN 
 

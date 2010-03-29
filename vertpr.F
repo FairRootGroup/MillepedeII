@@ -120,7 +120,7 @@ C  101 FORMAT(A)
 
       SUBROUTINE PIVERT(N,LIST)                  ! vert. print integer data
       INTEGER LIST(N)
-      REAL X(*),Y(60),SC(7)
+      REAL X(*),Y(60)
       DOUBLE PRECISION SUM
       SAVE 
 *     ...
@@ -152,14 +152,17 @@ C  101 FORMAT(A)
       IF(I.LT.N) GOTO 20
       CALL PZVERT(M,Y)
       RETURN 
+      END
 
-      ENTRY PSVERT(XA,XB)                     ! print scale 
+      SUBROUTINE PSVERT(XA,XB)                     ! print scale 
 *     print scale from XA ... XB
+      REAL SC(7)
       XC=XB
       DO I=1,7
        SC(I)=(FLOAT(7-I)*XA+FLOAT(I-1)*XC)/6.0
       END DO
       WRITE(*,101) SC
  101  FORMAT(3X,7G10.3)
+      RETURN
       END 
  

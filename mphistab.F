@@ -121,6 +121,7 @@ c      IF(XA.EQ.XB)                RETURN
       ENTRY HMPENT(IH,X)                      ! entry flt.pt.
       IF(IH.LE.0.OR.IH.GT.NUMHIS) RETURN
       IF(KHIST(IH).NE.1)          RETURN
+      IF(JNHIST(4,IH).GE.2147483647) RETURN
       JNHIST(4,IH)=JNHIST(4,IH)+1      ! count
       IF(JNHIST(4,IH).LE.120) THEN   
          FNHIST(JNHIST(4,IH),IH)=X     ! store value
@@ -150,6 +151,7 @@ c      END IF
       ENTRY HMPLNT(IH,IX)                     ! entry integer
       IF(IH.LE.0.OR.IH.GT.NUMHIS) RETURN
       IF(KHIST(IH).NE.2)          RETURN
+      IF(JNHIST(1,IH).GE.2147483647) RETURN
       IF(IX.LE.0) THEN
          JNHIST(1,IH)=JNHIST(1,IH)+1
       ELSE
