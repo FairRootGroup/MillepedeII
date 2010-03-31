@@ -3059,7 +3059,7 @@ c         GOTO 15
             IHIS=0
             IF (MHISPE.GT.0) THEN
                IHIS=15
-               CALL HMPDEF(IHIS,0.0,FLOAT(MHISPE+1),
+               CALL HMPDEF(IHIS,0.0,FLOAT(MHISPE),
      &           'NDBITS: #off-diagonal elements')
             ENDIF
 *
@@ -5379,7 +5379,8 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
                      MM=MM-32
                   ENDIF
                ENDDO
-               IF (IHST.GT.0) CALL HMPENT(IHST,FLOAT(ICOUNT))
+               IF (IHST.GT.0.AND.ICOUNT.GT.0) 
+     &            CALL HMPENT(IHST,FLOAT(ICOUNT))
                IF (ICOUNT.GT.0) NTOT=NTOT+1
 *              keep pair ?
                IF (ICOUNT.GE.MNPAIR) THEN
