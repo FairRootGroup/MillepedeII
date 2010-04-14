@@ -1,14 +1,21 @@
 # #################################################################
 # Makefile for MillePede II with possible input from C
-# (works on 32-bit SLC4)
+# (works on 64-bit SL5)
+# #################################################################
+# On 32-bit systems:
+#  LARGE_MEMORY_OPT = 
+#  LARGE_SIZE=4
+# #################################################################
+# If compiler doesn't understands INTEGER(KIND=) (FORTRAN95) use
+# LARGE_SIZE=4 and replace INTEGER(KIND=) by INTEGER*4 or
+# LARGE_SIZE=8 and replace INTEGER(KIND=) by INTEGER*8
 # #################################################################
 #
 # compiler options
 #
 # To make it link with a BIG (>2 GB) static array in dynal.inc,
 # we need '-mcmodel=medium', but does not work on 32 bit machines,
-# so here we switch off and restrict to smaller binaries
-LARGE_MEMORY_OPT=
+LARGE_MEMORY_OPT=-mcmodel=medium
 # All but 'yes' disables support of reading C-binaries:
 SUPPORT_READ_C = yes
 # If yes (and if SUPPORT_READ_C is yes), uses rfio, i.e. shift library, for IO,
@@ -19,6 +26,8 @@ SUPPORT_C_RFIO =
 #
 # Define the number of words for matrix/vector storage for the default pede program:
 NUMBER_OF_WORDS = 100000000 # =400 MB
+# Define the size of LARGE integers (4: INTERGER*4, 8: INTEGER*8)
+LARGE_SIZE=8
 #
 #
 FCOMP = gcc
@@ -27,9 +36,9 @@ F_FLAGS = -Wall -fno-automatic -fno-backslash -O3 ${LARGE_MEMORY_OPT}
 CCOMP = gcc 
 C_FLAGS = -Wall -O3 -Df2cFortran ${LARGE_MEMORY_OPT}
 C_INCLUDEDIRS =  # e.g. -I .
-# gcc3: 
-C_LIBS = -lg2c -lfrtbegin
-# gcc4: C_LIBS = -lgfortran -lgfortranbegin
+# gcc3: C_LIBS = -lg2c -lfrtbegin
+# gcc4: 
+C_LIBS = -lgfortran -lgfortranbegin
 DEBUG =          # e.g. -g
 #
 LOADER = gcc
@@ -51,6 +60,8 @@ ifeq ($(SUPPORT_READ_C),yes)
     C_LIBS += -lshift
   endif
 endif
+#
+F_FLAGS += -DLARGE_SIZE=${LARGE_SIZE}
 #  
 #
 # Make the executables
@@ -87,11 +98,11 @@ install: $(EXECUTABLES) #clean
 #
 %.o : %.F Makefile
 	${FCOMP} ${F_FLAGS} -c $< -o $@ 
-# These two depend on the memory defined by NUMBER_OF_WORDS, 
+# These two depend on the memory defined by NUMBER_OF_WORDS, LARGE_SIZE
 # the second also on variable definitions:
-dynal.o : dynal.F dynal.inc Makefile
+dynal.o : dynal.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS} -DNUMBER_OF_WORDS=${NUMBER_OF_WORDS} -c $< -o $@
-pede.o : pede.F dynal.inc mpinds.inc localfit.inc Makefile
+pede.o : pede.F dynal.inc largeint.inc mpinds.inc localfit.inc Makefile
 	${FCOMP} ${F_FLAGS} -DNUMBER_OF_WORDS=${NUMBER_OF_WORDS} -c $< -o $@
 #
 %.o: %.c Makefile
@@ -100,15 +111,17 @@ pede.o : pede.F dynal.inc mpinds.inc localfit.inc Makefile
 ####################################################################
 # Here we start the hack for the various executables...
 
-%_1GB.o: %.F dynal.inc Makefile
+%_1GB.o: %.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS} -DNUMBER_OF_WORDS=250000000 -c $< -o $@
-%_2GB.o: %.F dynal.inc Makefile
+%_2GB.o: %.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS} -DNUMBER_OF_WORDS=500000000 -c $< -o $@
-%_4GB.o: %.F dynal.inc Makefile
+%_4GB.o: %.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=1000000000 -c $< -o $@
 # do not use 2e9, but 2147483647 = 2^31 - 1, largest possible value
-%_8GB.o: %.F dynal.inc Makefile
+%_8GB.o: %.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=2147483647 -c $< -o $@
+%_16GB.o: %.F dynal.inc largeint.inc Makefile
+	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=4000000000 -c $< -o $@
 %_rfio.o: %.c Makefile
 	$(CCOMP) -c $(C_FLAGS) -DUSE_SHIFT_RFIO $(DEFINES) $(C_INCLUDEDIRS) \
 		$(DEBUG) -o $@ $<
@@ -142,6 +155,10 @@ pede_4GB_rfio: ${USER_OBJ_PEDE_STATIC} pede_4GB.o dynal_4GB.o readc_rfio.o  Make
 pede_8GB: ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc.o Makefile
 	$(LOADER) $(L_FLAGS) $(C_LIBS) \
 		-o $@ ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc.o  
+#
+pede_16GB: ${USER_OBJ_PEDE_STATIC} pede_16GB.o dynal_16GB.o readc.o Makefile
+	$(LOADER) $(L_FLAGS) $(C_LIBS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_16GB.o dynal_16GB.o readc.o  
 #
 pede_8GB_rfio: ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc_rfio.o  Makefile
 	$(LOADER) $(L_FLAGS) $(C_LIBS) -lshift \

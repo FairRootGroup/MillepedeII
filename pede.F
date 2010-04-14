@@ -5,6 +5,7 @@
 
       CHARACTER*24 CHDATE 
       REAL RST,RSTP
+#include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
 * MPTEST      
@@ -343,6 +344,7 @@ C      CALL EXIT(ITEXIT)
       END 
 
       SUBROUTINE SOLGLO(IVGBI) ! single error from minres
+#include "largeint.inc"
 #include "dynal.inc"
       DOUBLE PRECISION SHIFT,RTOL,ANORM,ACOND,RNORM,YNORM
       EXTERNAL AVPROD, MVSOLV
@@ -409,6 +411,7 @@ c     $                   ISTOP, ITN, Anorm, Acond, rnorm, ynorm )
 
       SUBROUTINE ADDCST
 *     add constraint information to matrix and vector
+#include "largeint.inc"
 #include "dynal.inc"
       DOUBLE PRECISION RHS,DRHS(4)
       INTEGER             IDRH (4)
@@ -445,7 +448,7 @@ c     +                LABEL,ITGBI,IVGB
 
        RHS=RHS-FACTR*DQ(IND0/2+ITGBI)     ! reduce residuum
        I=I+2
-       IF(I.LT.MQ(IND8)) THEN
+       IF(I.LT.LND8) THEN
           IF(MQ(IND8+I+1).NE.0) GOTO 10
        END IF
 c       WRITE(*,*) 'RHS is reduced to ',RHS,' from',RHSI 
@@ -475,6 +478,7 @@ c       WRITE(*,*) 'RHS is reduced to ',RHS,' from',RHSI
 
 
       SUBROUTINE FEASMA ! matrix for feasible solution
+#include "largeint.inc"
 #include "dynal.inc"
       DOUBLE PRECISION RHS,SUM1,SUM2,SUM3
       SAVE
@@ -509,7 +513,7 @@ c     +                LABEL,ITGBI,IVGB
        IF(IVGB.GT.0) DQ(INDY/2+ICGB+(IVGB-1)*NCGB)=FACTR ! matrix element
        RHS=RHS-FACTR*DQ(IND0/2+ITGBI)     ! reduce residuum
        I=I+2
-       IF(I.LT.MQ(IND8)) THEN
+       IF(I.LT.LND8) THEN
           IF(MQ(IND8+I+1).NE.0) GOTO 10
        END IF
        DQ(IGVEC/2+NVGB+ICGB)=RHS        ! constraint discrepancy      
@@ -575,7 +579,7 @@ c     +                LABEL,ITGBI,IVGB
         ITGBI=INONE(LABEL) ! -> ITGBI= index of parameter label
         RHS=RHS-FACTR*DQ(IND0/2+ITGBI)     ! reduce residuum
         I=I+2
-        IF(I.LT.MQ(IND8)) THEN
+        IF(I.LT.LND8) THEN
            IF(MQ(IND8+I+1).NE.0) GOTO 20
         END IF
         DQ(IDUX7/2+NVGB+ICGB)=RHS        ! constraint discrepancy
@@ -634,7 +638,7 @@ c     +                LABEL,ITGBI,IVGB
            DQ(ISOLV/2+IVGB)=DQ(ISOLV/2+IVGB)+DQ(INDY/2+ICGB)*FACTR
         END IF
         I=I+2
-        IF(I.LT.MQ(IND8)) THEN
+        IF(I.LT.LND8) THEN
            IF(MQ(IND8+I+1).NE.0) GOTO 30
         END IF
        END DO
@@ -654,6 +658,7 @@ c     +                LABEL,ITGBI,IVGB
       SUBROUTINE PEREAD(NR)
       LOGICAL PRINT,FLOOP
       SAVE 
+#include "largeint.inc"
 #include "mpinds.inc"
       DATA PRINT/.TRUE./
       DATA FLOOP/.TRUE./
@@ -819,6 +824,7 @@ c      NR=NR-1
 *                        LOOPN ...
 
       SUBROUTINE LOOPN                 ! loop with fits and sums 
+#include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
       DOUBLE PRECISION ADDER,FUNREF
@@ -1079,7 +1085,7 @@ c      WRITE(*,*) 'NREGUL ',NREGUL,NLOOPN
          DSUM=DSUM+FACTR*DQ(IND0/2+ITGBI)     ! residuum
       END IF
       I=I+2
-      IF(I.LT.MQ(IND9)) THEN
+      IF(I.LT.LND9) THEN
          IF(MQ(IND9+I+1).NE.0) GOTO 50
       END IF
       IB=I-2     
@@ -1115,7 +1121,7 @@ c      WRITE(*,*) 'NREGUL ',NREGUL,NLOOPN
           END DO
        END IF 
       END DO
-      IF(I.LT.MQ(IND9)) GOTO 40        
+      IF(I.LT.LND9) GOTO 40        
 
 *     ----- printout ---------------------------------------------------
 
@@ -1206,6 +1212,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
 
 
       SUBROUTINE PLOOPA(LUNP)               ! title for iteration
+#include "largeint.inc"
 #include "dynal.inc"                   
 #include "mpinds.inc"
       REAL SLOPES(3),STEPS(3)
@@ -1366,8 +1373,10 @@ c 103  FORMAT(I13,3X,A,G12.4)
 
       SUBROUTINE MUPDAT(I,J,ADD)       ! add ADD to matrix elm(I,J)
       REAL ADD ! single precision !
+#include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
+      INTEGER(KIND=LARGE) IJADD,IA,JA,IJ
       SAVE
 *     ...
       IF(I.LE.0.OR.J.LE.0) RETURN           
@@ -1388,7 +1397,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
                IJ=MQ(INDU+IA)-IA+JA
                IF(IA.GT.1.AND.IJ.LE.MQ(INDU+IA-1)) IJ=0
                IF(IJ.NE.0) DQ(INDV/2+IJ)=DQ(INDV/2+IJ)+ADD
-               IF(IJ.LT.0.OR.IJ.GT.MQ(INDV)/2) STOP          
+               IF(IJ.LT.0.OR.IJ.GT.LNDV/2) STOP          
             ELSE                  ! Lagrange multiplier
                IJ=MQ(INDU+NVGB)+(IA-NVGB-1)*NVGB+JA
                IF(IJ.NE.0) DQ(INDV/2+IJ)=DQ(INDV/2+IJ)+ADD
@@ -1415,6 +1424,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
 *      A new fast track-fit algorithm based on broken lines, V. Blobel, 
 *      Nuclear Instruments and Methods A, 566 (October 2006), pp. 14-17)
 *
+#include "largeint.inc"
 #include "dynal.inc"
 *     
 *     arrays for local fit
@@ -1929,6 +1939,7 @@ c         WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
 *     difference at last iteration
 *     error (standard deviation)
 
+#include "largeint.inc"
 #include "dynal.inc"
       INTEGER LABELE(3)
       REAL    COMPNT(3)
@@ -2043,8 +2054,10 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 
 
       SUBROUTINE AVPROD(N,X,B)  ! product A(sym) * X => B
+#include "largeint.inc"
 #include "dynal.inc"
       DOUBLE PRECISION X(N),B(N)
+      INTEGER(KIND=LARGE) K
       SAVE
 #include "mpinds.inc"
 *     ...
@@ -2060,13 +2073,14 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       END DO
       RETURN
 
- 10   IF(MQ(INDD+1).NE.N+2) STOP 'APROD: mismatched vector and matrix'
+ 10   IF(LQ(INDZ/LSCALE+1).NE.N+1) 
+     +   STOP 'APROD: mismatched vector and matrix'
       DO I=1,N
        B(I)=DQ(INDJ/2+I)*X(I)    ! diagonal elements
       END DO
       DO I=1,N
-       DO K=MQ(INDD+I),MQ(INDD+I+1)-1
-        J=MQ(INDD+K)
+       DO K=LQ(INDZ/LSCALE+I),LQ(INDZ/LSCALE+I+1)-1
+        J=MQ(INDD+K-N)
         B(J)=B(J)+DQ(INDJ/2+K)*X(I)      ! off-diagonal elements
         B(I)=B(I)+DQ(INDJ/2+K)*X(J)
        END DO
@@ -2074,19 +2088,22 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       END
 
       FUNCTION IJADD(ITEMA,ITEMB)      ! index using "d"
+#include "largeint.inc"
 #include "dynal.inc"
+      INTEGER(KIND=LARGE) IJADD,K,KK,KL,KU,INDIJ,ND
       SAVE
 *     ...
       IJADD=0
+      ND=LQ(INDZ/LSCALE+1)-1          ! dimension of matrix
       ITEM1=MAX(ITEMA,ITEMB)          ! larger index
       ITEM2=MIN(ITEMA,ITEMB)          ! smaller index
-      IF(ITEM2.LE.0.OR.ITEM1.GT.MQ(INDD+1)-2) RETURN
+      IF(ITEM2.LE.0.OR.ITEM1.GE.LQ(INDZ/LSCALE+1)) RETURN
       IF(ITEM1.EQ.ITEM2) THEN         ! diagonal element
          IJADD=ITEM1  
       ELSE                            ! off-diagonal element
-         KK=MQ(INDD+ITEM1)
+         KK=LQ(INDZ/LSCALE+ITEM1)-ND
          KL=0
-         KU=MQ(INDD+ITEM1+1)-1-KK
+         KU=LQ(INDZ/LSCALE+ITEM1+1)-ND-1-KK
          INDIJ=INDD+KK
          IF(KU.LT.KL) THEN
 *            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
@@ -2094,7 +2111,7 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
          END IF
  10      K=(KL+KU)/2                  ! binary search
          IF(ITEM2.EQ.MQ(INDIJ+K)) THEN
-            IJADD=K
+            IJADD=ND+K
          ELSE
             IF(ITEM2.LT.MQ(INDIJ+K)) THEN
                KU=K-1
@@ -2105,7 +2122,7 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 *            WRITE(*,*) ITEM1,ITEM2,' IJADD not found',KK,KL,KU,K
             RETURN
          END IF
-         IJADD=K+KK
+         IJADD=ND+K+KK
       END IF
       END
 
@@ -2177,7 +2194,7 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 *        MQ(INDA-4) = prime number
 *        MQ(INDA-5) = number of overflows
 *        MQ(INDA-6) = nr of variable parameters
-*        MQ(INDA-6) = number of entries  
+*        MQ(INDA-7) = number of entries  
 *
 *     The functions return after the UPONE call:  
 *     The function INONE(ITEM) returns the number of the item, the
@@ -2197,7 +2214,7 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 *     =============================================
 *
 *     Function INTWO and subroutine UPTWO are used to collect pairs of
-*     items, i.e. label pairss, and to order and translate them.
+*     items, i.e. label pairs, and to order and translate them.
 *     Two sub-arrays "f" and "g" are used.  
 *
 *     In the first phase items are collected and stored by calling
@@ -2253,8 +2270,10 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 *
       IMPLICIT NONE  
       INTEGER ITEM 
+#include "largeint.inc"
 #include "dynal.inc"
-      INTEGER INSEC,J,K,NSTART,IPRIME,NWORDS
+      INTEGER INSEC,J,K,NSTART,IPRIME
+      INTEGER(KIND=LARGE) NWORDS,LND
       LOGICAL SEC
       SAVE
 *     ...
@@ -2276,14 +2295,14 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
          MQ(INDA-6)=0                 ! nr of variable parameters 
       END IF
 
- 20   J=1+MOD(ITEM,MQ(INDA-4))+MQ(INDA)/2
+ 20   J=1+MOD(ITEM,MQ(INDA-4))+LNDA/2
  30   K=J
       J=MQ(INDB+K)
 
       IF(J.NE.0) THEN                 ! normal case: find item
          IF(ITEM.NE.MQ(INDA+J+J-1)) GOTO 30
       ELSE                            ! not found
-         IF(2*MQ(INDA-1).EQ.MQ(INDA).OR.MQ(INDA-2).NE.0) THEN
+         IF(2*MQ(INDA-1).EQ.LNDA.OR.MQ(INDA-2).NE.0) THEN
             MQ(INDA-5)=MQ(INDA-5)+1 ! overflow
             J=0
             GOTO 40
@@ -2293,12 +2312,15 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
          J=MQ(INDA-1)
          MQ(INDB+K)=J                 ! hash index
          MQ(INDA+J+J-1)=ITEM          ! add new item  
-         IF(2*MQ(INDA-1).EQ.MQ(INDA)) THEN
+         IF(2*MQ(INDA-1).EQ.LNDA) THEN
             CALL MEGSPC(NWORDS)       ! nr of free words
-            MQ(INDA-3)=MIN(2*MQ(INDA),MQ(INDA)+NWORDS/2)/2
+            LND=MIN(2*LNDA,LNDA+NWORDS/2)
+            IF (.NOT.(LND.GT.LNDA.AND.LND.LE.MAXI4))
+     +         STOP ' INONE: too many items '
+            MQ(INDA-3)=LND/2
             CALL UPONE          ! update with larger dimension
             WRITE(LUNLOG,*) 'INONE: array increased to',
-     +                       MQ(INDA),' words'  
+     +                       LNDA,' words'  
             GOTO 20             ! redefine index 
          END IF   
       END IF
@@ -2317,6 +2339,7 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 
       SUBROUTINE UPONE                  ! update, redefine hash indices
       IMPLICIT NONE 
+#include "largeint.inc"
 #include "dynal.inc"
       INTEGER I,J,K,MQDIFF,IPRIME  
       SAVE
@@ -2328,11 +2351,11 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       CALL MEGARR('b',2*MQ(INDA-3),' ')
       MQDIFF=MQ(INDA-3)-MQ(INDA-1)
       MQ(INDA-3)=MQ(INDA-1)    
-      MQ(INDA-4)=IPRIME(MQ(INDA)/2)          ! prime number < MQ(INDA)
+      MQ(INDA-4)=IPRIME(LNDA/2)          ! prime number < LNDA
       CALL MEGZER('b') 
 
       DO I=1,MQ(INDA-1)                      ! redefine hash 
-       J=1+MOD(MQ(INDA+I+I-1),MQ(INDA-4))+MQ(INDA)/2
+       J=1+MOD(MQ(INDA+I+I-1),MQ(INDA-4))+LNDA/2
  10    K=J
        J=MQ(INDB+K)
        IF(J.NE.0.AND.J.NE.I) GOTO 10
@@ -2341,16 +2364,18 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       IF(MQDIFF.NE.0) RETURN
       MQ(INDA-2)=1       ! set flag to inhibit further updates
       WRITE(LUNLOG,*) ' '
-      WRITE(LUNLOG,*) 'INONE: array reduced to',MQ(INDA),' words' 
+      WRITE(LUNLOG,*) 'INONE: array reduced to',LNDA,' words' 
       WRITE(LUNLOG,*) 'INONE:',MQ(INDA-1),' items stored.'
       END 
 
 
       INTEGER FUNCTION INTWO(ITEMA,ITEMB)      ! translate 2-D to numbers
       IMPLICIT NONE
-      INTEGER ITEMA,ITEMB,IPRIME,NWORDS 
+      INTEGER ITEMA,ITEMB,IPRIME
+#include "largeint.inc"
 #include "dynal.inc" 
       INTEGER ITEM1,ITEM2,NSTART,NC1,NC2,NC3,NC4,MIO,J,K
+      INTEGER(KIND=LARGE) NWORDS,LND
       SAVE
 *     ...
       INTWO=0 
@@ -2364,8 +2389,8 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
          CALL MEGARR('g I',2*NSTART,'INTWO: hash pointer') 
          MQ(INDF-1)=0
          MQ(INDF-2)=0
-         MQ(INDF-3)=MQ(INDF)
-         MQ(INDF-4)=IPRIME(MQ(INDF)/2)   ! prime number
+         MQ(INDF-3)=LNDF
+         MQ(INDF-4)=IPRIME(LNDF/2)   ! prime number
          MQ(INDF-5)=0                    ! overflows
          MQ(INDF-6)=0                    ! 
          MQ(INDF-7)=0                    ! number of entries
@@ -2381,9 +2406,9 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       NC1=NC1+1
 
 c 10   J=1+MOD(ITEM2+(MOD(ITEM1,MQ(INDF-4))*ITEM1-ITEM2)/2,MQ(INDF-4))
-c     +   +MQ(INDF)/2
+c     +   +LNDF/2
 
- 10   J=1+MQ(INDF)/2
+ 10   J=1+LNDF/2
      +   +INT(MOD(DBLE(ITEM1)*DBLE(ITEM2),DBLE(MQ(INDF-4)))+0.5D0)
 
  20   K=J
@@ -2394,10 +2419,10 @@ c     +   +MQ(INDF)/2
          IF(ITEM2.NE.MQ(INDF+J+J  )) GOTO 20
       ELSE                       ! not found
          IF(MQ(INDF-2).NE.0) RETURN ! with result zero
-         IF(MQ(INDF-1).EQ.MQ(INDF)/2) THEN
+         IF(MQ(INDF-1).EQ.LNDF/2) THEN
             MQ(INDF-5)=MQ(INDF-5)+1      ! overflow
             WRITE(*,*) 'INTWO: ovfl return with J=',
-     +                  J,MQ(INDF-1),MQ(INDF)/2
+     +                  J,MQ(INDF-1),LNDF/2
             STOP 'recompile with large memory'
             RETURN
          END IF
@@ -2407,16 +2432,19 @@ c     +   +MQ(INDF)/2
          MQ(INDG+K)=J           ! hash index
          MQ(INDF+J+J-1)=ITEM1   ! add new item
          MQ(INDF+J+J  )=ITEM2
-         IF(MQ(INDF-1).EQ.MQ(INDF)/2) THEN
+         IF(MQ(INDF-1).EQ.LNDF/2) THEN
             CALL MEGSPC(NWORDS)
             IF(NWORDS.LT.100) THEN
                WRITE(*,*) 'insufficient space for INTWO routine' 
                STOP 'recompile with large memory'
             END IF
-            MQ(INDF-3)=MIN(2*MQ(INDF),MQ(INDF)+NWORDS/2)/2 
+            LND=MIN(2*LNDF,LNDF+NWORDS/2)
+            IF (.NOT.(LND.GT.LNDF.AND.LND.LE.MAXI4))
+     +         STOP ' INTWO: too many item pairs '
+            MQ(INDF-3)=LND/2 
             CALL UPTWO          ! update with larger dimension
             WRITE(LUNLOG,*) 'INTWO: array increased to',
-     +                       MQ(INDF),' words'
+     +                       LNDF,' words'
             GOTO 10             ! redefine index
          END IF
       END IF
@@ -2444,6 +2472,7 @@ c     +   +MQ(INDF)/2
 
       SUBROUTINE UPTWO                 ! update, redefine hash indices
       IMPLICIT NONE
+#include "largeint.inc"
 #include "dynal.inc"
       INTEGER MQDIFF,I,J,K,IPRIME
       SAVE 
@@ -2457,13 +2486,13 @@ c     +   +MQ(INDF)/2
       CALL MEGZER('g')                    ! reset hash pointer
       MQDIFF=MQ(INDF-3)-MQ(INDF-1)
       MQ(INDF-3)=MQ(INDF-1)
-      MQ(INDF-4)=IPRIME(MQ(INDF)/2)       ! prime number < MQ(INDF)
+      MQ(INDF-4)=IPRIME(LNDF/2)       ! prime number < LNDF
 
       DO I=1,MQ(INDF-1)                   ! redefine hash
 c       J=1+MOD(MQ(INDF+I+I)+(MOD(MQ(INDF+I+I-1),MQ(INDF-4))*
-c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+MQ(INDF)/2 
+c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+LNDF/2 
 
-       J=1+MQ(INDF)/2
+       J=1+LNDF/2
      +    +INT(MOD(DBLE(MQ(INDF+I+I))*DBLE(MQ(INDF+I+I-1))
      +    ,DBLE(MQ(INDF-4)))+0.5)    
 
@@ -2474,7 +2503,7 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+MQ(INDF)/2
       END DO
       IF(MQDIFF.NE.0) RETURN
       WRITE(LUNLOG,*) ' '
-      WRITE(LUNLOG,*) 'INTWO: array reduced to',MQ(INDF),' words' 
+      WRITE(LUNLOG,*) 'INTWO: array reduced to',LNDF,' words' 
       WRITE(LUNLOG,*) 'INTWO:',MQ(INDF-1),' pairs stored.'
       END
 
@@ -2498,40 +2527,43 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+MQ(INDF)/2
 
       SUBROUTINE MSPARS(NAGB)          ! prepare index sparse storage
       IMPLICIT NONE
+#include "largeint.inc"
 #include "dynal.inc"
       INTEGER NAGB
+      INTEGER(KIND=LARGE) K
 *     ...
-*     layout of index storage IJ
-*     IJ(1) = N+2
-*     IJ(i) i=1 ... N index of SM(.) that contains the
+*     layout of index storage of (row,column) = (i,j) using
+*                     IJR (row pointers), IJC (column lists)
+*     IJR(1) = N+1
+*     IJR(i) i=1 .. N index of SM(.) that contains the
 *                     first off-diagonal element of row i
 *                     (one greater than the index of most
 *                     recently stored element of previous row)
-*     IJ(N+1)         = one greater than the index in SM(.)
+*     IJR(N+1)         = one greater than the index in SM(.)
 *                     of the last off-diagonal element of the
 *                     last row
-*     IJ(j) for j > N+1 contain the column numbers of the
-*                     corresponding elements in SM(.).
+*     IJC(k) k=IJR(i)-N .. IJR(i+1)-N-1 contain the column numbers j of
+*                     the corresponding off-diagonal elements SM(N+k).
 *
-*     SM(1)   = diagonal element 1,1    IJ(1)   = N+2  = index of SM, that 
-*     SM(2)   = diagonal element 2,2    IJ(2)   = ...    contains the first
+*     SM(1)   = diagonal element 1,1    IJR(1)   = N+1  = index of SM, that 
+*     SM(2)   = diagonal element i,i    IJR(i)   = ...    contains the first
 *     ...       ...                                      off-diagonal element
-*     SM(N)   = diagonal element n,n    IJ(N)   =        of the row 
-*     SM(N+1) = unused                  IJ(N+1) = last +1 (L+1)  
-*     SM(N+2) = off-diagonal elements   IJ(N+2) = index of first off-diagonal
-*     SM(.  ) = off-diagonal elements   IJ(.  ) = column index of SM(.)
+*     SM(N)   = diagonal element n,n    IJR(N)   =        of the row i 
+*                                       IJR(N+1) = last +1 (L+1)  
+*     SM(N+k) = off-diagonal elements   IJC(k)   = column j of SM(N+k)
 *
 *     To get dimension parameters of matrix:
-*        N = IJ(1)-2   = dimension parameter of matrix SM 
-*        L = IJ(N+1)-1 = index of last used location, i.e. SM(L) 
-      INTEGER NIT2,NSPARS,K,L,IROW,JCOL,NELM
+*        N = IJR(1)-1   = dimension parameter of matrix SM 
+*        L = IJR(N+1)-1 = index of last used location, i.e. SM(L) 
+      INTEGER L,IROW,JCOL,NELM
+      INTEGER(KIND=LARGE) NSPARS
       SAVE
 *     ...      
-      NIT2=MQ(INDF-1)
-      NSPARS=NAGB+NIT2+1  ! number of words, required for matrix
-      CALL MEGARR('d I',NSPARS,'sparse matrix pointer')
-      K    =NAGB+1
-      MQ(INDD+1)=NAGB+2
+      NSPARS=MQ(INDF-1) ! number of off-diagonal elements
+      CALL MEGARR('z L',(NAGB+1)*LSCALE,'sparse matrix row pointer')
+      CALL MEGARL('d I',NSPARS,'sparse matrix column list')
+      K    =0
+      LQ(INDZ/LSCALE+1)=NAGB+1
       L=1
       DO IROW=1,NAGB
  40    IF(L.GT.MQ(INDF-1)) GOTO 50 
@@ -2544,16 +2576,15 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+MQ(INDF)/2
        MQ(INDD+K)=JCOL
        L=L+1
        GOTO 40
- 50    MQ(INDD+IROW+1)=K+1
+ 50    LQ(INDZ/LSCALE+IROW+1)=NAGB+K+1
       END DO
       NELM=K
-c      WRITE(*,*) (MQ(INDD+IROW),IROW=1,2000)
-c      STOP 
       END
 
 
 
       SUBROUTINE LOOP1
+#include "largeint.inc"
 #include "dynal.inc"
 
       REAL    PLVS(3)    ! vector array: real and ...
@@ -2578,7 +2609,7 @@ c      STOP
        END IF
       END DO
       IF(INDA.NE.0) THEN
-         DO J=1,MQ(INDA)/2
+         DO J=1,LNDA/2
           MQ(INDA+J+J)=0   ! reset count 
          END DO
          WRITE(LUNLOG,*) 'LOOP1:',MQ(INDA-1),
@@ -2769,10 +2800,13 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
 
 
       SUBROUTINE LOOP2
+#include "largeint.inc"
 #include "dynal.inc"
       SAVE
 #include "mpinds.inc"
-      DOUBLE PRECISION DGBM,DUBM,DNOFF
+      DOUBLE PRECISION DGBM,DUBM
+      INTEGER*8 NOFF8,NBITS
+      INTEGER(KIND=LARGE) NUSE,NDIMBI,NDIMSA,NDGN
 *     ...
       WRITE(LUNLOG,*) ' '
       WRITE(LUNLOG,*) 'LOOP2: starting'
@@ -2789,7 +2823,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
       IF(IND8.NE.0) THEN
          I=-2
 *        find next constraint header and count nr of constraints
- 03      IF(I+2.LT.MQ(IND8)) THEN
+ 03      IF(I+2.LT.LND8) THEN
             I=I+2
             IF(MQ(IND8+I+1).EQ.0.AND.MQ(IND8+I+3).EQ.(-1)) THEN
                RHS=QM(IND8+I+2)
@@ -2803,7 +2837,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
       WRITE(*,*) 'LOOP2:',NCGB,' constraints'
 
       NAGB=NVGB+NCGB ! total number of fit parameters
-      DNOFF=0.5D0*(DFLOAT(NAGB)*DFLOAT(NAGB)-DFLOAT(NAGB)) ! total number of off-diagonal elements
+      NOFF8=INT8(NAGB)*INT8(NAGB-1)/2
 
 *     read all data files and add all variable index pairs -------------
 
@@ -2811,8 +2845,9 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
          IF(ISAVES.EQ.0) THEN  
             IDUM=INTWO(1,1)               ! for sparse storage    
          ELSE
-            CALL MEGSPC(NFREE)
-            MXBITS=INT(DFLOAT(NFREE-11)*32.0D0/DNOFF) ! max bit field size fitting into free memory
+            CALL MEGSPC(NUSE)
+            NBITS=INT8(NUSE-11)*32
+            MXBITS=NBITS/NOFF8 ! max bit field size fitting into free memory
             IF (MXBITS.LE.0) THEN
                WRITE(*,*)  'STOP: not enough memory '//
      &            'for bit storage of off-diagonal elements'
@@ -2828,7 +2863,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
                ENDIF
             ENDIF
             CALL CLBITS(NAGB,NDIMBI,ISAVES)       ! get dimension for bit storage
-            CALL MEGARR('f I',NDIMBI*ISAVES,'INBITS: bit storage')
+            CALL MEGARL('f I',NDIMBI*ISAVES,'INBITS: bit storage')
             CALL INBITS(1,1,1,MQ(INDF+1))
          END IF  
       END IF
@@ -2964,7 +2999,7 @@ c         GOTO 15
       IF(IND8.NE.0) THEN
          I=-2
 *        find next constraint header and count nr of constraints
- 30      IF(I+2.LT.MQ(IND8)) THEN
+ 30      IF(I+2.LT.LND8) THEN
             I=I+2
             IF(MQ(IND8+I+1).EQ.0.AND.MQ(IND8+I+3).EQ.(-1)) THEN
                RHS=QM(IND8+I+2)
@@ -3001,7 +3036,7 @@ c         GOTO 15
          FACTR=QM(IND9+I+2)
          ITGBI=INONE(LABEL)
          I=I+2
-         IF(I.LT.MQ(IND9)) THEN
+         IF(I.LT.LND9) THEN
             IF(MQ(IND9+I+1).NE.0) GOTO 50
          END IF
          IB=I-2     
@@ -3033,7 +3068,7 @@ c         GOTO 15
            END IF
           END DO
          END DO
-         IF(I.LT.MQ(IND9)) GOTO 40
+         IF(I.LT.LND9) GOTO 40
       END IF
 
 *     print numbers ----------------------------------------------------
@@ -3047,9 +3082,9 @@ c         GOTO 15
          END IF
       END IF         
       IF (NAGB.GE.65536) THEN
-        NOFF=INT(DNOFF*0.001+0.5D0)
+        NOFF=NOFF8/1000
       ELSE
-        NOFF=INT(DNOFF+0.5D0)
+        NOFF=NOFF8
       ENDIF
       NDGN=0
       IF(MATSTO.EQ.2) THEN
@@ -3065,7 +3100,7 @@ c         GOTO 15
 *
             CALL NDBITS(NDIMSA,MQ(INDF+1),MREQPE,IHIS)
             CALL MEGARR('f I',NDIMBI,'INBITS: bit storage') ! resize to bits
-            NDGN=NDIMSA-1-NAGB ! actual number of off-diagonal elements 
+            NDGN=NDIMSA ! actual number of off-diagonal elements 
 *
             IF (MHISPE.GT.0) THEN
                IF (NHISTP.NE.0) CALL HMPRNT(IHIS)
@@ -3184,8 +3219,10 @@ c      END IF
          IF(ISAVES.EQ.0) THEN
             CALL MSPARS(NAGB)  ! pointer for sparse storage -> d
          ELSE 
-            CALL MEGARR('d I',NDIMSA,'sparse matrix pointer')
-            CALL SPBITS(MQ(INDD+1),MQ(INDF+1))
+            CALL MEGARR('z L',(NAGB+1)*LSCALE,
+     +                  'sparse matrix row pointer')
+            CALL MEGARL('d I',NDIMSA,'sparse matrix column list')
+            CALL SPBITS(LQ(INDZ/LSCALE+1),MQ(INDD+1),MQ(INDF+1))
             CALL MEGRM('f')
          END IF  
       END IF
@@ -3248,9 +3285,11 @@ c      END IF
 
 *     prepare storage for vectors and matrices
 
+#include "largeint.inc"
 #include "dynal.inc"
       SAVE
 #include "mpinds.inc"
+      INTEGER(KIND=LARGE) NWORDS
 *     ...
 *                         Vector/matrix storage
 c      IF(MATSTO.EQ.2) THEN      ! sparse matrix  
@@ -3264,7 +3303,7 @@ c      END IF
          CALL MEGARR('j D',NAGB*NAGB+NAGB,'full symmetric matrix')
          MQ(INDJ-2)=1                ! 1=normal symmetric matrix
       ELSE IF(MATSTO.EQ.2  ) THEN      ! sparse matrix 
-          CALL MEGARR('j D',2*MQ(INDD),'sparse symmetric matrix')
+          CALL MEGARL('j D',(LNDD+NAGB)*2,'sparse symmetric matrix')
           MQ(INDJ-2)=2               ! 2=sparse matrix
       END IF      
 
@@ -3338,6 +3377,7 @@ c         CALL MEGARR('t D',2*NAGB,'auxiliary array')  ! double aux 8
 
       SUBROUTINE MINVER 
 *     solution by matrix inversion
+#include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
       SAVE
@@ -3367,6 +3407,7 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
 
       SUBROUTINE MDIAGS
 *     solution by diagonalization
+#include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
       SAVE
@@ -3520,6 +3561,7 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
       END 
 
       SUBROUTINE MMINRS  
+#include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
       DOUBLE PRECISION SHIFT,RTOL,ANORM,ACOND,RNORM,YNORM
@@ -3599,6 +3641,7 @@ c      WRITE(*,*) (DQ(ISOLV/2+I),I=1,NAGB)
 
 
       SUBROUTINE MCSOLV(N,X,Y)         !  solve M y = x
+#include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
       DOUBLE PRECISION X(N),Y(N)
@@ -3609,6 +3652,7 @@ c      WRITE(*,*) (DQ(ISOLV/2+I),I=1,NAGB)
       END
 
       SUBROUTINE MVSOLV(N,X,Y)         !  solve M y = x
+#include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
       DOUBLE PRECISION X(N),Y(N)
@@ -3635,7 +3679,7 @@ c       Y(NVGB+ICGB)=DQ(ISOLV/2+NVGB+ICGB)
 c          Y(IVGB)=Y(IVGB) - DQ(ISOLV/2+NVGB+ICGB)*FACTR
        END IF
        I=I+2
-       IF(I.LT.MQ(IND8)) THEN
+       IF(I.LT.LND8) THEN
           IF(MQ(IND8+I+1).NE.0) GOTO 10
        END IF
       END DO
@@ -3653,6 +3697,7 @@ C      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
 
 
       SUBROUTINE XLOOPN                ! standard solution algorithm
+#include "largeint.inc"
 #include "dynal.inc"
       DOUBLE PRECISION STP,DRATIO,DFACIN,DJRAT
       DOUBLE PRECISION DB,DB1,DB2,DBDOT
@@ -4169,6 +4214,7 @@ c 103  FORMAT(1X,A,G12.4)
 
 
       CHARACTER*1024 TEXT,FILNAM 
+#include "largeint.inc"
 #include "dynal.inc"
       CHARACTER*14 BITE(3)
       CHARACTER*32 KEYSTX
@@ -4580,9 +4626,9 @@ c       WRITE(*,*) TEXT(1:40),'  < interprete text'
       CALL MEGLEN('7') ! adjust length of sub-array 7
       CALL MEGLEN('8') ! adjust length of sub-array 8
       CALL MEGLEN('9') ! adjust length of sub-array 9 
-      IF(MQ(IND7).EQ.0) CALL MEGRM('7')
-      IF(MQ(IND8).EQ.0) CALL MEGRM('8')
-      IF(MQ(IND9).EQ.0) CALL MEGRM('9')
+      IF(LND7.EQ.0) CALL MEGRM('7')
+      IF(LND8.EQ.0) CALL MEGRM('8')
+      IF(LND9.EQ.0) CALL MEGRM('9')
 
       WRITE(*,*) '... end of text file processing.' 
       WRITE(*,*) ' '
@@ -4754,6 +4800,7 @@ c            MATSTO=1 ! default is symmetric matrix
 *     measured   r sigma label factor ...(more)    
 
       SAVE
+#include "largeint.inc"
 #include "mpinds.inc"
       DATA METHXT/'diagonalization','inversion','fullMINRES',
      +            'sparseMINRES'/
@@ -5264,19 +5311,24 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
 *   
 *
 *     CALL NDBITS(NDIMS,NBITS,MNPAIR,IHST)  ! return dimension parameter for sparse
-*                                 ! NDIMS        = dimension for NSPARS 
+*                                 ! NDIMS        = dimension for NSPARC
 *                                 ! NBITS(NDIMB) = array for bits (bit fields)
 *                                 ! MNPAIR       = min. entries for pairs
 *                                 ! IHST         = >0: histogram number
 *     
-*     CALL SPBITS(NSPARS,NBITS)   ! build sparse structure  
-*                                 ! NSPARS(NDIMS) = sparse structure
+*     CALL SPBITS(NSPARR,NSPARC,NBITS)   ! build sparse structure  
+*                                 ! NSPARR(N+1)   = sparse structure  I: row pointers
+*                                 ! NSPARC(NDIMS) = sparse structure II: column lists
 *                                 ! NBITS(NDIMB)  = array for bits (bit fields)
-*     array NBITS(NDIMB) no longer used after SPBITS(NSPARS,NBITS)
+*     array NBITS(NDIMB) no longer used after SPBITS(NSPARR,NSPARC,NBITS)
 
 
       SUBROUTINE INBITS(IM,JM,INC,NBITS)        ! include element (I,J)
-      INTEGER NBITS(*),NSPARS(*)
+#include "largeint.inc"
+      INTEGER NBITS(*),NSPARC(*)
+      INTEGER(KIND=LARGE) NSPARR(*), 
+     +   KL,L,LL,LB,NDIMB,MDIMB,NDIMS,MDIMS,NIN,NTOT
+      INTEGER*8 NOFFD
       LOGICAL BTEST,RESET
       DATA RESET/.TRUE./
       SAVE
@@ -5296,13 +5348,12 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
          RESET=.FALSE. 
       END IF 
 
+      NOFFD=(INT8(I)*INT8(I-1)/2+INT8(J-I))*INT8(IBFW)
+      L=NOFFD/32+1
+      M=MOD(NOFFD,32)
       IF (IBFW.LE.1) THEN
-         L=1+INT((DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)/32.0D0)
-         M=(DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)-32.0*DBLE(L-1)
          NBITS(L)=IBSET(NBITS(L),M)
       ELSE
-         L=1+INT((DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)*DBLE(IBFW)/32.0D0)
-         M=(DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)*DBLE(IBFW)-32.0*DBLE(L-1)
 *        get counter from bit field
          LL=L
          MM=M
@@ -5344,12 +5395,14 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
       N=IN
       IBFW=JBFW
       MXCNT=2**IBFW-1
-      NDIMB=1+INT(DBLE(N)*DBLE(N-1)/64.0D0) 
+      NOFFD=INT8(N)*INT8(N-1)/2
+      NDIMB=1+(NOFFD/32)
       MDIMB=NDIMB*IBFW
       MB=INT(4.0E-6*FLOAT(MDIMB))
       RESET=.TRUE.
       WRITE(*,*) ' '
       WRITE(*,*) 'CLBITS: symmetric matrix of dimension',N
+      WRITE(*,*) 'CLBITS: off-diagonal elements',NOFFD
       WRITE(*,*) 'CLBITS: dimension of bit-array',MDIMB , '(',MB,'MB)'
       IF (IBFW.GT.1) WRITE(*,*) 'CLBITS: bit field width',IBFW 
       RETURN
@@ -5407,7 +5460,7 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
          NIN=-1
       ENDIF
 *
-      MDIMS=N
+      MDIMS=0
       DO L=1,MDIMB
        IF(NBITS(L).NE.0) THEN
           DO M=0,31
@@ -5415,85 +5468,86 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
           END DO
        END IF 
       END DO
-      MDIMS=MDIMS+1
       NDIMS=MDIMS
       IF (NTOT.LT.0) THEN
-         NTOT=MDIMS-N-1
+         NTOT=MDIMS
          NIN=NTOT
       ENDIF
-      FRACZ=200.0D0*DFLOAT(NTOT)/DFLOAT(N)/DFLOAT(N-1)
-      FRACU=200.0D0*DFLOAT(NIN)/DFLOAT(N)/DFLOAT(N-1)
+      FRACZ=200.0*FLOAT(NTOT)/FLOAT(N)/FLOAT(N-1)
+      FRACU=200.0*FLOAT(NIN)/FLOAT(N)/FLOAT(N-1)
       WRITE(*,*) ' '
       WRITE(*,*) 'NDBITS: number of diagonal elements',N
       WRITE(*,*) 'NDBITS: number of used off-diagonal elements',NIN
       WRITE(*,1000) 'fraction of non-zero off-diagonal elements', FRACZ
       WRITE(*,1000) 'fraction of used off-diagonal elements', FRACU
  1000 FORMAT(' NDBITS: ',A,F6.2,' %')
-      WRITE(*,*) 'NDBITS: dimension for sparse structure',MDIMS
       RETURN 
 
 *     ------------------------------------------------------------------
 
-      ENTRY SPBITS(NSPARS,NBITS)               ! collect elements
+      ENTRY SPBITS(NSPARR,NSPARC,NBITS)               ! collect elements
 
-      K=N+1
-      NSPARS(1)=N+2
+      KL=0
       DO I=1,N            ! loop for diagonal elements  
-       NSPARS(I)=K+1    ! pointer to row
+       NSPARR(I)=KL+N+1   ! pointer to row
        DO J=1,I-1         !  loop for off-diagonal elements  
-        L=1+INT((DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0)/32.0D0)
-        M=DBLE(J-I)+DBLE(I)*DBLE(I-1)/2.0D0-32.0*DBLE(L-1)
+        NOFFD=(INT8(I)*INT8(I-1)/2+INT8(J-I))*INT8(IBFW)
+        L=NOFFD/32+1
+        M=MOD(NOFFD,32)
         IF(NBITS(L).NE.0) THEN 
            IF(BTEST(NBITS(L),M)) THEN
-              K=K+1      
-              NSPARS(K)=J ! column index 
+              KL=KL+1      
+              NSPARC(KL)=J ! column index 
            END IF
         END IF 
        END DO
       END DO
-      NSPARS(N+1)=K+1 
+      NSPARR(N+1)=KL+N+1 
       WRITE(*,*) ' '
       WRITE(*,*) 'SPBITS: sparse structure constructed',MDIMS,' words'
-      WRITE(*,*) 'SPBITS: dimension parameter of matrix',NSPARS(1)-2
-      WRITE(*,*) 'SPBITS: index of last used location',NSPARS(N+1)-1 
-c      WRITE(*,101) (NSPARS(I),I=1,K)
+      WRITE(*,*) 'SPBITS: dimension parameter of matrix',NSPARR(1)-1
+      WRITE(*,*) 'SPBITS: index of last used location',NSPARR(N+1)-1 
+c      WRITE(*,101) (NSPARC(I),I=1,KL)
 c 101  FORMAT(10I6)  
       END
 
  
-      FUNCTION IJIND(ITEMA,ITEMB,NSPARS)      ! index for element
-      INTEGER NSPARS(*)
+      FUNCTION IJIND(ITEMA,ITEMB,NSPARR,NSPARC)      ! index for element
+#include "largeint.inc"
+      INTEGER(KIND=LARGE) NSPARR(*), IJIND,K,KK,KL,KU,INDIJ,ND
+      INTEGER NSPARC(*)
       SAVE
 *     ...
       IJIND=0
+      ND=NSPARR(1)-1                  ! dimension of matrix
       ITEM1=MAX(ITEMA,ITEMB)          ! larger index
       ITEM2=MIN(ITEMA,ITEMB)          ! smaller index
-      IF(ITEM2.LE.0.OR.ITEM1.GT.NSPARS(1)-2) RETURN
+      IF(ITEM2.LE.0.OR.ITEM1.GE.NSPARR(1)) RETURN
       IF(ITEM1.EQ.ITEM2) THEN         ! diagonal element
          IJIND=ITEM1
       ELSE                            ! off-diagonal element
-         KK=NSPARS(ITEM1)
+         KK=NSPARR(ITEM1)-ND
          KL=0
-         KU=NSPARS(ITEM1+1)-1-KK
+         KU=NSPARR(ITEM1+1)-ND-1-KK
          INDIJ=KK
          IF(KU.LT.KL) THEN
 c            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
             RETURN
          END IF
  10      K=(KL+KU)/2                  ! binary search
-         IF(ITEM2.EQ.NSPARS(INDIJ+K)) THEN
-            IJIND=K
+         IF(ITEM2.EQ.NSPARC(INDIJ+K)) THEN
+            IJIND=ND+K
          ELSE
-            IF(ITEM2.LT.NSPARS(INDIJ+K)) THEN
+            IF(ITEM2.LT.NSPARC(INDIJ+K)) THEN
                KU=K-1
-            ELSE IF(ITEM2.GT.NSPARS(INDIJ+K)) THEN
+            ELSE IF(ITEM2.GT.NSPARC(INDIJ+K)) THEN
                KL=K+1
             END IF
             IF(KL.LE.KU) GOTO 10
 c            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
             RETURN
          END IF
-         IJIND=K+KK
+         IJIND=ND+K+KK
       END IF
       END
 
