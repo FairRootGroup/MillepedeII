@@ -879,7 +879,8 @@ C      WRITE(*,*) 'LOOPN ', NLOOPN, ' executing ICALCM=', ICALCM
 
       CALL MEGZER('f') ! reset rhs vector              IGVEC
       IF(ICALCM.EQ.1) THEN
-         CALL MEGZER('j') ! reset matrix               IGMAT
+         CALL MEGZER('j') ! reset matrix (double)      IGMAT
+         CALL MEGZER('.') ! reset matrix (single)
          CALL MEGZER('v') ! reset variable-band matrix INDV
       END IF 
  
@@ -1379,7 +1380,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
       INTEGER(KIND=LARGE) IJADD,IA,JA,IJ
       SAVE
 *     ...
-      IF(I.LE.0.OR.J.LE.0) RETURN           
+      IF(I.LE.0.OR.J.LE.0) RETURN
       IA=MAX(I,J)          ! larger
       JA=MIN(I,J)          ! smaller
       IJ=0
@@ -1388,8 +1389,12 @@ c 103  FORMAT(I13,3X,A,G12.4)
          DQ(IGMAT/2+IJ)=DQ(IGMAT/2+IJ)+ADD
       ELSE IF(MATSTO.EQ.2) THEN             ! sparse symmetric matrix
          IJ=IJADD(I,J) !  inline code requires same time
-         IF (IJ.LE.0) RETURN                ! pair is suppressed
-         DQ(IGMAT/2+IJ)=DQ(IGMAT/2+IJ)+ADD
+         IF (IJ.EQ.0) RETURN                ! pair is suppressed
+         IF (IJ.GT.0) THEN
+            DQ(IGMAT/2+IJ)=DQ(IGMAT/2+IJ)+ADD
+         ELSE
+            QM(IDOT1-IJ)=QM(IDOT1-IJ)+ADD
+         ENDIF
       END IF
       IF(METSOL.GE.3) THEN
          IF(MBANDW.GT.0) THEN     ! for Cholesky decomposition
@@ -2057,7 +2062,7 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 #include "largeint.inc"
 #include "dynal.inc"
       DOUBLE PRECISION X(N),B(N)
-      INTEGER(KIND=LARGE) K
+      INTEGER(KIND=LARGE) K,KK,KL,KU,LL,LJ,INDIJ,INDID,I2
       SAVE
 #include "mpinds.inc"
 *     ...
@@ -2073,57 +2078,169 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       END DO
       RETURN
 
- 10   IF(LQ(INDZ/LSCALE+1).NE.N+1) 
-     +   STOP 'APROD: mismatched vector and matrix'
+ 10   IF(LQ(INDZ/LSCALE+2).NE.N+1) 
+     +   STOP 'AVPROD: mismatched vector and matrix'
+      IENCDB=MQ(INDD-1)
+      IENCDM=ISHFT(1,IENCDB)-1
+*
       DO I=1,N
        B(I)=DQ(INDJ/2+I)*X(I)    ! diagonal elements
       END DO
+      NSPC=MQ(INDZ-1)            ! number of precisions, 1=D, 2=F
+      I2=0                       ! off-diagonals, double precision
       DO I=1,N
-       DO K=LQ(INDZ/LSCALE+I),LQ(INDZ/LSCALE+I+1)-1
-        J=MQ(INDD+K-N)
-        B(J)=B(J)+DQ(INDJ/2+K)*X(I)      ! off-diagonal elements
-        B(I)=B(I)+DQ(INDJ/2+K)*X(J)
-       END DO
-      END DO
+       I2=I2+2
+       KK=LQ(INDZ/LSCALE+I2-1) ! offset in 'd' (column lists) 
+       LL=LQ(INDZ/LSCALE+I2)   ! offset in 'j' (matrix)
+       KL=0
+       KU=LQ(INDZ/LSCALE+I2+1)-1-KK
+       INDID=INDD+KK
+       INDIJ=INDJ/2+LL
+       IF (MQ(INDID).NE.0) THEN  ! no compression
+        DO K=KL,KU
+         J=MQ(INDID+K)
+         B(J)=B(J)+DQ(INDIJ+K)*X(I)
+         B(I)=B(I)+DQ(INDIJ+K)*X(J)
+        END DO
+       ELSE
+        LJ=0
+        KU=((KU+1)*8)/9-1         ! number of regions (-1)
+        INDID=INDID+KU/8+1        ! skip group offsets
+        DO KL=0,KU
+         JC=MQ(INDID+KL)
+         J=ISHFT(JC,-IENCDB)
+         JN=IAND(JC, IENCDM)
+         DO JJ=1,JN
+          B(J)=B(J)+DQ(INDIJ+LJ)*X(I)
+          B(I)=B(I)+DQ(INDIJ+LJ)*X(J)
+          J=J+1
+          LJ=LJ+1
+         ENDDO
+        ENDDO
+       ENDIF
+      ENDDO
+*
+      IF (NSPC.GT.1) THEN 
+       I2=I2+2                  ! off-diagonals, single precision
+       DO I=1,N
+        I2=I2+2
+        KK=LQ(INDZ/LSCALE+I2-1) ! offset in 'd' (column lists) 
+        LL=LQ(INDZ/LSCALE+I2)   ! offset in '.' (matrix)
+        KL=0
+        KU=LQ(INDZ/LSCALE+I2+1)-1-KK
+        INDID=INDD+KK
+        INDIJ=IDOT1+LL
+        IF (MQ(INDID).NE.0) THEN  ! no compression
+         DO K=KL,KU
+          J=MQ(INDID+K)
+          B(J)=B(J)+DBLE(QM(INDIJ+K))*X(I)
+          B(I)=B(I)+DBLE(QM(INDIJ+K))*X(J)
+         END DO
+        ELSE
+         LJ=0
+         KU=((KU+1)*8)/9-1         ! number of regions (-1)
+         INDID=INDID+KU/8+1        ! skip group offsets
+         DO KL=0,KU
+          JC=MQ(INDID+KL)
+          J=ISHFT(JC,-IENCDB)
+          JN=IAND(JC, IENCDM)
+          DO JJ=1,JN
+           B(J)=B(J)+DBLE(QM(INDIJ+LJ))*X(I)
+           B(I)=B(I)+DBLE(QM(INDIJ+LJ))*X(J)
+           J=J+1
+           LJ=LJ+1
+          ENDDO
+         ENDDO
+        ENDIF
+       ENDDO
+      ENDIF
       END
 
-      FUNCTION IJADD(ITEMA,ITEMB)      ! index using "d"
+      FUNCTION IJADD(ITEMA,ITEMB)      ! index using "d" and "z"
 #include "largeint.inc"
 #include "dynal.inc"
-      INTEGER(KIND=LARGE) IJADD,K,KK,KL,KU,INDIJ,ND
+      INTEGER(KIND=LARGE) IJADD,K,KK,KL,KU,INDID,ND,LL,K8,ITEM1
       SAVE
 *     ...
       IJADD=0
-      ND=LQ(INDZ/LSCALE+1)-1          ! dimension of matrix
+      ND=LQ(INDZ/LSCALE+2)-1          ! dimension of matrix
       ITEM1=MAX(ITEMA,ITEMB)          ! larger index
       ITEM2=MIN(ITEMA,ITEMB)          ! smaller index
-      IF(ITEM2.LE.0.OR.ITEM1.GE.LQ(INDZ/LSCALE+1)) RETURN
+      IF(ITEM2.LE.0.OR.ITEM1.GT.ND) RETURN
       IF(ITEM1.EQ.ITEM2) THEN         ! diagonal element
-         IJADD=ITEM1  
-      ELSE                            ! off-diagonal element
-         KK=LQ(INDZ/LSCALE+ITEM1)-ND
+         IJADD=ITEM1
+         RETURN  
+      ENDIF 
+*                                     ! off-diagonal element
+      NSPC=MQ(INDZ-1)                 ! number of precisions, 1=D, 2=F
+      IENCDB=MQ(INDD-1)               ! encoding info
+      IENCDM=ISHFT(1,IENCDB)-1
+      ISGN=1
+      DO ISPC=1,NSPC
+         KK=LQ(INDZ/LSCALE+ITEM1*2-1) ! offset in 'd' (column lists) 
+         LL=LQ(INDZ/LSCALE+ITEM1*2)   ! offset in 'j' (matrix)
          KL=0
-         KU=LQ(INDZ/LSCALE+ITEM1+1)-ND-1-KK
-         INDIJ=INDD+KK
-         IF(KU.LT.KL) THEN
-*            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
-            RETURN
-         END IF
- 10      K=(KL+KU)/2                  ! binary search
-         IF(ITEM2.EQ.MQ(INDIJ+K)) THEN
-            IJADD=ND+K
-         ELSE
-            IF(ITEM2.LT.MQ(INDIJ+K)) THEN
-               KU=K-1
-            ELSE IF(ITEM2.GT.MQ(INDIJ+K)) THEN
-               KL=K+1
+         KU=LQ(INDZ/LSCALE+ITEM1*2+1)-1-KK
+         INDID=INDD+KK
+         IF (MQ(INDID).EQ.0) THEN     ! compression ?
+*
+            KU=((KU+1)*8)/9-1        ! number of regions (-1)
+            INDID=INDID+KU/8+1       ! skip group offsets
+            KL=0
+            IF(KU.LT.KL) THEN
+*               WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
+               GOTO 100
             END IF
-            IF(KL.LE.KU) GOTO 10
+ 10         K=(KL+KU)/2                    ! binary search
+            JTEMC=MQ(INDID+K)              ! compressed information
+            JTEM =ISHFT(JTEMC,-IENCDB)     ! first column of region
+            JTEMN=JTEM+IAND(JTEMC,IENCDM)  ! first column after region
+            IF(ITEM2.LT.JTEM.OR.ITEM2.GE.JTEMN) THEN
+               IF(ITEM2.LT.JTEM) THEN
+                  KU=K-1
+               ELSE IF(ITEM2.GE.JTEMN) THEN
+                  KL=K+1
+               END IF
+               IF(KL.LE.KU) GOTO 10
 *            WRITE(*,*) ITEM1,ITEM2,' IJADD not found',KK,KL,KU,K
-            RETURN
-         END IF
-         IJADD=ND+K+KK
-      END IF
+               GOTO 100
+            END IF
+            K8=K/8                         ! region group (-1)
+            LL=LL+MQ(INDD+KK+K8)           ! offset for group of (8) regions 
+            DO KL=K8*8,K-1 
+               LL=LL+IAND(MQ(INDID+KL),IENCDM) ! add region lengths
+            ENDDO
+            IJADD=LL+ITEM2-JTEM
+* 
+         ELSE
+*
+            IF(KU.LT.KL) THEN
+*               WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
+               GOTO 100
+            END IF
+ 20         K=(KL+KU)/2                  ! binary search
+            JTEM=MQ(INDID+K)
+            JTEMN=JTEM
+            IF(ITEM2.NE.JTEM) THEN
+               IF(ITEM2.LT.JTEM) THEN
+                  KU=K-1
+               ELSE IF(ITEM2.GT.JTEM) THEN
+                  KL=K+1
+               END IF
+               IF(KL.LE.KU) GOTO 20
+*            WRITE(*,*) ITEM1,ITEM2,' IJADD not found',KK,KL,KU,K
+               GOTO 100
+            END IF
+            IJADD=LL+K
+*
+         ENDIF
+         IJADD=IJADD*ISGN
+         RETURN
+*
+  100    CONTINUE
+         ITEM1=ITEM1+ND+1
+         ISGN=-ISGN
+      ENDDO
       END
 
       SUBROUTINE SECHMS(DELTAT,NHOUR,MINUT,SECND)
@@ -2150,7 +2267,8 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 *                    g    hash pointer
 *
 *     In MSPARS:   
-*                    d    sparse matrix pointer    
+*                    d    sparse matrix pointer, column lists (optionally compressed)
+*                    z    sparse matrix pointer, row pointers (LARGE integers)
 
 
 
@@ -2238,24 +2356,25 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 *  
 *     Sparse matrix building:
 *         CALL MSPARS(NDIM)
-*     A pointer sub-array "d" is created and defined, using the data 
+*     Pointer sub-arrays "z" and "d" are created and defined, using the data 
 *     from sub-array "f" (from INTWO). All NDIM diagonal elements and
 *     all off-diagonal elements from the sub-array "f" are prepared.
 *     After the call the corresponding double precision matrix array "j"
-*     has to be created by 
-*         CALL MEGARR('j D',2*MQ(INDD),'sparse symmetric matrix')
+*     and with compression the single precision matrix array "." have 
+*     to be created by 
+*         CALL MEGARR/L('j D',2*(NDIM+NSPARS-NSINGL),'sparse symmetric matrix')
 *         MQ(INDJ-2)=2               ! 2=sparse matrix
-*     which corresponds to sub-array "d".
+*         CALL MEGARR/L('. F',NSINGL                ,'sparse symmetric matrix')
+*     with NSPARS off-diagonal elements to be used and with compression
+*     NSINGL of those in single precision.
 *
 *     Matrix elements (I,J) are updated by first getting the linear
 *     index by
 *         IJ=IJADD(I,J)
 *     A value zero is returned, if the matrix element is not prepared.
 *     Otherwise the element can be updated e.g. by
-*        DQ(INDJ/2+IJ)=DQ(INDJ/2+IJ)+PLUS
-*     if double precision PLUS has to be added. Using the function call
-*         IJ=IJADD(I,J,PLUS)          
-*     the addition is already included.
+*        DQ(INDJ/2+IJ)=DQ(INDJ/2+IJ)+PLUS   ! double IJ>0
+*        QM(IDOT1 -IJ)=QM(IDOT1 -IJ)+PLUS   ! single IJ<0
 *
 *     The product of the symmetric matrix with the vector X to give the
 *     resulting vector B is done by
@@ -2532,38 +2651,54 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+LNDF/2
       INTEGER NAGB
       INTEGER(KIND=LARGE) K
 *     ...
-*     layout of index storage of (row,column) = (i,j) using
-*                     IJR (row pointers), IJC (column lists)
-*     IJR(1) = N+1
-*     IJR(i) i=1 .. N index of SM(.) that contains the
-*                     first off-diagonal element of row i
-*                     (one greater than the index of most
-*                     recently stored element of previous row)
-*     IJR(N+1)         = one greater than the index in SM(.)
-*                     of the last off-diagonal element of the
-*                     last row
-*     IJC(k) k=IJR(i)-N .. IJR(i+1)-N-1 contain the column numbers j of
-*                     the corresponding off-diagonal elements SM(N+k).
+*     New storage scheme for sparse symmetric N*N matrix M
+*     (with option 'compress' for lossless compression)
 *
-*     SM(1)   = diagonal element 1,1    IJR(1)   = N+1  = index of SM, that 
-*     SM(2)   = diagonal element i,i    IJR(i)   = ...    contains the first
-*     ...       ...                                      off-diagonal element
-*     SM(N)   = diagonal element n,n    IJR(N)   =        of the row i 
-*                                       IJR(N+1) = last +1 (L+1)  
-*     SM(N+k) = off-diagonal elements   IJC(k)   = column j of SM(N+k)
+*     + subarray "z" contains the row pointers:
+*       table with 2 columns and (N+1) rows (2*(N+1) rows for compression)
+*       first  column contains for each row offset in column lists "d"
+*       second column contains for each row offset in subarray containing
+*       the values (row<=N+1: "d", row>N+1: '.')
+*       MQ(INDZ-1) contains the number of precisions used 
+*         (1= only Double, 2= Double+Single)
+*     + subarray "d" contains the column lists:
+*       for each row I the list of columns J for the off-diagonal elements
+*       Mij is stored
+*       - uncompressed: simple list of all columnn indices
+*       - compressed  : regions of consecutive columns
+*         only first index J1 and number of indices JN is stored
+*         encoded in single 4byte word (upper MQ(INDD-1)=int(log2(N))+1
+*            bits for J1, lower 31-int(log2(N)) bits for JN,
+*            region is split if JN doesn't fit in allocated bits)
+*         for each group of 8 regions first the group offsets are stored
+*            (sum(JN) of all regions before that group, 
+*             allows faster access in IJADD, 
+*             first offset is allways 0, tagging compression)
+*       - each row is only compressed if the compressed list is
+*         shorter than the uncompressed one
+*     + subarray "j" contains double precision values:
+*       first the N diagonal elements, than frequent off-diagonals
+*     + subarray "." contains single precision values:
+*       rare off-diagonals (depending on nsingle = 3rd par. of 'pairentries')
+*       with nsingle=1 (default from 'compress') only single entry elements
+*       are stored as simple floats (lossless as input form binary files is
+*       only single precision)
 *
-*     To get dimension parameters of matrix:
-*        N = IJR(1)-1   = dimension parameter of matrix SM 
-*        L = IJR(N+1)-1 = index of last used location, i.e. SM(L) 
+*     Compression of column information not used for MSPARS (ISAVES=0),
+*     but in NDBITS/SPBITS (ISAVES>0)
+* 
       INTEGER L,IROW,JCOL,NELM
-      INTEGER(KIND=LARGE) NSPARS
+      INTEGER(KIND=LARGE) NSPARS,LNROW
       SAVE
 *     ...      
       NSPARS=MQ(INDF-1) ! number of off-diagonal elements
-      CALL MEGARR('z L',(NAGB+1)*LSCALE,'sparse matrix row pointer')
+      LNROW=NAGB+1
+      CALL MEGARL('z L',LNROW*LSCALE*2,'sparse matrix row pointer')
       CALL MEGARL('d I',NSPARS,'sparse matrix column list')
       K    =0
-      LQ(INDZ/LSCALE+1)=NAGB+1
+      MQ(INDZ-1)=1   ! no compression, only double precision
+      LQ(INDZ/LSCALE+1)=1
+      LQ(INDZ/LSCALE+2)=NAGB+1
       L=1
       DO IROW=1,NAGB
  40    IF(L.GT.MQ(INDF-1)) GOTO 50 
@@ -2576,7 +2711,9 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+LNDF/2
        MQ(INDD+K)=JCOL
        L=L+1
        GOTO 40
- 50    LQ(INDZ/LSCALE+IROW+1)=NAGB+K+1
+ 50    CONTINUE
+       LQ(INDZ/LSCALE+IROW*2+1)=K+1
+       LQ(INDZ/LSCALE+IROW*2+2)=NAGB+K+1
       END DO
       NELM=K
       END
@@ -2806,7 +2943,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
 #include "mpinds.inc"
       DOUBLE PRECISION DGBM,DUBM
       INTEGER*8 NOFF8,NBITS
-      INTEGER(KIND=LARGE) NUSE,NDIMBI,NDIMSA,NDGN
+      INTEGER(KIND=LARGE) NUSE,NDIMBI,NDIMSA(4),NDGN,MATSIZ(2),LNROW
 *     ...
       WRITE(LUNLOG,*) ' '
       WRITE(LUNLOG,*) 'LOOP2: starting'
@@ -2848,6 +2985,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
             CALL MEGSPC(NUSE)
             NBITS=INT8(NUSE-11)*32
             MXBITS=NBITS/NOFF8 ! max bit field size fitting into free memory
+            IF (MCMPRS.NE.0) ISAVES=MAX(ISAVES,2) ! identify single entries for compression 
             IF (MXBITS.LE.0) THEN
                WRITE(*,*)  'STOP: not enough memory '//
      &            'for bit storage of off-diagonal elements'
@@ -2855,6 +2993,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
             ELSEIF (ISAVES.GT.MXBITS) THEN
                ISAVES=MXBITS
                MXCNT=2**MXBITS-1
+               IF (MSNGPE.GT.MXCNT) MSNGPE=MXCNT
                IF (MHISPE.GT.MXCNT) MHISPE=MXCNT
                IF (MREQPE.GT.MXCNT) THEN
                   MREQPE=MXCNT
@@ -2862,7 +3001,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
      &               MREQPE
                ENDIF
             ENDIF
-            CALL CLBITS(NAGB,NDIMBI,ISAVES)       ! get dimension for bit storage
+            CALL CLBITS(NAGB,NDIMBI,NENCDB,ISAVES)   ! get dimension for bit storage, encoding info
             CALL MEGARL('f I',NDIMBI*ISAVES,'INBITS: bit storage')
             CALL INBITS(1,1,1,MQ(INDF+1))
          END IF  
@@ -3087,6 +3226,7 @@ c         GOTO 15
         NOFF=NOFF8
       ENDIF
       NDGN=0
+      NSPC=1 ! number of precision types (double, single) for matrix storage
       IF(MATSTO.EQ.2) THEN
          IF(ISAVES.EQ.0) THEN
             NDGN=MQ(INDF-1)    ! actual number of off-diagonal elements
@@ -3098,9 +3238,13 @@ c         GOTO 15
      &           'NDBITS: #off-diagonal elements')
             ENDIF
 *
-            CALL NDBITS(NDIMSA,MQ(INDF+1),MREQPE,IHIS)
-            CALL MEGARR('f I',NDIMBI,'INBITS: bit storage') ! resize to bits
-            NDGN=NDIMSA ! actual number of off-diagonal elements 
+            JCMPRS=MAX(MCMPRS,MSNGPE)
+            IF (JCMPRS.GT.0.AND.ISAVES.GT.1) NSPC=2 ! mixed precision storage
+            CALL MEGARR('k I',NAGB*NSPC,'INBITS: row compression') 
+            CALL NDBITS(NDIMSA,MQ(INDF+1),MQ(INDK+1),
+     &                  MREQPE,IHIS,JCMPRS)
+            CALL MEGARR('f I',NDIMSA(1),'INBITS: bit storage') ! resize to bits
+            NDGN=NDIMSA(3)+NDIMSA(4) ! actual number of off-diagonal elements 
 *
             IF (MHISPE.GT.0) THEN
                IF (NHISTP.NE.0) CALL HMPRNT(IHIS)
@@ -3213,23 +3357,32 @@ c      END IF
       WRITE(LUN,105) WOLFC1,WOLFC2
  105  FORMAT(' Constants C1, C2 for Wolfe conditions:',G12.4,', ',G12.4)
 
-*     prepare matrix and gradient storage ------------------------------ 
-       
- 32   IF(MATSTO.EQ.2) THEN      ! sparse matrix
+*     prepare matrix and gradient storage ------------------------------
+      MATSIZ(1)=NAGB*NAGB+NAGB ! number of words for double precision storage 'j'
+      MATSIZ(2)=0              ! number of words for single precision storage '.'
+ 32   IF(MATSTO.EQ.2) THEN     ! sparse matrix
          IF(ISAVES.EQ.0) THEN
-            CALL MSPARS(NAGB)  ! pointer for sparse storage -> d
-         ELSE 
-            CALL MEGARR('z L',(NAGB+1)*LSCALE,
+            CALL MSPARS(NAGB)  ! pointer for sparse storage -> z, d
+            MATSIZ(1)=(LNDD+NAGB)*2
+         ELSE
+            MATSIZ(1)=(NDIMSA(3)+NAGB)*2
+            MATSIZ(2)=NDIMSA(4)
+            LNROW=NAGB+1 
+            CALL MEGARL('z L',LNROW*LSCALE*2*NSPC,
      +                  'sparse matrix row pointer')
-            CALL MEGARL('d I',NDIMSA,'sparse matrix column list')
-            CALL SPBITS(LQ(INDZ/LSCALE+1),MQ(INDD+1),MQ(INDF+1))
+            MQ(INDZ-1)=NSPC   ! =1: only double, =2: double + single precision
+            CALL MEGARL('d I',NDIMSA(2),'sparse matrix column list')
+            MQ(INDD-1)=NENCDB ! encoding info (number bits for column counter)
+            CALL SPBITS(LQ(INDZ/LSCALE+1),MQ(INDD+1),
+     +                  MQ(INDF+1),MQ(INDK+1))
+            CALL MEGRM('k')
             CALL MEGRM('f')
          END IF  
       END IF
 
       CALL FEASMA    ! prepare constraint matrices
 
-      CALL VMPREP    ! prepare matrix and gradient storage
+      CALL VMPREP(MATSIZ)    ! prepare matrix and gradient storage
 
       DGBM=4.0D-9*DFLOAT(MEGA)      ! total space of Gbytes 
       CALL MEGSPC(NUSE)            ! unused
@@ -3281,7 +3434,7 @@ c      END IF
       END 
 
 
-      SUBROUTINE VMPREP
+      SUBROUTINE VMPREP(MSIZE)
 
 *     prepare storage for vectors and matrices
 
@@ -3289,7 +3442,7 @@ c      END IF
 #include "dynal.inc"
       SAVE
 #include "mpinds.inc"
-      INTEGER(KIND=LARGE) NWORDS
+      INTEGER(KIND=LARGE) NWORDS,MSIZE(2)
 *     ...
 *                         Vector/matrix storage
 c      IF(MATSTO.EQ.2) THEN      ! sparse matrix  
@@ -3300,11 +3453,15 @@ c      END IF
       CALL MEGARR('w S',NAEQN,'residual vector of one record')
 
       IF(MATSTO.EQ.1) THEN           ! full symmetric matrix  
-         CALL MEGARR('j D',NAGB*NAGB+NAGB,'full symmetric matrix')
+         CALL MEGARR('j D',MSIZE(1),'full symmetric matrix')
          MQ(INDJ-2)=1                ! 1=normal symmetric matrix
       ELSE IF(MATSTO.EQ.2  ) THEN      ! sparse matrix 
-          CALL MEGARL('j D',(LNDD+NAGB)*2,'sparse symmetric matrix')
-          MQ(INDJ-2)=2               ! 2=sparse matrix
+         CALL MEGARL('j D',MSIZE(1),'sparse symmetric matrix (D)')
+         MQ(INDJ-2)=2                ! 2=sparse matrix
+         IF (MSIZE(2).GT.0) THEN
+            CALL MEGARL('. F',MSIZE(2),'sparse symmetric matrix (F)')
+            MQ(INDJ-3)=1
+         ENDIF
       END IF      
 
 
@@ -4267,8 +4424,10 @@ c 103  FORMAT(1X,A,G12.4)
       NBDRX =0  ! max border size for local fit
       NBNDX =0  ! max band width for local fit
       NRECER=0  ! (1.) record with error (rank deficit or Not-a-Number)
-      MREQPE=0  ! min number of pair entries
+      MREQPE=1  ! min number of pair entries
       MHISPE=0  ! upper bound for pair entry histogrammimg
+      MSNGPE=0  ! upper bound for pair entry single precision storage
+      MCMPRS=0  ! compression for sparsity (column indices)
             
       DO I=1,8
        TIMES(I)=0.0
@@ -4984,6 +5143,13 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
             RETURN
          END IF
 
+         KEYSTX='compress'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+            MCMPRS=1
+            RETURN
+         END IF
+
          KEYSTX='pairentries'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
@@ -4992,7 +5158,9 @@ c     that have very few entries - to save matrix memory size.
             IF (DNUM(1).GT.0.0) THEN
                MREQPE=DNUM(1)
                IF (NUMS.GE.2.AND.DNUM(2).GE.DNUM(1)) MHISPE=DNUM(2)
-               ICOUNT=MAX(MREQPE,MHISPE)
+               IF (NUMS.GE.3.AND.DNUM(3).GT.0.0) MSNGPE=DNUM(3)
+               ICOUNT=MAX(MSNGPE,MHISPE)
+               ICOUNT=MAX(MREQPE,ICOUNT)
                ISAVES=1 ! number of bits needed to count up to ICOUNT
                MXCNT=2
                DO K=1,30
@@ -5298,10 +5466,11 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
 *     Sparse matrix structure using bits (no counting) or bit fields (some counting)
 *
 *     CALL CLBITS(N,NDIMB,NBFW)   ! reset for N x N symmetric matrix
-*                                 ! N     = matrix dimension
-*                                 ! NDIMB = dimension for bit array 
+*                                 ! N      = matrix dimension
+*                                 ! NDIMB  = dimension for bit array 
 *                                 !         (NBITS= bit field array: NDIMB*NBFW)
-*                                 ! NBFW  = bit field width
+*                                 ! NENCDB = number of bits for encoding column counter 
+*                                 ! NBFW   = bit field width
 *
 *     do 
 *       CALL INBITS(I,J,INC,NBITS)! add index pair (i,j)
@@ -5310,11 +5479,16 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
 *     end do                      ! NBITS(NDIMB) = array for bits (bit fields) 
 *   
 *
-*     CALL NDBITS(NDIMS,NBITS,MNPAIR,IHST)  ! return dimension parameter for sparse
-*                                 ! NDIMS        = dimension for NSPARC
+*     CALL NDBITS(NDIMS,NBITS,NCMPRS,MNPAIR,IHST,ICMPRS)  ! return dimension parameter for sparse
+*                                 ! NDIMS(1)     = (reduced) dimension for NBITS
+*                                 ! NDIMS(2)     = dimension for NSPARC
+*                                 ! NDIMS(3)     = number of off diagonal elements in double prec.
+*                                 ! NDIMS(4)     = number of off diagonal elements in single prec.
 *                                 ! NBITS(NDIMB) = array for bits (bit fields)
+*                                 ! NCMPRS(N)    = compression mode per row
 *                                 ! MNPAIR       = min. entries for pairs
 *                                 ! IHST         = >0: histogram number
+*                                 ! ICOMPRS      = <>0: compress row information (column indices)
 *     
 *     CALL SPBITS(NSPARR,NSPARC,NBITS)   ! build sparse structure  
 *                                 ! NSPARR(N+1)   = sparse structure  I: row pointers
@@ -5325,9 +5499,10 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
 
       SUBROUTINE INBITS(IM,JM,INC,NBITS)        ! include element (I,J)
 #include "largeint.inc"
-      INTEGER NBITS(*),NSPARC(*)
-      INTEGER(KIND=LARGE) NSPARR(*), 
-     +   KL,L,LL,LB,NDIMB,MDIMB,NDIMS,MDIMS,NIN,NTOT
+      INTEGER NBITS(*),NSPARC(*),NCMPRS(*)
+      INTEGER NWCP(0:1),NRCP(4),IRGN(2),INR(2)
+      INTEGER(KIND=LARGE) NSPARR(*),NDIMS(4),
+     +   KL,L,LL,LB,NDIMB,MDIMB,NIN,NTOT,L1,K8,N1
       INTEGER*8 NOFFD
       LOGICAL BTEST,RESET
       DATA RESET/.TRUE./
@@ -5345,6 +5520,9 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
          DO L=1,MDIMB
           NBITS(L)=0
          END DO
+         DO L=0,1
+          NRCP(L)=0
+         ENDDO
          RESET=.FALSE. 
       END IF 
 
@@ -5391,12 +5569,13 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
 
 *     ------------------------------------------------------------------ 
 
-      ENTRY CLBITS(IN,NDIMB,JBFW)           ! reset for I,J =< IN
+      ENTRY CLBITS(IN,IDIMB,IENCDB,JBFW)           ! reset for I,J =< IN
       N=IN
       IBFW=JBFW
       MXCNT=2**IBFW-1
       NOFFD=INT8(N)*INT8(N-1)/2
       NDIMB=1+(NOFFD/32)
+      IDIMB=NDIMB
       MDIMB=NDIMB*IBFW
       MB=INT(4.0E-6*FLOAT(MDIMB))
       RESET=.TRUE.
@@ -5404,26 +5583,51 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
       WRITE(*,*) 'CLBITS: symmetric matrix of dimension',N
       WRITE(*,*) 'CLBITS: off-diagonal elements',NOFFD
       WRITE(*,*) 'CLBITS: dimension of bit-array',MDIMB , '(',MB,'MB)'
-      IF (IBFW.GT.1) WRITE(*,*) 'CLBITS: bit field width',IBFW 
+      IF (IBFW.GT.1) WRITE(*,*) 'CLBITS: bit field width',IBFW
+*     encoding for compression
+      NBCOL=16    ! 16 bits for column number, 16 bits for column counter
+      DO I=16,30
+         IF (BTEST(N,I)) NBCOL=I+1
+      ENDDO
+      NENCDB=32-NBCOL
+      IENCDB=NENCDB
+      NENCDM=ISHFT(1,NENCDB)-1
+c      print *, ' encoding ', NENCDB, NENCDM
       RETURN
 
 *     ------------------------------------------------------------------
-      
-      ENTRY NDBITS(NDIMS,NBITS,MNPAIR,IHST)           ! total number of elements
-      NDIMS=0
-      IF(RESET) RETURN                 ! no data          
+
+      ENTRY NDBITS(NDIMS,NBITS,NCMPRS,MNPAIR,IHST,JCMPRS)           ! total number of elements
+
+      NDIMS(1)=NDIMB
+      NDIMS(2)=0
+      NDIMS(3)=0
+      NDIMS(4)=0
+      ICMPRS=JCMPRS
+      IF(RESET) RETURN                 ! no data
 *     reduce bit field counters to bits
-      IF (IBFW.GT.1) THEN
+      KBFW=1
+      DO JP=1,4
+         NRCP(JP)=0
+      ENDDO
+*
+      IF (IBFW.GT.1.OR.ICMPRS.NE.0) THEN
+         IF (IBFW.GT.1.AND.ICMPRS.GT.0) KBFW=2 ! need to tag single precision entries
          LL=1
          MM=0
          LB=1
          MB=0
-         NTOT=0
-         NIN=0
 *
          DO I=1,N
+            INR(1)=0
+            INR(2)=0
+            IRGN(1)=0
+            IRGN(2)=0
+            LAST=0
+            LRGN=0
             DO J=1,I-1 
                ICOUNT=0
+               NEXT=0
                DO IB=0,IBFW-1
                   IF (BTEST(NBITS(LL),MM)) ICOUNT=IBSET(ICOUNT,IB)
                   MM=MM+1
@@ -5432,47 +5636,83 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
                      MM=MM-32
                   ENDIF
                ENDDO
-               IF (IHST.GT.0.AND.ICOUNT.GT.0) 
-     &            CALL HMPENT(IHST,FLOAT(ICOUNT))
-               IF (ICOUNT.GT.0) NTOT=NTOT+1
+               DO JB=0,KBFW-1
+                  NBITS(LB)=IBCLR(NBITS(LB),MB+JB)
+               ENDDO
+*
+               IF (ICOUNT.GT.0) THEN
+                  NTOT=NTOT+1
+                  IF (IHST.GT.0) CALL HMPENT(IHST,FLOAT(ICOUNT))
+               ENDIF
 *              keep pair ?
                IF (ICOUNT.GE.MNPAIR) THEN
-                  NIN=NIN+1
-                  NBITS(LB)=IBSET(NBITS(LB),MB)
-               ELSE
-                  NBITS(LB)=IBCLR(NBITS(LB),MB)
+                  NEXT=1 ! double
+                  IF (ICOUNT.LE.ICMPRS.AND.ICMPRS.GT.0) NEXT=2 ! single 
+                  INR(NEXT)=INR(NEXT)+1
+                  NBITS(LB)=IBSET(NBITS(LB),MB+NEXT-1)
+                  IF (NEXT.NE.LAST.OR.LRGN.GE.NENCDM) THEN
+                     IRGN(NEXT)=IRGN(NEXT)+1
+                     LRGN=0
+                  ENDIF
+                  LRGN=LRGN+1
                ENDIF
-               MB=MB+1
+               MB=MB+KBFW
                IF (MB.GE.32) THEN
                   LB=LB+1
                   MB=MB-32
                ENDIF
+               LAST=NEXT
             ENDDO
+*
+            IF (ICMPRS.NE.0) THEN
+               DO JP=1,KBFW
+                  IF (INR(JP).GT.0) THEN
+                     ICP=0
+                     NWCP(0)=INR(JP)                    ! list of column indices (default)
+                     NWCP(1)=IRGN(JP)+(IRGN(JP)+7)/8    ! list of regions of consecutive columns
+*                    compress row ?
+                     IF (NWCP(1).LT.NWCP(0)) THEN
+                        ICP=1
+                        NCMPRS(I+N*(JP-1))=IRGN(JP)
+                     ENDIF
+                     NDIMS(2)   =NDIMS(2)   +NWCP(ICP)
+                     NDIMS(JP+2)=NDIMS(JP+2)+NWCP(0)
+                     NRCP(JP*2+ICP-1)=NRCP(JP*2+ICP-1)+1
+                  ENDIF
+               ENDDO
+            ELSE
+*
+               NDIMS(2)=NDIMS(2)+INR(1)
+               NDIMS(3)=NDIMS(3)+INR(1)
+*
+            ENDIF
+*
          ENDDO
 *
-         IBFW=1
+c         print *, ' compression ', NDIMS,NRCP
+         IBFW=KBFW
          MDIMB=LB
+         NDIMS(1)=MDIMB
          DO IB=MB,31
             NBITS(LB)=IBCLR(NBITS(LB),IB)
          ENDDO
+*
       ELSE
-         NTOT=-1
-         NIN=-1
+*
+         DO L=1,MDIMB
+          IF(NBITS(L).NE.0) THEN
+             DO M=0,31
+              IF(BTEST(NBITS(L),M)) NIN=NIN+1
+             END DO
+          END IF 
+         END DO
+         NDIMS(2)=NIN
+         NDIMS(3)=NIN
+         NTOT=NIN
+*
       ENDIF
 *
-      MDIMS=0
-      DO L=1,MDIMB
-       IF(NBITS(L).NE.0) THEN
-          DO M=0,31
-           IF(BTEST(NBITS(L),M)) MDIMS=MDIMS+1
-          END DO
-       END IF 
-      END DO
-      NDIMS=MDIMS
-      IF (NTOT.LT.0) THEN
-         NTOT=MDIMS
-         NIN=NTOT
-      ENDIF
+      NIN=NDIMS(3)+NDIMS(4)
       FRACZ=200.0*FLOAT(NTOT)/FLOAT(N)/FLOAT(N-1)
       FRACU=200.0*FLOAT(NIN)/FLOAT(N)/FLOAT(N-1)
       WRITE(*,*) ' '
@@ -5480,74 +5720,130 @@ c            WRITE(*,*) 'IER NUMS ',IER,NUMS
       WRITE(*,*) 'NDBITS: number of used off-diagonal elements',NIN
       WRITE(*,1000) 'fraction of non-zero off-diagonal elements', FRACZ
       WRITE(*,1000) 'fraction of used off-diagonal elements', FRACU
+      IF (ICMPRS.NE.0) THEN
+         CPR=100.0*FLOAT(NDIMS(2)+2*NDIMS(3)+NDIMS(4))/FLOAT(3*NIN)
+      WRITE(*,1000) 'compression ratio for off-diagonal elements', CPR
+      ENDIF
  1000 FORMAT(' NDBITS: ',A,F6.2,' %')
       RETURN 
 
 *     ------------------------------------------------------------------
 
-      ENTRY SPBITS(NSPARR,NSPARC,NBITS)               ! collect elements
+      ENTRY SPBITS(NSPARR,NSPARC,NBITS,NCMPRS)               ! collect elements
 
-      KL=0
-      DO I=1,N            ! loop for diagonal elements  
-       NSPARR(I)=KL+N+1   ! pointer to row
-       DO J=1,I-1         !  loop for off-diagonal elements  
-        NOFFD=(INT8(I)*INT8(I-1)/2+INT8(J-I))*INT8(IBFW)
-        L=NOFFD/32+1
-        M=MOD(NOFFD,32)
-        IF(NBITS(L).NE.0) THEN 
-           IF(BTEST(NBITS(L),M)) THEN
-              KL=KL+1      
-              NSPARC(KL)=J ! column index 
-           END IF
-        END IF 
+      N1=0
+      KL=0                ! index in NSPARC
+      L1=N
+*
+      DO JB=0,IBFW-1
+*
+       L=1
+       M=JB
+       LL=L1               ! index for off diagonals
+       DO I=1,N            ! loop for diagonal elements  
+        L1=LL+1
+        N1=N1+2
+        NSPARR(N1-1)=KL+1  ! pointer to row in NSPARC
+        NSPARR(N1  )=L1    ! pointer to row in sparse matrix
+        NRGN=NCMPRS(I+N*JB)! compression  (number of consecutive regions)
+        NRGN8=(NRGN+7)/8   ! number of groups (1 offset per group)
+        K8=KL
+        KL=KL+NRGN8        ! reserve space of offsets
+        LAST=0
+        LRGN=0
+*
+        DO J=1,I-1         !  loop for off-diagonal elements  
+         NEXT=0
+         IF(NBITS(L).NE.0) THEN 
+          IF(BTEST(NBITS(L),M)) THEN
+           LL=LL+1
+           IF (NRGN.LE.0) THEN
+            KL=KL+1      
+            NSPARC(KL)=J ! column index
+           ELSE
+            NEXT=1
+            IF (LAST.EQ.0) THEN
+             IF (MOD(LRGN,8).EQ.0) THEN
+              K8=K8+1
+              NSPARC(K8)=LL-L1
+             ENDIF
+             LRGN=LRGN+1
+             KL=KL+1
+             J1=ISHFT(J,NENCDB)
+             JN=0
+            ENDIF
+            JN=JN+1
+            NSPARC(KL)=IOR(J1,JN)
+           ENDIF 
+          END IF
+         END IF
+         LAST=NEXT
+         M=M+IBFW
+         IF (M.GE.32) THEN
+          M=M-32
+          L=L+1
+         ENDIF 
+*
+        END DO
        END DO
-      END DO
-      NSPARR(N+1)=KL+N+1 
+       N1=N1+2
+       NSPARR(N1-1)=KL+1 
+       NSPARR(N1  )=LL+1 
+*
+       L1=0
+*
+      ENDDO
+*
       WRITE(*,*) ' '
-      WRITE(*,*) 'SPBITS: sparse structure constructed',MDIMS,' words'
-      WRITE(*,*) 'SPBITS: dimension parameter of matrix',NSPARR(1)-1
-      WRITE(*,*) 'SPBITS: index of last used location',NSPARR(N+1)-1 
+      WRITE(*,*) 'SPBITS: sparse structure constructed ',KL,' words'
+      WRITE(*,*) 'SPBITS: dimension parameter of matrix',NSPARR(2)-1
+      IF (IBFW.LE.1) THEN
+         WRITE(*,*) 'SPBITS: index of last used location',NSPARR(N1)-1
+      ELSE
+         WRITE(*,*) 'SPBITS: index of last used double',NSPARR(N1/2)-1
+         WRITE(*,*) 'SPBITS: index of last used single',NSPARR(N1)-1
+      ENDIF
 c      WRITE(*,101) (NSPARC(I),I=1,KL)
 c 101  FORMAT(10I6)  
       END
 
- 
-      FUNCTION IJIND(ITEMA,ITEMB,NSPARR,NSPARC)      ! index for element
-#include "largeint.inc"
-      INTEGER(KIND=LARGE) NSPARR(*), IJIND,K,KK,KL,KU,INDIJ,ND
-      INTEGER NSPARC(*)
-      SAVE
+* !!! not up to date !!! see IJADD 
+*      FUNCTION IJIND(ITEMA,ITEMB,NSPARR,NSPARC)      ! index for element
+*#include "largeint.inc"
+*      INTEGER(KIND=LARGE) NSPARR(*), IJIND,K,KK,KL,KU,INDIJ,ND
+*      INTEGER NSPARC(*)
+*      SAVE
 *     ...
-      IJIND=0
-      ND=NSPARR(1)-1                  ! dimension of matrix
-      ITEM1=MAX(ITEMA,ITEMB)          ! larger index
-      ITEM2=MIN(ITEMA,ITEMB)          ! smaller index
-      IF(ITEM2.LE.0.OR.ITEM1.GE.NSPARR(1)) RETURN
-      IF(ITEM1.EQ.ITEM2) THEN         ! diagonal element
-         IJIND=ITEM1
-      ELSE                            ! off-diagonal element
-         KK=NSPARR(ITEM1)-ND
-         KL=0
-         KU=NSPARR(ITEM1+1)-ND-1-KK
-         INDIJ=KK
-         IF(KU.LT.KL) THEN
+*      IJIND=0
+*      ND=NSPARR(1)-1                  ! dimension of matrix
+*      ITEM1=MAX(ITEMA,ITEMB)          ! larger index
+*      ITEM2=MIN(ITEMA,ITEMB)          ! smaller index
+*      IF(ITEM2.LE.0.OR.ITEM1.GE.NSPARR(1)) RETURN
+*      IF(ITEM1.EQ.ITEM2) THEN         ! diagonal element
+*         IJIND=ITEM1
+*      ELSE                            ! off-diagonal element
+*         KK=NSPARR(ITEM1)-ND
+*         KL=0
+*         KU=NSPARR(ITEM1+1)-ND-1-KK
+*         INDIJ=KK
+*         IF(KU.LT.KL) THEN
 c            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
-            RETURN
-         END IF
- 10      K=(KL+KU)/2                  ! binary search
-         IF(ITEM2.EQ.NSPARC(INDIJ+K)) THEN
-            IJIND=ND+K
-         ELSE
-            IF(ITEM2.LT.NSPARC(INDIJ+K)) THEN
-               KU=K-1
-            ELSE IF(ITEM2.GT.NSPARC(INDIJ+K)) THEN
-               KL=K+1
-            END IF
-            IF(KL.LE.KU) GOTO 10
+*            RETURN
+*         END IF
+* 10      K=(KL+KU)/2                  ! binary search
+*         IF(ITEM2.EQ.NSPARC(INDIJ+K)) THEN
+*            IJIND=ND+K
+*         ELSE
+*            IF(ITEM2.LT.NSPARC(INDIJ+K)) THEN
+*               KU=K-1
+*            ELSE IF(ITEM2.GT.NSPARC(INDIJ+K)) THEN
+*               KL=K+1
+*            END IF
+*            IF(KL.LE.KU) GOTO 10
 c            WRITE(*,*) ITEM1,ITEM2,' not found',KK,KL,KU
-            RETURN
-         END IF
-         IJIND=ND+K+KK
-      END IF
-      END
+*            RETURN
+*         END IF
+*         IJIND=ND+K+KK
+*      END IF
+*      END
 

@@ -63,7 +63,7 @@
      +              NDFSUM,NREGUL,REGULA,REGPRE,IITERA,DELTIM,ISTOPA,
      +              LSINFO,ICALCM,RSTART,MATRIT,NPRESG,NRECAL, ! ITEXIT,
      +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER,
-     +              MREQPE,MHISPE
+     +              MREQPE,MHISPE,MSNGPE,MCMPRS
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
@@ -143,6 +143,8 @@ C removed*     ITEXIT = exit code
 *     NRECER = (1.) record with error (rank deficit or Not-a-Number)
 *     MREQPE = min number of pair entries
 *     MHISPE = upper bound for pair entry histogrammimg
+*     MSNGPE = upper bound for pair entry single precision storage
+*     MCMPRS = compression for sparsity (column indices)
 
       DOUBLE PRECISION FVALUE,FLINES
       COMMON/MPDOUB/FVALUE,FLINES

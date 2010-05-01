@@ -228,8 +228,11 @@
  03   CONTINUE
       IF(DEBUG) THEN
          LLT=LEN(TEXT)
-         IF(LLT.LT.50) WRITE(LUNDEB,*) 'MEGARR ',CH,NDL,'   ',TEXT
-         IF(LLT.GE.50) WRITE(LUNDEB,*) 'MEGARR ',CH,NDL,'   ',TEXT(1:50)
+         IF(LLT.LT.25) THEN
+            WRITE(LUNDEB,*) 'MEGARR ',CH,NDL,MQU,' ',TEXT
+         ELSE
+            WRITE(LUNDEB,*) 'MEGARR ',CH,NDL,MQU,' ',TEXT(1:25)
+         ENDIF
       END IF
       CCH=CH
       IAI=IBYCH(CH)
