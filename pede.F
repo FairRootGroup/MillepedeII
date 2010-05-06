@@ -31,6 +31,7 @@
       CALL MVOPEN(LUNLOG,'millepede.log')
 
       WRITE(*,*) '($Rev$)'     
+!$    WRITE(*,*) 'using OpenMP (TM)'
       WRITE(*,*) ' '
       WRITE(*,*) '     Millepede II-B  starting ... ',CHDATE 
       WRITE(*,*) ' '
@@ -128,7 +129,7 @@ c       END IF
          CALL HMPWRT(3)
          CALL HMPWRT(12)
          CALL HMPWRT(4)
-         CALL GMPWRT(4) ! location, dispersion as a function of record nr
+         CALL GMPWRT(4) ! location, dispersion (res.) as a function of record nr
       END IF
       IF(NHISTP.NE.0) THEN
          CALL GMPRNT(1)       
@@ -328,7 +329,7 @@ c       END IF
       CALL EXPLFC(8)
 
       WRITE(*,*) ' '
-      WRITE(*,*) '  <  Millepede II-B ending.' ! with exit code',ITEXIT,' >'
+      WRITE(*,*) '  <  Millepede II-B ending ... ', CHDATE ! with exit code',ITEXIT,' >'
       WRITE(*,*) ' '
 C      CALL EXIT(ITEXIT)
 
@@ -871,7 +872,8 @@ c      NR=NR-1
       CALL HMPDEF(14,0.0,0.0,          ! book  
      +   'Pulls of single (local) measurement')
       CALL HMPDEF(4,0.0,0.0,'Chi^2/Ndf after local fit')
-      CALL GMPDEF(4,5,'location and dispersion vs record nr') 
+      CALL GMPDEF(4,5,'location, dispersion (res.) vs record nr') 
+      CALL GMPDEF(5,5,'location, dispersion (pull) vs record nr') 
 
 C      WRITE(*,*) 'LOOPN ', NLOOPN, ' executing ICALCM=', ICALCM 
 
@@ -1178,9 +1180,10 @@ c            CALL HMPRNT(4)  ! chi^2/Ndf
          CALL HMPWRT(3)
          CALL HMPWRT(12)
          CALL HMPWRT(13)
-         CALL HMPWRT(14)         
-         CALL HMPWRT(4)   
-         CALL GMPWRT(4) ! location, dispersion as a function of record nr         
+         CALL HMPWRT(14)
+         CALL HMPWRT(4)
+         CALL GMPWRT(4) ! location, dispersion (res.) as a function of record nr
+         CALL GMPWRT(5) ! location, dispersion (pull) as a function of record nr
       END IF
 c      IF(NLOOPN.EQ.2.AND.NHISTP.NE.0) CALL HMPRNT(6)
       IF(NLOOPN.EQ.2) CALL HMPWRT(6) 
@@ -1667,6 +1670,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
            PULL=RMEAS/DSQRT(1.0D0/DBLE(WGHT)-DVAR)
            IF (JB.LT.IST) THEN
             CALL HMPENT(13,PULL) ! histogram pull
+            CALL GMPMS(5,REC,PULL) 
            ELSE
             CALL HMPENT(14,PULL) ! histogram pull
            ENDIF
@@ -2083,13 +2087,20 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       IENCDB=MQ(INDD-1)
       IENCDM=ISHFT(1,IENCDB)-1
 *
+!$    DO I=1,N
+!$     B(I)=0.0D0             ! reset 'global' B()
+!$    END DO
+*
+      NSPC=MQ(INDZ-1)         ! number of precisions, 1=D, 2=F
+!$OMP PARALLEL DO             ! parallelize row loop
+!$OMP& PRIVATE(I2,K,KK,LL,KL,KU,INDID,INDIJ,J,JC,JN,LJ) ! variables local to thread
+!$OMP& NUM_THREADS(MTHRD)
+!$OMP& REDUCTION(+:B)         ! private copy of B(N) for each thread, combined at end, init with 0.
+!$OMP& SCHEDULE(DYNAMIC,1024) ! slot of 1024 'I' for next idle thread
       DO I=1,N
        B(I)=DQ(INDJ/2+I)*X(I)    ! diagonal elements
-      END DO
-      NSPC=MQ(INDZ-1)            ! number of precisions, 1=D, 2=F
-      I2=0                       ! off-diagonals, double precision
-      DO I=1,N
-       I2=I2+2
+*                                ! off-diagonals double precision
+       I2=2*I
        KK=LQ(INDZ/LSCALE+I2-1) ! offset in 'd' (column lists) 
        LL=LQ(INDZ/LSCALE+I2)   ! offset in 'j' (matrix)
        KL=0
@@ -2118,12 +2129,9 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
          ENDDO
         ENDDO
        ENDIF
-      ENDDO
 *
-      IF (NSPC.GT.1) THEN 
-       I2=I2+2                  ! off-diagonals, single precision
-       DO I=1,N
-        I2=I2+2
+       IF (NSPC.GT.1) THEN 
+        I2=2*(I+N+1)                  ! off-diagonals single precision
         KK=LQ(INDZ/LSCALE+I2-1) ! offset in 'd' (column lists) 
         LL=LQ(INDZ/LSCALE+I2)   ! offset in '.' (matrix)
         KL=0
@@ -2152,8 +2160,9 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
           ENDDO
          ENDDO
         ENDIF
-       ENDDO
-      ENDIF
+       ENDIF
+      ENDDO
+!$OMP END PARALLEL DO
       END
 
       FUNCTION IJADD(ITEMA,ITEMB)      ! index using "d" and "z"
@@ -3391,9 +3400,10 @@ c      END IF
       WRITE(*,104) DGBM,DUBM,DUBM/DGBM*100.0D0
       GBM=DGBM
       UBM=DUBM 
-
- 
-
+      IF (MTHRD.GT.0.AND.METSOL.GE.3) THEN
+         WRITE(*,*)
+         WRITE(*,*) 'Number of threads (AVPROD):', MTHRD
+      ENDIF
 *     print chi^2 cut tables  
 
       NDFMAX=NAEQN-1
@@ -3732,8 +3742,6 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
       NOUT=LUN
       ITNLIM=2000    ! iteration limit
       SHIFT =0.0D0   ! not used
-      RTOL = MRESTL ! from steering
-      RTOL=1.0D-08 
       RTOL = MRESTL ! from steering
       NVAR=NAGB
       CHECKA=.FALSE.
@@ -4406,7 +4414,7 @@ c 103  FORMAT(1X,A,G12.4)
       ISUBIT=0  ! subito flag
       WOLFC1=0.0! C_1 of strong Wolfe condition
       WOLFC2=0.0! C_2 of strong Wolfe condition 
-      MRESTL=1.0D-08            ! tolerance criterion for MINRES
+      MRESTL=1.0D-06 ! tolerance criterion for MINRES
       NOFEAS=0  ! default for making par feasible
       NHISTP=0  ! no histogram printout
       DELFUN=0.0! expected function change
@@ -4428,7 +4436,9 @@ c 103  FORMAT(1X,A,G12.4)
       MHISPE=0  ! upper bound for pair entry histogrammimg
       MSNGPE=0  ! upper bound for pair entry single precision storage
       MCMPRS=0  ! compression for sparsity (column indices)
-            
+      MTHRD =0  ! no multithreading
+!$    MTHRD =1  ! number of threads (in AVPROD)
+
       DO I=1,8
        TIMES(I)=0.0
       END DO
@@ -5140,6 +5150,17 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             ISUBIT=1
+            RETURN
+         END IF
+
+         KEYSTX='threads'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+            IF (MTHRD.GT.0) THEN
+               IF (DNUM(1).GT.1.0) MTHRD=DNUM(1)
+            ELSE
+               WRITE(*,*) 'WARNING: multithreading not available'
+            ENDIF
             RETURN
          END IF
 

@@ -29,7 +29,6 @@ NUMBER_OF_WORDS = 100000000 # =400 MB
 # Define the size of LARGE integers (4: INTERGER*4, 8: INTEGER*8)
 LARGE_SIZE=8
 #
-#
 FCOMP = gcc
 F_FLAGS = -Wall -fno-automatic -fno-backslash -O3 ${LARGE_MEMORY_OPT}
 #
@@ -40,6 +39,10 @@ C_INCLUDEDIRS =  # e.g. -I .
 # gcc4: 
 C_LIBS = -lgfortran -lgfortranbegin
 DEBUG =          # e.g. -g
+#
+# Multithreading with OpenMP (TM)
+C_LIBS  += -lgomp
+F_FLAGS += -fopenmp
 #
 LOADER = gcc
 L_FLAGS = -Wall -O3 ${LARGE_MEMORY_OPT}
