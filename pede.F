@@ -33,7 +33,7 @@
       WRITE(*,*) '($Rev$)'     
 !$    WRITE(*,*) 'using OpenMP (TM)'
       WRITE(*,*) ' '
-      WRITE(*,*) '     Millepede II-B  starting ... ',CHDATE 
+      WRITE(*,*) '  <  Millepede II-B starting ... ',CHDATE 
       WRITE(*,*) ' '
       CALL MEGNIT             ! initialize dynal memory management
       WRITE(*,*) ' '
@@ -329,7 +329,7 @@ c       END IF
       CALL EXPLFC(8)
 
       WRITE(*,*) ' '
-      WRITE(*,*) '  <  Millepede II-B ending ... ', CHDATE ! with exit code',ITEXIT,' >'
+      WRITE(*,*) '  <  Millepede II-B ending   ... ', CHDATE ! with exit code',ITEXIT,' >'
       WRITE(*,*) ' '
 C      CALL EXIT(ITEXIT)
 
@@ -2904,6 +2904,8 @@ c 111  FORMAT(I5,I10,F10.5,E12.4)
          WRITE(*,101) 'MREQEN',MREQEN,'required number of entries'
          IF (MREQPE.GT.1) WRITE(*,101) 
      &      'MREQPE',MREQPE,'required number of pair entries'
+         IF (MSNGPE.GE.1) WRITE(*,101) 
+     &      'MSNGPE',MSNGPE,'max pair entries single prec. storage'
          WRITE(*,101) 'NTGB',NTGB,'total number of parameters'
          WRITE(*,101) 'NVGB',NVGB,'number of variable parameters'
          IF(MPRINT.GT.1) THEN
@@ -3002,7 +3004,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
             ELSEIF (ISAVES.GT.MXBITS) THEN
                ISAVES=MXBITS
                MXCNT=2**MXBITS-1
-               IF (MSNGPE.GT.MXCNT) MSNGPE=MXCNT
+               IF (MSNGPE.GE.MXCNT) MSNGPE=MXCNT-1
                IF (MHISPE.GT.MXCNT) MHISPE=MXCNT
                IF (MREQPE.GT.MXCNT) THEN
                   MREQPE=MXCNT
@@ -5180,7 +5182,7 @@ c     that have very few entries - to save matrix memory size.
                MREQPE=DNUM(1)
                IF (NUMS.GE.2.AND.DNUM(2).GE.DNUM(1)) MHISPE=DNUM(2)
                IF (NUMS.GE.3.AND.DNUM(3).GT.0.0) MSNGPE=DNUM(3)
-               ICOUNT=MAX(MSNGPE,MHISPE)
+               ICOUNT=MAX(MSNGPE+1,MHISPE)
                ICOUNT=MAX(MREQPE,ICOUNT)
                ISAVES=1 ! number of bits needed to count up to ICOUNT
                MXCNT=2
