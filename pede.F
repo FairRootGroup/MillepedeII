@@ -2955,6 +2955,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
       DOUBLE PRECISION DGBM,DUBM
       INTEGER*8 NOFF8,NBITS
       INTEGER(KIND=LARGE) NUSE,NDIMBI,NDIMSA(4),NDGN,MATSIZ(2),LNROW
+!$    INTEGER OMP_GET_NUM_PROCS,OMP_GET_MAX_THREADS
 *     ...
       WRITE(LUNLOG,*) ' '
       WRITE(LUNLOG,*) 'LOOP2: starting'
@@ -3404,7 +3405,14 @@ c      END IF
       UBM=DUBM 
       IF (MTHRD.GT.0.AND.METSOL.GE.3) THEN
          WRITE(*,*)
-         WRITE(*,*) 'Number of threads (AVPROD):', MTHRD
+         NPROC=1
+         MXTHRD=1
+!$       NPROC=OMP_GET_NUM_PROCS()         ! number of processors available
+!$       CALL OMP_SET_NUM_THREADS(MTHRD)   ! set max number of threads to MTHRD
+!$       MXTHRD=OMP_GET_MAX_THREADS()      ! get max number of threads back
+         WRITE(*,*) 'Number of processors available:', NPROC
+         WRITE(*,*) 'Maximum number of threads:     ', MXTHRD
+         WRITE(*,*) 'Number of threads (in AVPROD): ', MTHRD
       ENDIF
 *     print chi^2 cut tables  
 
@@ -4234,14 +4242,15 @@ C      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'
       END IF
 
-      RATIO=FVALUE/FLOAT(NDFSUM)
+      RATIO=FVALUE/FLOAT(NDFSUM-NAGB)
       CATIO=RATIO
       IF(LHUBER.NE.0) CATIO=1.07*CATIO  ! correction   
       MRATI=100.0*CATIO+0.5
 
       DO LUNP=6,LUNLOG,LUNLOG-6
        WRITE(LUNP,*) ' '
-       WRITE(LUNP,*) 'Chi^2/Ndf =',FVALUE,' /',NDFSUM,' =',RATIO
+       WRITE(LUNP,*) 'Chi^2/Ndf =',FVALUE,'/ (',NDFSUM,'-',NAGB,')'
+       WRITE(LUNP,*) '          =',RATIO
        WRITE(LUNP,*) ' '
        IF(LHUBER.NE.0) WRITE(LUNP,*)
      + '            with correction for down-weighting   ',CATIO     
