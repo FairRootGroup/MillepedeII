@@ -124,7 +124,9 @@ pede.o : pede.F dynal.inc largeint.inc mpinds.inc localfit.inc Makefile
 %_8GB.o: %.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=2147483647 -c $< -o $@
 %_16GB.o: %.F dynal.inc largeint.inc Makefile
-	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=4000000000 -c $< -o $@
+	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=4000000000_8 -c $< -o $@
+%_24GB.o: %.F dynal.inc largeint.inc Makefile
+	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=6000000000_8 -c $< -o $@
 %_rfio.o: %.c Makefile
 	$(CCOMP) -c $(C_FLAGS) -DUSE_SHIFT_RFIO $(DEFINES) $(C_INCLUDEDIRS) \
 		$(DEBUG) -o $@ $<
@@ -159,13 +161,17 @@ pede_8GB: ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc.o Makefile
 	$(LOADER) $(L_FLAGS) $(C_LIBS) \
 		-o $@ ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc.o  
 #
+pede_8GB_rfio: ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc_rfio.o  Makefile
+	$(LOADER) $(L_FLAGS) $(C_LIBS) -lshift \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc_rfio.o 
+#
 pede_16GB: ${USER_OBJ_PEDE_STATIC} pede_16GB.o dynal_16GB.o readc.o Makefile
 	$(LOADER) $(L_FLAGS) $(C_LIBS) \
 		-o $@ ${USER_OBJ_PEDE_STATIC} pede_16GB.o dynal_16GB.o readc.o  
 #
-pede_8GB_rfio: ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc_rfio.o  Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) -lshift \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc_rfio.o  
+pede_24GB: ${USER_OBJ_PEDE_STATIC} pede_24GB.o dynal_24GB.o readc.o Makefile
+	$(LOADER) $(L_FLAGS) $(C_LIBS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_24GB.o dynal_24GB.o readc.o   
 #
 # End hack for the various executables...
 ####################################################################

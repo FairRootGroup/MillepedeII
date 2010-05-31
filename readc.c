@@ -36,6 +36,8 @@ FILE *files[MAXNUMFILES];      /* pointers to opened binary files */
 int fileReadOnce[MAXNUMFILES]; /* flag to printout record number once */
 unsigned int numAllFiles;      /* number of opened files */
 int fileIndex;                 /* index of current file */
+int nRec;                      /* count records per file */
+
 
 /*______________________________________________________________*/
 
@@ -51,6 +53,7 @@ void initC()
   }
   numAllFiles = 0;
   fileIndex = -1;
+  nRec = 0;
 }
 FCALLSCSUB0(initC,INITC,initc)
 
@@ -65,6 +68,25 @@ FCALLSCSUB0(initC,INITC,initc)
 /*   fileIndex = 0; */
 /* } */
 /* FCALLSCSUB0(rewinC,REWINC,rewinc) */
+
+/*______________________________________________________________*/
+
+void resetC()
+{
+  /* start again with first file */
+  if (fileIndex < 0) return; /* no file opened at all... */
+  /* rewind(files[fileIndex]);  Does not work with rfio, so call: */
+  fseek(files[fileIndex], 0L, SEEK_SET);
+  clearerr(files[fileIndex]); /* These two should be the same as rewind... */
+  if (!fileReadOnce[fileIndex]) {
+    printf("readC: %d. file read the first time, read  %d records.\n",
+              fileIndex+1, nRec);
+    fileReadOnce[fileIndex] = 1;
+  } 
+  fileIndex = 0;
+  nRec = 0; 
+}
+FCALLSCSUB0(resetC,RESETC,resetc)
 
 /*______________________________________________________________*/
 
@@ -124,7 +146,6 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
      *errorFlag = -1;
      return;
    }
-   static int nRec = 0; /* count records per file */
 
    /* read length of 'record' */
    int recordLength = 0; /* becomes number of words following in file */

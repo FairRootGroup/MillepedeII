@@ -705,7 +705,9 @@ c         READ(LUN,END=10) N,(IBUFF(I),I=1,N)
       END IF 
       GOTO 90  ! end
 
- 02   NREC=NREC+1
+ 02   CONTINUE
+      IF (MXREC.GT.0.AND.NREC.GE.MXREC) GOTO 80 
+      NREC=NREC+1
       IF(NLOOPN.EQ.0) THEN 
          IF(NREC.LE.2) WRITE(*,*) 'Record ',NREC 
          IF(NREC.EQ.3) WRITE(*,*) 'Record ',NREC,' ...' 
@@ -762,6 +764,15 @@ c      NR=NR-1
          WRITE(*,*) ' '
       END IF
       RETURN
+
+ 80   CONTINUE       ! maxrecord reached, reset current file
+      IF (IFILE.GT.0) THEN
+         REWIND LUN
+      ELSE
+#ifdef READ_C_FILES
+         CALL RESETC
+#endif
+      ENDIF
 
  90   NR=0           ! reset after end-of-data
       IFILE=0
@@ -3024,7 +3035,17 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
       NAEQNG=0  ! count number of equations (with global der.)
       NAEQNF=0  ! count number of equations ( " , fixed)
       NAEQNA=0  ! all
-      WRITE(LUNLOG,*) 'LOOP2: start event reading' 
+      WRITE(LUNLOG,*) 'LOOP2: start event reading'
+*     monitoring for sparse matrix?
+      IF (MATSTO.EQ.2.AND.ISAVES.GT.0.AND.MATMON.NE.0) THEN
+         NMATMO=0
+         IF (MATMON.GT.0) THEN
+            NRECMM=MATMON
+         ELSE
+            NRECMM=1
+         ENDIF 
+      ENDIF
+*
  10   CALL PEREAD(NR) ! next "event"
       IF(NR.EQ.0) GOTO 20 ! EOD = end of data
 
@@ -3125,6 +3146,32 @@ c         GOTO 15
            END IF
           END DO
          END DO
+*        monitoring
+         IF (ISAVES.GT.0.AND.MATMON.NE.0.AND.
+     &      (NREC.EQ.NRECMM.OR.NREC.EQ.MXREC)) THEN
+            IF (NMATMO.EQ.0) THEN
+               WRITE(*,*)
+               WRITE(*,*) 'Monitoring of sparse matrix construction'
+               WRITE(*,*) '  record ........ off-diagonal elements ',
+     &                    '....... compression   memory'
+               WRITE(*,*) '             non-zero used(double)  used',
+     &                    '(float)       [%]       [GB]'
+            ENDIF
+            NMATMO=NMATMO+1
+            JCMPRS=MAX(MCMPRS,MSNGPE)
+            CALL CKBITS(NDIMSA,MQ(INDF+1),MREQPE,JCMPRS)
+            GBC=4.0E-9*FLOAT(NDIMSA(2)+2*NDIMSA(3)+NDIMSA(4)) ! GB compressed
+            GBU=1.2E-8*FLOAT(NDIMSA(3)+NDIMSA(4))             ! GB uncompressed
+            CPR=100.0*GBC/GBU
+            WRITE(*,1177) NREC,NDIMSA(1),NDIMSA(3),NDIMSA(4),CPR,GBC
+ 1177       FORMAT(I9,3I13,F10.2,F11.6)
+            IF (MATMON.GT.0) THEN
+               NRECMM=NRECMM+MATMON
+            ELSE
+               NRECMM=NRECMM*2
+            ENDIF
+         ENDIF
+*
       END IF
 
       DO I=1,NAGBN                 ! reset global index array
@@ -4449,6 +4496,8 @@ c 103  FORMAT(1X,A,G12.4)
       MCMPRS=0  ! compression for sparsity (column indices)
       MTHRD =0  ! no multithreading
 !$    MTHRD =1  ! number of threads (in AVPROD)
+      MXREC =0  ! max number of records
+      MATMON=0  ! record interval for monitoring of (sparse) matrix
 
       DO I=1,8
        TIMES(I)=0.0
@@ -5046,6 +5095,13 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             RETURN
          END IF
 
+         KEYSTX='maxrecord'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+            IF (NUMS.GT.0.AND.DNUM(1).GT.0.) MXREC=DNUM(1)
+            RETURN
+         END IF
+
          KEYSTX='chisqcut'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
@@ -5108,7 +5164,13 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             RETURN
          END IF
 
-
+         KEYSTX='matmoni'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+            MATMON=-1
+            IF (NUMS.GT.0.AND.DNUM(1).GT.0.) MATMON=DNUM(1)
+            RETURN
+         END IF
 
          KEYSTX='bandwidth'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
@@ -5187,7 +5249,7 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
 c     This option could be implemented to get rid of parameter pairs
 c     that have very few entries - to save matrix memory size. 
-            IF (DNUM(1).GT.0.0) THEN
+            IF (NUMS.GT.0.AND.DNUM(1).GT.0.0) THEN
                MREQPE=DNUM(1)
                IF (NUMS.GE.2.AND.DNUM(2).GE.DNUM(1)) MHISPE=DNUM(2)
                IF (NUMS.GE.3.AND.DNUM(3).GT.0.0) MSNGPE=DNUM(3)
@@ -5635,6 +5697,7 @@ c      print *, ' encoding ', NENCDB, NENCDM
       NDIMS(2)=0
       NDIMS(3)=0
       NDIMS(4)=0
+      NTOT=0
       ICMPRS=JCMPRS
       IF(RESET) RETURN                 ! no data
 *     reduce bit field counters to bits
@@ -5757,6 +5820,74 @@ c         print *, ' compression ', NDIMS,NRCP
       WRITE(*,1000) 'compression ratio for off-diagonal elements', CPR
       ENDIF
  1000 FORMAT(' NDBITS: ',A,F6.2,' %')
+      RETURN 
+
+*     ------------------------------------------------------------------
+
+      ENTRY CKBITS(NDIMS,NBITS,MNPAIR,JCMPRS)           ! check sparse matrix
+
+      DO I=1,4
+         NDIMS(I)=0
+      ENDDO
+      ICMPRS=JCMPRS
+      KBFW=1
+      IF (IBFW.GT.1.AND.ICMPRS.GT.0) KBFW=2
+      LL=1
+      MM=0
+*
+      DO I=1,N
+         INR(1)=0
+         INR(2)=0
+         IRGN(1)=0
+         IRGN(2)=0
+         LAST=0
+         LRGN=0
+         DO J=1,I-1 
+            ICOUNT=0
+            NEXT=0
+            DO IB=0,IBFW-1
+               IF (BTEST(NBITS(LL),MM)) ICOUNT=IBSET(ICOUNT,IB)
+               MM=MM+1
+               IF (MM.GE.32) THEN
+                  LL=LL+1
+                  MM=MM-32
+               ENDIF
+            ENDDO
+*
+            IF (ICOUNT.GT.0) NDIMS(1)=NDIMS(1)+1
+*           keep pair ?
+            IF (ICOUNT.GE.MNPAIR) THEN
+               NEXT=1 ! double
+               IF (ICOUNT.LE.ICMPRS.AND.ICMPRS.GT.0) NEXT=2 ! single 
+               INR(NEXT)=INR(NEXT)+1
+               IF (NEXT.NE.LAST.OR.LRGN.GE.NENCDM) THEN
+                  IRGN(NEXT)=IRGN(NEXT)+1
+                  LRGN=0
+               ENDIF
+               LRGN=LRGN+1
+            ENDIF
+            LAST=NEXT
+         ENDDO
+*
+         IF (ICMPRS.NE.0) THEN
+            DO JP=1,KBFW
+               IF (INR(JP).GT.0) THEN
+                  ICP=0
+                  NWCP(0)=INR(JP)                    ! list of column indices (default)
+                  NWCP(1)=IRGN(JP)+(IRGN(JP)+7)/8    ! list of regions of consecutive columns
+*                 compress row ?
+                  IF (NWCP(1).LT.NWCP(0)) ICP=1
+                  NDIMS(2)   =NDIMS(2)   +NWCP(ICP)
+                  NDIMS(JP+2)=NDIMS(JP+2)+NWCP(0)
+               ENDIF
+            ENDDO
+         ELSE
+            NDIMS(2)=NDIMS(2)+INR(1)
+            NDIMS(3)=NDIMS(3)+INR(1)
+         ENDIF
+*
+      ENDDO
+*
       RETURN 
 
 *     ------------------------------------------------------------------
