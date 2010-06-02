@@ -3417,9 +3417,10 @@ c      END IF
  105  FORMAT(' Constants C1, C2 for Wolfe conditions:',G12.4,', ',G12.4)
 
 *     prepare matrix and gradient storage ------------------------------
+ 32   CONTINUE
       MATSIZ(1)=NAGB*NAGB+NAGB ! number of words for double precision storage 'j'
       MATSIZ(2)=0              ! number of words for single precision storage '.'
- 32   IF(MATSTO.EQ.2) THEN     ! sparse matrix
+      IF(MATSTO.EQ.2) THEN     ! sparse matrix
          IF(ISAVES.EQ.0) THEN
             CALL MSPARS(NAGB)  ! pointer for sparse storage -> z, d
             MATSIZ(1)=(LNDD+NAGB)*2
