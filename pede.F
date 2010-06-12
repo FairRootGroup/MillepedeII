@@ -130,6 +130,11 @@ c       END IF
          CALL HMPWRT(12)
          CALL HMPWRT(4)
          CALL GMPWRT(4) ! location, dispersion (res.) as a function of record nr
+         IF (NLOOPN.LE.LFITNP) THEN
+            CALL HMPWRT(13)
+            CALL HMPWRT(14)
+            CALL GMPWRT(5)
+         ENDIF
       END IF
       IF(NHISTP.NE.0) THEN
          CALL GMPRNT(1)       
@@ -1190,11 +1195,13 @@ c            CALL HMPRNT(4)  ! chi^2/Ndf
          END IF 
          CALL HMPWRT(3)
          CALL HMPWRT(12)
-         CALL HMPWRT(13)
-         CALL HMPWRT(14)
          CALL HMPWRT(4)
          CALL GMPWRT(4) ! location, dispersion (res.) as a function of record nr
-         CALL GMPWRT(5) ! location, dispersion (pull) as a function of record nr
+         IF (NLOOPN.LE.LFITNP) THEN
+            CALL HMPWRT(13)
+            CALL HMPWRT(14)
+            CALL GMPWRT(5) ! location, dispersion (pull) as a function of record nr
+         ENDIF
       END IF
 c      IF(NLOOPN.EQ.2.AND.NHISTP.NE.0) CALL HMPRNT(6)
       IF(NLOOPN.EQ.2) CALL HMPWRT(6) 
@@ -1590,7 +1597,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
          GOTO 10
       END IF  
 *     for non trivial fits check for bordered band matrix structure     
-      IF (ITER.EQ.1.AND.NALC.GT.5) THEN
+      IF (ITER.EQ.1.AND.NALC.GT.5.AND.LFITBB.GT.0) THEN
         KX=-1
         KBDR=0
         ICMN=NALC**3 ! cost (*6) should improve by at least factor 2
@@ -1619,7 +1626,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
          ENDIF
 *        
          INV=0
-         IF (NLOOPN.LE.2.AND.ITER.EQ.1) INV=1 ! band part of inverse (for pulls)
+         IF (NLOOPN.LE.LFITNP.AND.ITER.EQ.1) INV=1 ! band part of inverse (for pulls)
          IF (ICALCM.EQ.1.OR.RECPRI) INV=2     ! complete inverse     
          CALL SQMIBB(CLMAT,BLVEC,NALC,MBDR,MBND,INV,NRANK)
       ELSE
@@ -1666,7 +1673,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
          RMEAS=RMEAS-RMLOC             ! reduced to residual
 
 *        calculate pulls? (needs covariance matrix)
-         IF(ITER.EQ.1.AND.INV.GT.0.AND.NLOOPN.LE.2) THEN
+         IF(ITER.EQ.1.AND.INV.GT.0.AND.NLOOPN.LE.LFITNP) THEN
           DVAR=0.0D0
           DO J=1,JB-JA-1
            IJ=INDER(JA+J)
@@ -3418,8 +3425,8 @@ c      END IF
 
 *     prepare matrix and gradient storage ------------------------------
  32   CONTINUE
-      MATSIZ(1)=NAGB*NAGB+NAGB ! number of words for double precision storage 'j'
-      MATSIZ(2)=0              ! number of words for single precision storage '.'
+      MATSIZ(1)=INT8(NAGB)*INT8(NAGB+1) ! number of words for double precision storage 'j'
+      MATSIZ(2)=0                       ! number of words for single precision storage '.'
       IF(MATSTO.EQ.2) THEN     ! sparse matrix
          IF(ISAVES.EQ.0) THEN
             CALL MSPARS(NAGB)  ! pointer for sparse storage -> z, d
@@ -3521,7 +3528,7 @@ c      END IF
       CALL MEGARR('w S',NAEQN,'residual vector of one record')
 
       IF(MATSTO.EQ.1) THEN           ! full symmetric matrix  
-         CALL MEGARR('j D',MSIZE(1),'full symmetric matrix')
+         CALL MEGARL('j D',MSIZE(1),'full symmetric matrix')
          MQ(INDJ-2)=1                ! 1=normal symmetric matrix
       ELSE IF(MATSTO.EQ.2  ) THEN      ! sparse matrix 
          CALL MEGARL('j D',MSIZE(1),'sparse symmetric matrix (D)')
@@ -4499,6 +4506,8 @@ c 103  FORMAT(1X,A,G12.4)
 !$    MTHRD =1  ! number of threads (in AVPROD)
       MXREC =0  ! max number of records
       MATMON=0  ! record interval for monitoring of (sparse) matrix
+      LFITNP=MAXI4 ! local fit: number of iteration to calculate pulls
+      LFITBB=1  ! local fit: check for bordered band matrix (if >0)
 
       DO I=1,8
        TIMES(I)=0.0
@@ -5132,6 +5141,14 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             RETURN
          END IF
 * GF added end
+
+         KEYSTX='localfit'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN          
+            IF(NUMS.GT.0) LFITNP=DNUM(1)
+            IF(NUMS.GT.1) LFITBB=DNUM(2)
+            RETURN
+         END IF
 
          KEYSTX='regularization'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
