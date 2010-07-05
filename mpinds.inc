@@ -64,7 +64,7 @@
      +              LSINFO,ICALCM,RSTART,MATRIT,NPRESG,NRECAL, ! ITEXIT,
      +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER,
      +              MREQPE,MHISPE,MSNGPE,MCMPRS,MTHRD,MXREC,MATMON,
-     +              LFITNP,LFITBB
+     +              LFITNP,LFITBB,MNRSEL,LBMNRS(100)
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
@@ -151,6 +151,7 @@ C removed*     ITEXIT = exit code
 *     MATMON = record interval for monitoring of (sparse) matrix
 *     LFITNP = local fit: number of iteration to calculate pulls
 *     LFITBB = local fit: check for bordered band matrix (if >0)
+*     MNRSEL = number of MINRES error labels in LBMNRS (calc err, corr with SOLGLO)
 
       DOUBLE PRECISION FVALUE,FLINES
       COMMON/MPDOUB/FVALUE,FLINES

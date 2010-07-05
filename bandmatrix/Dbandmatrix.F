@@ -207,7 +207,7 @@
 *     (1) Symmetric matrix W: decomposition, solution, inverse
 
       SUBROUTINE DCHDEC(W,N, AUX)      ! decomposition, symmetric matrix
-      DOUBLE PRECISION W(*),AUX(N),B(*),X(*),V(*),SUM
+      DOUBLE PRECISION W(*),AUX(N),B(*),X(*),V(*),RATIO,SUM
 *     ...
       DO I=1,N
        AUX(I)=16.0D0*W((I*I+I)/2) ! save diagonal elements

@@ -352,7 +352,7 @@ C      CALL EXIT(ITEXIT)
       SUBROUTINE SOLGLO(IVGBI) ! single error from minres
 #include "largeint.inc"
 #include "dynal.inc"
-      DOUBLE PRECISION SHIFT,RTOL,ANORM,ACOND,RNORM,YNORM
+      DOUBLE PRECISION SHIFT,RTOL,ANORM,ACOND,RNORM,YNORM,GMATI
       EXTERNAL AVPROD, MVSOLV
       SAVE
 #include "mpinds.inc"
@@ -366,22 +366,18 @@ C      CALL EXIT(ITEXIT)
       ITGBL=JTGBL(ITGBI)
 
       CALL MEGZER('f') ! reset rhs vector IGVEC 
-c      DO I=1,NAGB
-c       DQ(IGVEC/2+I)=0.0D0
-c      END DO
       DQ(IGVEC/2+IVGBI)=1.0D0
 
-      NOUT  =6
+c      NOUT  =6
       NOUT  =0
-      ITNLIM=10
+      ITNLIM=200
       SHIFT =0.0D0
-*GF      RTOL  =1.0D-3
       RTOL  = MRESTL ! from steering
 
       NVAR=NAGB
       CALL MINRES(NVAR,DQ(IGVEC/2+1),
-     +                 DQ(IDUX1/2+1),DQ(IDUX2/2+1),DQ(IDUX3/2+1),
-     +                 DQ(IDUX4/2+1),DQ(IDUX5/2+1),DQ(IDUX6/2+1),
+     +   DQ(IDUX1/2+1),       DQ(IDUX1/2+1+NAGB),  DQ(IDUX1/2+1+2*NAGB),
+     +   DQ(IDUX1/2+1+3*NAGB),DQ(IDUX1/2+1+4*NAGB),DQ(IDUX1/2+1+5*NAGB),
      +                 DQ(ISOLV/2+1),DQ(IDUX7/2+1),
      +                 AVPROD, MVSOLV, .TRUE. , .FALSE. , SHIFT,
      +                 NOUT , ITNLIM, RTOL,
@@ -395,25 +391,25 @@ c     $                   ISTOP, ITN, Anorm, Acond, rnorm, ynorm )
       PAR=DQ(IND0/2+ITGBI)
       DPA=PAR-QM(IND2+ITGBI)
       GMATI=DQ(ISOLV/2+IVGBI)
-      ERR=SQRT(ABS(GMATI))
+      ERR=SQRT(ABS(SNGL(GMATI)))
       IF(GMATI.LT.0.0D0) ERR=-ERR
-      GCOR=0.0
       IF(MQ(IGMAT-2).EQ.1) THEN ! normal matrix               ! ???
          JK=IJSYM(IVGBI,IVGBI)
       ELSE IF(MQ(IGMAT-2).EQ.2) THEN ! sparse matrix
          JK=IJADD(IVGBI,IVGBI)
       END IF
-
-      WRITE(*,102) ITGBL,PAR,QM(IND1+ITGBI),DPA,ERR 
- 101  FORMAT(1X,'    label    parameter  presigma     differ',
-     +                   '  Error '/
-     +       1X,'---------',1X,4('-----------'))
- 102  FORMAT(I10,3X,4F11.5,F6.3)
+      IF (JK.GT.0) THEN
+         DIAG=DQ(IGMAT/2+JK)
+      ELSE
+         DIAG=DBLE(QM(IDOT1-JK))
+      ENDIF
+      GCOR2=SNGL(1.0D0-1.0D0/(GMATI*DIAG)) ! global correlation (squared)
+      WRITE(*,102) ITGBL,PAR,QM(IND1+ITGBI),DPA,ERR,GCOR2,ITN
+ 101  FORMAT(1X,'    label    parameter   presigma     differ',
+     +                   '      Error     gcor^2   iit'/
+     +       1X,'---------',2X,5('-----------'),2X,'----')
+ 102  FORMAT(I10,2X,5F11.5,I6,I4)
       END
-
-
-
-
 
       SUBROUTINE ADDCST
 *     add constraint information to matrix and vector
@@ -4405,6 +4401,9 @@ C      WRITE(*,199) ' '
       WRITE(*,199)
      + 'gWarningWarningWarningWarningWarningWarningWarningWarningWa'
       WRITE(*,199) ' '
+*
+
+*
  95   CONTINUE
 
       CALL MEND                ! modul ending
@@ -4416,7 +4415,19 @@ C      WRITE(*,199) ' '
       ELSE IF(METSOL.EQ.2) THEN
          CALL ZDIAGS
       ELSE IF(METSOL.EQ.3) THEN
-
+*        errors and correlations from MINRES
+        DO 98 K=1,MNRSEL
+           LABELG=LBMNRS(K)
+           IF(LABELG.EQ.0) GOTO 98
+           ITGBI=INONE(LABELG)
+           IVGBI=0
+           IF(ITGBI.NE.0) IVGBI=JVGBI(ITGBI)
+           IF(IVGBI.LT.0) IVGBI=0
+           IF(IVGBI.EQ.0) GOTO 98
+*          determine error and global correlation for parameter IVGBI
+           CALL SOLGLO(IVGBI)
+ 98     CONTINUE
+*
       ELSE IF(METSOL.EQ.4) THEN
 
       END IF
@@ -4508,6 +4519,7 @@ c 103  FORMAT(1X,A,G12.4)
       MATMON=0  ! record interval for monitoring of (sparse) matrix
       LFITNP=MAXI4 ! local fit: number of iteration to calculate pulls
       LFITBB=1  ! local fit: check for bordered band matrix (if >0)
+      MNRSEL=0  ! number of MINRES error labels in LBMNRS (calc err, corr with SOLGLO)
 
       DO I=1,8
        TIMES(I)=0.0
@@ -5262,6 +5274,17 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
             RETURN
          END IF
 
+         KEYSTX='errlabels'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5).AND.MNRSEL.LT.100) THEN
+            NL=MIN(NUMS,100-MNRSEL)
+            DO K=1,NL
+               LBMNRS(MNRSEL+K)=DNUM(K)
+            ENDDO
+            MNRSEL=MNRSEL+NL
+            RETURN
+         END IF
+
          KEYSTX='pairentries'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
@@ -5299,8 +5322,8 @@ c     that have very few entries - to save matrix memory size.
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             IF(NUMS.GT.0) THEN
-               IF (DNUM(1).LT.1.0D-08.OR.DNUM(1).GT.1.0D-04) THEN
-                  WRITE(*,*) 'ERROR: need 1.0D-08 <= MRESTL ',
+               IF (DNUM(1).LT.1.0D-10.OR.DNUM(1).GT.1.0D-04) THEN
+                  WRITE(*,*) 'ERROR: need 1.0D-10 <= MRESTL ',
      +                 '<= 1.0D-04, but get ', DNUM(1)
                ELSE
                   MRESTL=DNUM(1)
