@@ -28,11 +28,14 @@ SUPPORT_C_RFIO =
 NUMBER_OF_WORDS = 100000000 # =400 MB
 # Define the size of LARGE integers (4: INTERGER*4, 8: INTEGER*8)
 LARGE_SIZE=8
+# ompP profiler (http://www.ompp-tool.com)
+OMPP = 
+#kinst-ompp
 #
-FCOMP = gcc
-F_FLAGS = -Wall -fno-automatic -fno-backslash -O3 ${LARGE_MEMORY_OPT}
+FCOMP = $(OMPP) gcc
+F_FLAGS = -Wall -fautomatic -fno-backslash -O3 ${LARGE_MEMORY_OPT}
 #
-CCOMP = gcc 
+CCOMP = $(OMPP) gcc 
 C_FLAGS = -Wall -O3 -Df2cFortran ${LARGE_MEMORY_OPT}
 C_INCLUDEDIRS =  # e.g. -I .
 # gcc3: C_LIBS = -lg2c -lfrtbegin
@@ -44,7 +47,7 @@ DEBUG =          # e.g. -g
 C_LIBS  += -lgomp
 F_FLAGS += -fopenmp
 #
-LOADER = gcc
+LOADER = $(OMPP) gcc
 L_FLAGS = -Wall -O3 ${LARGE_MEMORY_OPT}
 #
 # objects for this project
@@ -120,9 +123,8 @@ pede.o : pede.F dynal.inc largeint.inc mpinds.inc localfit.inc Makefile
 	${FCOMP} ${F_FLAGS} -DNUMBER_OF_WORDS=500000000 -c $< -o $@
 %_4GB.o: %.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=1000000000 -c $< -o $@
-# do not use 2e9, but 2147483647 = 2^31 - 1, largest possible value
 %_8GB.o: %.F dynal.inc largeint.inc Makefile
-	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=2147483647 -c $< -o $@
+	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=2000000000 -c $< -o $@
 %_16GB.o: %.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=4000000000_8 -c $< -o $@
 %_24GB.o: %.F dynal.inc largeint.inc Makefile

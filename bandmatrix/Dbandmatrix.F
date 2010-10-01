@@ -307,6 +307,7 @@
       XLAN=W((IR*IR+IR)/2)*SQRT(SUMU)
       IF(XLAN.NE.0.0) XLAN=1.0/XLAN
       
+      SUMS=0.0D0
       DO I=1,N
        IF(I.EQ.IS) THEN
           SUMS=1.0D0

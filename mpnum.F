@@ -35,6 +35,7 @@ CHK      DBPRV     print matrix
 *
 *     Sorting
 *        HEAPF    heap sort reals direct
+CHK      SORT1K   sort 1-dim key-array 
 *        SORT2K   sort 2-dim key-array 
 *
 
@@ -63,10 +64,10 @@ CHK      DBPRV     print matrix
 *
       DOUBLE PRECISION V(*),B(N),DIAG(N),VKK,VJK,EPS
       INTEGER        NEXT(N)
-      PARAMETER     (EPS=1.0D-10)
-      SAVE 
+      PARAMETER     (EPS=1.0D-10) 
 *     ...
       NEXT0=1
+      L=1
       DO I=1,N
        NEXT(I)=I+1                ! set "next" pointer
        DIAG(I)=ABS(V((I*I+I)/2))  ! save abs of diagonal elements
@@ -176,7 +177,6 @@ CHK      DBPRV     print matrix
       DOUBLE PRECISION F,G,H,SH,HH,B,P,R,S,C,WORKD
       INTEGER IWORK(N)
       INTEGER IJ,I,J,K,L,M,LL
-      SAVE
 *     ...
 *     1. part: symmetric matrix V reduced to tridiagonal from
       IJ=0
@@ -417,7 +417,6 @@ CHK      DBPRV     print matrix
       IMPLICIT NONE
       INTEGER N,I,J,JJ
       DOUBLE PRECISION B(N),U(N,N),DIAG(N),X(N),WORK(N),S
-      SAVE
 *     ...
       DO J=1,N
         S=0.0D0
@@ -454,7 +453,6 @@ c      WRITE(*,*) 'X ',X
 *        V(.)    = smmmetric matrix        
 *      
       DOUBLE PRECISION U(N,N),DIAG(N),V(*),SUM
-      SAVE
 *     ...
       IJ=0
       DO I=1,N
@@ -488,7 +486,6 @@ c      WRITE(*,*) 'X ',X
 *     entries CHOLSL and CHOLIN.
 *
       DOUBLE PRECISION G(*),X(*),V(*),SUM,RATIO
-      SAVE     
 *     ...
       II=0
       DO I=1,N
@@ -586,7 +583,7 @@ c       WRITE(*,*) 'nach I=',I,'  ',(G((L*L+L)/2),L=1,N)
       PARAMETER (ONE=1.0D0, TWO=2.0D0)
 *     DATA EPS/0.0D0/  
       DATA EPS/2.22044605E-16/ 
-      SAVE
+      SAVE EPS
 *     ...
       IF(EPS.EQ.0.0D0) THEN
          EPS    = TWO**(-12)
@@ -804,7 +801,6 @@ c       X(K)=X(K)/VAL(ILPTR(K))            ! X_k := X_k/D_kk
 *              Y = M vector
 *
       DOUBLE PRECISION A(*),X(*),Y(*)
-      SAVE
 *     ...
       IJ=0
       DO I=1,M
@@ -817,15 +813,15 @@ c       X(K)=X(K)/VAL(ILPTR(K))            ! X_k := X_k/D_kk
       END
 
 
-      SUBROUTINE DBAVAT(V,A,W,N,M)               ! A V AT product    
+      SUBROUTINE DBAVAT(V,A,W,N,MS)               ! A V AT product    
 *     multiply symmetric N-by-N matrix from the left with general M-by-N
 *     matrix and from the right with the transposed of the same  general
 *     matrix  to  form  symmetric  M-by-M   matrix   (used   for   error
-*     propagation).
+*     propagation, for M>0 reset to zero first).
 *
-*                    - -   - -                                   T
-*        CALL DBAVAT(V,A,W,N,M)         W   =   A   *   V   *   A
-*                        -             M*M     M*N     N*N     N*M
+*                    - -   - -                                T
+*        CALL DBAVAT(V,A,W,N,M)      W   =   A   *   V   *   A  ( + W )
+*                        -          M*M     M*N     N*N     N*M
 *
 *        where V = symmetric N-by-N matrix
 *              A = general N-by-M matrix
@@ -833,11 +829,16 @@ c       X(K)=X(K)/VAL(ILPTR(K))            ! X_k := X_k/D_kk
 *
       DOUBLE PRECISION V,A,W,CIK 
       DIMENSION V(*),A(*),W(*)
-      SAVE
 *     ...
-      DO I=1,(M*M+M)/2
-       W(I)=0.0                ! reset output matrix
-      END DO
+      M=MS
+      IF (M.GT.0) THEN
+       DO I=1,(M*M+M)/2
+        W(I)=0.0D0             ! reset output matrix
+       END DO
+      ELSE
+       M=-M
+      ENDIF
+
       IL=-N
       IJS=0
       DO I=1,M                 ! do I
@@ -960,7 +961,7 @@ c  100 RETURN
       DOUBLE PRECISION ADD,SUM,DSUM
       INTEGER NSUM,NEXP20,NADD,NEXP
       DATA NSUM/0/,NEXP/0/,DSUM/0.0D0/,NEXP20/1048576/
-      SAVE
+      SAVE NSUM,NEXP,DSUM,NEXP20
 *     ...
       NADD=ADD                     ! convert to integer
       NSUM=NSUM+NADD               ! sum integer
@@ -988,7 +989,6 @@ c  100 RETURN
 *     real keys A(*), sorted at return
       INTEGER I,J,L,R,N
       REAL A(*),AT    ! array of keys and pivot key value
-      SAVE
 *     ...
       IF(N.LE.1) RETURN
       L=N/2+1
@@ -1022,6 +1022,67 @@ c  100 RETURN
       END IF
       A(I)=AT
       GOTO 10
+      END
+
+      SUBROUTINE SORT1K(A,N)         ! quick sort of A(1,N) integer
+      IMPLICIT NONE
+      INTEGER NLEV          ! stack size
+      PARAMETER (NLEV=2*32) ! ... for N = 2**32 = 4.3 10**9
+      INTEGER I,J,L,R,N,LEV,LR(NLEV),LRH,MAXLEV
+      INTEGER A(N),A1,AT    ! array of keys and pivot key
+*     ...
+      MAXLEV=0
+      LEV=0
+      L=1
+      R=N
+ 10   IF(R-L.EQ.1) THEN     ! sort two elements L and R
+         IF(A(L).GT.A(R)) THEN
+            AT=A(L)       ! exchange L <-> R
+            A(L)=A(R)
+            A(R)=AT
+         END IF
+         R=L
+      END IF
+      IF(R.EQ.L) THEN
+         IF(LEV.LE.0) THEN
+C            WRITE(*,*) 'SORT2K (quicksort): maxlevel used/available =',
+C     +                 MAXLEV,'/64'
+            RETURN
+         END IF
+         LEV=LEV-2
+         L=LR(LEV+1)
+         R=LR(LEV+2)
+      ELSE
+*        LRH=(L+R)/2
+         LRH=(L/2)+(R/2)          ! avoid bit overflow
+         IF(MOD(L,2).EQ.1.AND.MOD(R,2).EQ.1) LRH=LRH+1
+         A1=A(LRH)      ! middle
+         I=L-1            ! find limits [J,I] with [L,R]
+         J=R+1
+ 20      I=I+1
+         IF(A(I).LT.A1) GOTO 20
+ 30      J=J-1
+         IF(A(J).GT.A1) GOTO 30
+         IF(I.LE.J) THEN
+            AT=A(I)     ! exchange I <-> J
+            A(I)=A(J)
+            A(J)=AT
+            GO TO 20
+         END IF
+         IF(LEV+2.GT.NLEV) STOP 'SORT2K (quicksort): stack overflow'
+         IF(R-I.LT.J-L) THEN
+            LR(LEV+1)=L
+            LR(LEV+2)=J
+            L=I
+         ELSE
+            LR(LEV+1)=I
+            LR(LEV+2)=R
+            R=J
+         END IF
+         LEV=LEV+2
+         MAXLEV=MAX(MAXLEV,LEV)
+      END IF
+      GO TO 10
       END
 
       SUBROUTINE SORT2K(A,N)         ! quick sort of A(2,N) integer
@@ -1115,6 +1176,7 @@ c  100 RETURN
      +  2.8063, 2.6902, 2.5922, 2.5082, 2.4352, 2.3711, 2.3143, 2.2635,
      +  2.2178, 2.1764, 2.1386, 2.1040, 2.0722, 2.0428, 2.0155, 1.9901,
      +  1.9665, 1.9443, 1.9235, 1.9040, 1.8855, 1.8681/
+      SAVE SN,TABLE
 *     ...
       IF(ND.LT.1) THEN
          CHINDL=0.0
@@ -1159,9 +1221,9 @@ c  100 RETURN
 *
       DOUBLE PRECISION C(*),X(N),DIAG         ! index (k,k)  INDIA(K)
       INTEGER INDIA(N)                        ! index (j,k)  INDIA(K)+J-K 
-      SAVE
 *     ...
       NRKD=0
+      DIAG=0.0D0
       IF(C(INDIA(1)).GT.0.0) THEN
          C(INDIA(1))=1.0D0/SQRT(C(INDIA(1))) ! square root
       ELSE
@@ -1327,11 +1389,11 @@ c      DATA INIT/0/
 *
 *     ------------------------------------------------------------------
 
-      IF(INIT.EQ.0) THEN
+c      IF(INIT.EQ.0) THEN
 c         WRITE(*,*) 'Before ............'
 c         WRITE(*,*) 'C is ',C
 c         WRITE(*,*) 'A is ',A
-      END IF 
+c      END IF 
 
       DO I=1,(P*P+P)/2
        S(I)=0.0D0
@@ -1366,14 +1428,14 @@ c         WRITE(*,*) 'A is ',A
         JJ=JJ+J
        END DO ! J
       END DO ! I
-      IF(INIT.EQ.0) THEN
+c      IF(INIT.EQ.0) THEN
 c         WRITE(*,*) 'After ............'
 c         WRITE(*,*) 'C is ',C
 c         WRITE(*,*) 'CU is ',CU
 c         WRITE(*,*) 'A is ',A
 c         WRITE(*,*) 'S is ',S
-         INIT=1
-      END IF 
+c         INIT=1
+c      END IF 
       RETURN
 
 *     ------------------------------------------------------------------ 
@@ -1426,7 +1488,8 @@ c         WRITE(*,*) 'S is ',S
 *                                                 090817 C. Kleinwort, DESY-FH1
 *     --------- bordered band matrix -----------
 
-      SUBROUTINE SQMIBB(V,B,N,NBDR,NBND,INV,NRANK)   
+      SUBROUTINE SQMIBB(V,B,N,NBDR,NBND,INV,NRANK,
+     &                  VBND,VBDR,AUX,VBK,VZRU,SCDIAG,SCFLAG)   
 *     obtain solution of a system of linear equations with symmetric
 *     bordered band matrix 
 *     on request inverse is calculated  
@@ -1461,7 +1524,7 @@ c         WRITE(*,*) 'S is ',S
      +   VZRU(MXBDR),SCDIAG(MXBDR)
       INTEGER SCFLAG(MXBDR)
 *          
-      SAVE 
+      SAVE NPRI
       DATA NPRI / 100 /
 *           ...
       NRANK=0

@@ -353,6 +353,7 @@ c       WRITE(*,*) 'K,I,X ',K,I,X
       REAL TAB(N)
       REAL BIN(10)
       DATA BIN/1.0,1.5,2.0,3.0,4.0,5.0,8.0,10.0,15.0,20.0/
+      SAVE
 *     ...
 
       CALL HEAPF(TAB,N) ! reduced statistic
@@ -395,6 +396,7 @@ c         WRITE(*,*) 'large statistic ',X1,X2
       DX=X2-X1
 c      WRITE(*,*) 'X1,X2,DX ',X1,X2,DX
       RAT=0.0
+      II=1
       DO J=1,11
        I=J
        IF(J.EQ.11) I=II 
@@ -432,6 +434,7 @@ c      WRITE(*,*) J,' resulting limits XA XB ',XA,XB
 *     print integer array LIST(N)
       INTEGER LIST(N),LI(7)
       DATA LI/2,3,4,6,8,9,12/ ! number of characters
+      SAVE
 *     ...
       IB=0
  10   IA=IB+1
@@ -779,6 +782,7 @@ c     +                   ' -------------- --------------')
       REAL      TK(2,NDIM)    ! pair storage for data pairs
       INTEGER   NEXT(NDIM)    ! pointer 
       INTEGER IFLC1,IFLC2     ! first and last index of free pairs
+      SAVE 
 
       REAL FOUR(4),ARRAY(2,*) ! double_pair, copy array
       INTEGER JFLC(5)         ! user array
@@ -867,6 +871,7 @@ c     +                   ' -------------- --------------')
 *     XLOC = median of X_i            (N values in array X(N))
 *     XCSA = median of | X_i - XLOC |, times 1.4826   
       REAL X(N) ! input array, modified 
+      SAVE
 *     ...
       XLOC=0.0
       XSCA=0.0

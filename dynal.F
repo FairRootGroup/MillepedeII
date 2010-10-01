@@ -554,10 +554,10 @@ c      FULLPR=.FALSE. !!!!!!!!!!!!!!!!
          IF(ISIZES(IAI).LE.LENSML.OR.FULLPR) THEN   
             WRITE(LUNDEB,106) (LQ(IND/LSCALE+I),I=1,ISIZES(IAI)/LSCALE)
          ELSE
-            WRITE(LUNDEB,106) (DQ(IND/LSCALE+I),I=1,LENDIF)
+            WRITE(LUNDEB,105) (LQ(IND/LSCALE+I),I=1,LENDIF)
             WRITE(LUNDEB,*) ' ...'
             MQI=((ISIZES(IAI)/LSCALE-LENDIF)/20)*20+1
-            WRITE(LUNDEB,106) (DQ(IND/LSCALE+I),
+            WRITE(LUNDEB,105) (LQ(IND/LSCALE+I),
      +                         I=MQI,ISIZES(IAI)/LSCALE)
          END IF
       END IF

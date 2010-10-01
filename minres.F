@@ -336,7 +336,9 @@
 !     ------------------------------------------------------------------
       eps    = 2.22d-16    ! Set eps = zero here if you want it computed.
 
-      eps = 0.0D0                             !!!!!!!!!!!!!!!
+      eps  = 0.0D0                             !!!!!!!!!!!!!!!
+      gmin = 0.0D0
+      gmax = 0.0D0
 
       if (eps .le. zero) then
          eps    = two**(-12)

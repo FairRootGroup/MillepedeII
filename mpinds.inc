@@ -22,7 +22,7 @@
       EQUIVALENCE (INDS,ISOLV) ! vector double precision
  
       PARAMETER (NDIMB=5000)
-      COMMON/MEMI/NST,GLDER(NDIMB),INDER(NDIMB)
+*      COMMON/MEMI/NST,GLDER(NDIMB),INDER(NDIMB)
 
       PARAMETER (MFILES=500)
       INTEGER MFD(MFILES)  ! MFD(.)=1 binary   MFD(.)=2 text
@@ -64,7 +64,8 @@
      +              LSINFO,ICALCM,RSTART,MATRIT,NPRESG,NRECAL, ! ITEXIT,
      +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER,
      +              MREQPE,MHISPE,MSNGPE,MCMPRS,MTHRD,MXREC,MATMON,
-     +              LFITNP,LFITBB,MNRSEL,LBMNRS(100)
+     +              LFITNP,LFITBB,MNRSEL,LBMNRS(100),
+     +              NCACHE,FCACHE(3)
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
@@ -152,6 +153,8 @@ C removed*     ITEXIT = exit code
 *     LFITNP = local fit: number of iteration to calculate pulls
 *     LFITBB = local fit: check for bordered band matrix (if >0)
 *     MNRSEL = number of MINRES error labels in LBMNRS (calc err, corr with SOLGLO)
+*     NCACHE = buffer size for caching blocks of records
+*     FCACHE = fractions for cache splitting (read, write data, write indices)
 
       DOUBLE PRECISION FVALUE,FLINES
       COMMON/MPDOUB/FVALUE,FLINES
