@@ -1031,6 +1031,7 @@ c  100 RETURN
       INTEGER I,J,L,R,N,LEV,LR(NLEV),LRH,MAXLEV
       INTEGER A(N),A1,AT    ! array of keys and pivot key
 *     ...
+      IF (N.LE.0) RETURN
       MAXLEV=0
       LEV=0
       L=1
@@ -1045,7 +1046,7 @@ c  100 RETURN
       END IF
       IF(R.EQ.L) THEN
          IF(LEV.LE.0) THEN
-C            WRITE(*,*) 'SORT2K (quicksort): maxlevel used/available =',
+C            WRITE(*,*) 'SORT1K (quicksort): maxlevel used/available =',
 C     +                 MAXLEV,'/64'
             RETURN
          END IF
@@ -1069,7 +1070,7 @@ C     +                 MAXLEV,'/64'
             A(J)=AT
             GO TO 20
          END IF
-         IF(LEV+2.GT.NLEV) STOP 'SORT2K (quicksort): stack overflow'
+         IF(LEV+2.GT.NLEV) STOP 'SORT1K (quicksort): stack overflow'
          IF(R-I.LT.J-L) THEN
             LR(LEV+1)=L
             LR(LEV+2)=J

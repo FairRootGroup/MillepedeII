@@ -669,6 +669,7 @@ c     +                LABEL,ITGBI,IVGB
       DATA PRINT/.TRUE./
       DATA FLOOP/.TRUE./
 *     ...
+!$POMP INST BEGIN(peread)
       IF(IFILE.EQ.0) THEN  ! start/restart
          NREC=0
          NBLK=0 
@@ -795,6 +796,7 @@ c      NR=NR-1
          WRITE(*,*) ' '
       END IF
       IF (MQ(IDOT3-1)+NDIMB.LT.LDOT3-NBUF) GOTO 01 ! buffer not yet full
+!$POMP INST ALTEND(peread)
 
       RETURN
 
@@ -815,6 +817,7 @@ c      NR=NR-1
       MQ(IDOT3-5)=MAX(MQ(IDOT3-5),NBUF)
       PRINT=.FALSE.
       FLOOP=.FALSE.
+!$POMP INST END(peread)
       END
 
       SUBROUTINE ISJAJB(NST,IS,JA,JB,JSP)
@@ -3083,7 +3086,6 @@ c             IF(PRESG.GT.0.0) QM(IND6+IN)=PRESG ! pre-sigma copy > 0
       END DO
 
 *     regularization --------------------------------------------------- 
-      WRITE(*,*) 'NVGB =',NVGB 
       CALL MEGARR('6 S',NVGB,'pre-sigmas weights') ! presigma weights
       WRITE(*,112) ' Default pre-sigma =',REGPRE,
      +             ' (if no individual pre-sigma defined)'
