@@ -6266,13 +6266,22 @@ c      print *, ' encoding ', NENCDB, NENCDM
       ELSE
 *
          NIN=0
-         DO LL=1,NDIMB
-          IF(NBITS(LL).NE.0) THEN
-             DO M=0,31
-              IF(BTEST(NBITS(LL),M)) NIN=NIN+1
-             END DO
-          END IF 
-         END DO
+         NSPARR(1)=1
+         NSPARR(2)=N+1
+         N1=0
+         DO I=1,N
+            NOFFI=INT8(I-1)*INT8(I-2)/2
+            LL=NOFFI/32+I 
+            NJ=((I-1)*KBFW)/32
+            DO K=0,NJ
+               DO M=0,31
+                 IF(BTEST(NBITS(LL+K),M)) NIN=NIN+1
+               ENDDO
+            ENDDO
+            N1=N1+2
+            NSPARR(N1+1)=NSPARR(1)+NIN
+            NSPARR(N1+2)=NSPARR(2)+NIN
+         ENDDO
          NDIMS(2)=NIN
          NDIMS(3)=NIN
          NTOT=NIN
@@ -6450,7 +6459,8 @@ c      print *, ' encoding ', NENCDB, NENCDM
 *
       N1=2*(N+1)*IBFW
       WRITE(*,*) ' '
-      WRITE(*,*) 'SPBITS: sparse structure constructed ',KL,' words'
+      WRITE(*,*) 'SPBITS: sparse structure constructed ',NSPARR(N1-1),
+     &           ' words'
       WRITE(*,*) 'SPBITS: dimension parameter of matrix',NSPARR(2)-1
       IF (IBFW.LE.1) THEN
          WRITE(*,*) 'SPBITS: index of last used location',NSPARR(N1)-1
