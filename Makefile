@@ -23,6 +23,8 @@ SUPPORT_READ_C = yes
 # (valid only for default executables, pede_*rfio*-ones will always get it):
 SUPPORT_C_RFIO =
 # yes
+# If yes (and if SUPPORT_READ_C is yes), use zlib to read gzipped binary files
+SUPPORT_ZLIB = yes
 #
 # Define the number of words for matrix/vector storage for the default pede program:
 NUMBER_OF_WORDS = 100000000 # =400 MB
@@ -64,6 +66,11 @@ ifeq ($(SUPPORT_READ_C),yes)
   ifeq ($(SUPPORT_C_RFIO),yes)
     C_FLAGS += -DUSE_SHIFT_RFIO
     C_LIBS += -lshift
+  else
+    ifeq ($(SUPPORT_ZLIB),yes)
+      C_FLAGS += -DUSE_ZLIB
+      C_LIBS += -lz
+    endif
   endif
 endif
 #

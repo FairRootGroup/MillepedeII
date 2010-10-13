@@ -28,11 +28,19 @@
 #include <stdio.h>
 #endif
 #include "cfortran.h"
+#ifdef USE_ZLIB
+#include <zlib.h>
+#endif
 
 /* ________ global variables used for file handling __________ */
 
 #define MAXNUMFILES 490        /* should roughly match MFILES in mpinds.inc */
+#ifdef USE_ZLIB
+gzFile *files[MAXNUMFILES];      /* pointers to opened binary files */
+#else
 FILE *files[MAXNUMFILES];      /* pointers to opened binary files */
+#endif
+
 int fileReadOnce[MAXNUMFILES]; /* flag to printout record number once */
 unsigned int numAllFiles;      /* number of opened files */
 int fileIndex;                 /* index of current file */
@@ -54,6 +62,9 @@ void initC()
   numAllFiles = 0;
   fileIndex = -1;
   nRec = 0;
+#ifdef USE_ZLIB
+  printf(" initC: using zlib version %s\n",ZLIB_VERSION);
+#endif
 }
 FCALLSCSUB0(initC,INITC,initc)
 
@@ -75,9 +86,13 @@ void resetC()
 {
   /* start again with first file */
   if (fileIndex < 0) return; /* no file opened at all... */
+#ifdef USE_ZLIB
+  gzrewind(files[fileIndex]);
+#else
   /* rewind(files[fileIndex]);  Does not work with rfio, so call: */
   fseek(files[fileIndex], 0L, SEEK_SET);
   clearerr(files[fileIndex]); /* These two should be the same as rewind... */
+#endif
   if (!fileReadOnce[fileIndex]) {
     printf("readC: %d. file read the first time, read  %d records.\n",
               fileIndex+1, nRec);
@@ -105,6 +120,12 @@ void openC(const char *fileName, int *errorFlag)
   if (numAllFiles >= MAXNUMFILES) {
     *errorFlag = 1;
   } else {
+#ifdef USE_ZLIB
+    files[numAllFiles] = gzopen(fileName, "rb");
+    if (!files[numAllFiles]) {
+      *errorFlag = 2;
+    } else 
+#else
     files[numAllFiles] = fopen(fileName, "rb");
     if (!files[numAllFiles]) {
       *errorFlag = 2;
@@ -112,7 +133,9 @@ void openC(const char *fileName, int *errorFlag)
       fclose(files[numAllFiles]);
       files[numAllFiles] = 0;
       *errorFlag = 3;
-    } else {
+    } else 
+#endif
+    {
       if (numAllFiles == 0) fileIndex = 0;
       ++numAllFiles; /* We have one more opened file! */
       *errorFlag = 0;
@@ -149,6 +172,58 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
 
    /* read length of 'record' */
    int recordLength = 0; /* becomes number of words following in file */
+#ifdef USE_ZLIB
+   int nCheckR = gzread(files[fileIndex], &recordLength, sizeof(recordLength));
+   while (gzeof(files[fileIndex])) {
+     gzrewind(files[fileIndex]); 
+     if (!fileReadOnce[fileIndex]) {
+       printf("readC: %d. file read the first time, found %d records.\n",
+	      fileIndex+1, nRec);
+       fileReadOnce[fileIndex] = 1;
+     }
+     nRec = 0;
+     if (fileIndex+1 >= numAllFiles) {
+       *errorFlag = 0; /* Means EOF of last file. */
+       fileIndex = (numAllFiles > 0 ? 0 : -1); /* Start first file, if any. */
+       return;
+     } else { /* Try next file! */
+       ++fileIndex;
+       nCheckR = gzread(files[fileIndex], &recordLength, sizeof(recordLength));
+     }
+   }
+
+   if (sizeof(recordLength) != nCheckR) {
+     printf("readC: problem reading length of record %d, file %d\n",
+ 	   nRec+1, fileIndex);
+     *errorFlag = -2;
+     return;
+   }
+
+   if (recordLength/2 >= *lengthBuffers) {
+     printf("readC: given buffers too short (%d, need > %d)\n", *lengthBuffers,
+ 	   recordLength/2);
+     *errorFlag = -4;
+     return;
+   } else {
+     *lengthBuffers = recordLength/2;
+   }
+
+   /* read floats (i.e. derivatives + value + sigma) */
+   int nCheckF = gzread(files[fileIndex], bufferFloat, *lengthBuffers*4);
+   if (nCheckF != *lengthBuffers*4) {
+     printf("readC: problem with stream or EOF reading floats\n");
+     *errorFlag = -8;
+     return;
+   }
+
+   /* read ints (i.e. parameter lables) */
+   int nCheckI = gzread(files[fileIndex], bufferInt, *lengthBuffers*4);
+   if (nCheckI != *lengthBuffers*4) {
+     printf("readC: problem with stream or EOF reading ints\n");
+     *errorFlag = -16;
+     return;
+   }
+#else
    size_t nCheckR = fread(&recordLength, sizeof(recordLength), 1,
  			 files[fileIndex]);
    while (feof(files[fileIndex])) {
@@ -206,6 +281,7 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
      *errorFlag = -16;
      return;
    }
+#endif
 
    ++nRec;
    *errorFlag = *lengthBuffers;

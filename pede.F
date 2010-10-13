@@ -663,6 +663,7 @@ c     +                LABEL,ITGBI,IVGB
 #include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
+*
       INDER(I)=MQ(IDOT3+NOFF+I)
       GLDER(I)=QM(IDOT4+NOFF+I)
 
@@ -776,15 +777,16 @@ c      NR=NR-1
          WRITE(*,*) ' '
       END IF 
 
-      IST=NOFF+1
-      NST=NOFF+NR
- 15   CALL ISJAJB(NST,IST,JA,JB,JSP)
-      IF(JB.NE.0) THEN
-         DO J=1,IST-JB
-          MQ(IDOT3+JB+J)=INONE( MQ(IDOT3+JB+J) ) ! translate to index
-         END DO
-         GOTO 15
-      END IF
+C moved to PEPREP
+C      IST=NOFF+1
+C      NST=NOFF+NR
+C 15   CALL ISJAJB(NST,IST,JA,JB,JSP)
+C      IF(JB.NE.0) THEN
+C         DO J=1,IST-JB
+C          MQ(IDOT3+JB+J)=INONE( MQ(IDOT3+JB+J) ) ! translate to index
+C         END DO
+C         GOTO 15
+C      END IF
 
       IF(NREC.LE.0) THEN               ! print out of 3 first events
          WRITE(*,*) ' '
@@ -818,6 +820,62 @@ c      NR=NR-1
       PRINT=.FALSE.
       FLOOP=.FALSE.
 !$POMP INST END(peread)
+      END
+
+      SUBROUTINE PEPREP(MODE)
+*     prepare records
+*     MODE <=0: build index table (INONE) for global variables
+*     MODE  >0: use index table, can be parallelized
+#include "largeint.inc"
+#include "dynal.inc"
+#include "mpinds.inc"
+*
+      ISFRST(IBUF)=MQ(IDOT3+LDOT3-IBUF+1)+1
+      ISLAST(IBUF)=MQ(IDOT3+LDOT3-IBUF)
+      INDER(I)=MQ(IDOT3+NOFF+I)
+      GLDER(I)=QM(IDOT4+NOFF+I)
+*
+      IF (MODE.GT.0) THEN
+        ICHUNK=MIN((MQ(IDOT3)+MTHRD-1)/MTHRD/8+1,256)
+!$OMP  PARALLEL DO                       ! parallelize record loop
+!$OMP&  DEFAULT(PRIVATE) 
+!$OMP&  SHARED(MQ,QM,DQ,IDOT3,IDOT4,LDOT3,ICHUNK)
+!$OMP&  SCHEDULE(DYNAMIC,ICHUNK)
+        DO IBUF=1,MQ(IDOT3)           ! buffer for current record
+          NREC=MQ(IDOT4+LDOT3-IBUF+1)   ! record 
+          IPROC=0
+!$        IPROC=OMP_GET_THREAD_NUM()         ! thread number
+C          print *, ' PEPREP ', IPROC, NREC
+          IST=ISFRST(IBUF)
+          NST=ISLAST(IBUF)
+ 10       CALL ISJAJB(NST,IST,JA,JB,JSP)
+          IF(JB.NE.0) THEN
+            DO J=1,IST-JB
+              MQ(IDOT3+JB+J)=INONE( MQ(IDOT3+JB+J) ) ! translate to index
+            END DO
+            GOTO 10
+          ENDIF
+        ENDDO
+!$OMP  END PARALLEL DO
+      ENDIF
+
+!$POMP INST BEGIN(peprep)
+      IF (MODE.LE.0) THEN
+        DO IBUF=1,MQ(IDOT3)           ! buffer for current record
+C          NREC=MQ(IDOT4+LDOT3-IBUF+1)   ! record 
+          IST=ISFRST(IBUF)
+          NST=ISLAST(IBUF)
+ 20       CALL ISJAJB(NST,IST,JA,JB,JSP)
+          IF(JB.NE.0) THEN
+            DO J=1,IST-JB
+              MQ(IDOT3+JB+J)=INONE( MQ(IDOT3+JB+J) ) ! translate to index
+            END DO
+            GOTO 20
+          ENDIF
+        ENDDO
+      ENDIF
+!$POMP INST END(peprep)
+*
       END
 
       SUBROUTINE ISJAJB(NST,IS,JA,JB,JSP)
@@ -960,7 +1018,7 @@ c            CALL MEND
 c         WRITE(*,111) ! header line 
       END IF 
 
-      DO I=0,3        
+      DO I=0,3
        NREJEC(I)=0   ! reset reject counter
       END DO
       DO K=3,6
@@ -969,7 +1027,8 @@ c         WRITE(*,111) ! header line
       ENDDO
       NDFST=0
 *     ----- read next data ----------------------------------------------
- 10   CALL PEREAD(NR)     ! next record
+ 10   CALL PEREAD(NR)  ! read records
+      CALL PEPREP(1)   ! prepare records
       NDFS=0
       DCHI2S=0.0D0
       CALL LOOPBF(NREJEC,
@@ -1458,7 +1517,7 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
 !$OMP  PARALLEL DO                       ! parallelize record loop
 !$OMP&  DEFAULT(PRIVATE) 
 !$OMP&  SHARED(MQ,QM,DQ,IND0,INDA,INDC,INDE,INDF,IDOT3,IDOT4,LDOT3,
-!$OMP&     NLG,NAGBN,NAGBP,ICALCM,ICHUNK, 
+!$OMP&     NLG,NAGBN,ICALCM,ICHUNK, 
 !$OMP&     NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,IND5,INDH,MTHRD,
 !$OMP&     DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB,NRECER)  ! 'global' variables 
 !$OMP&  REDUCTION(+:NDFS,DCHI2S,NREJ) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
@@ -2627,7 +2686,6 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       INTEGER INSEC,J,K,NSTART,IPRIME
       INTEGER(KIND=LARGE) NWORDS,LND
       LOGICAL SEC
-      SAVE
 *     ...
       SEC=.FALSE.
       ITEM=ITEM1
@@ -3001,7 +3059,8 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+LNDF/2
       CALL MEGARR('; I',NWRD,'read buffer, integer')
       CALL MEGARR('! S',NWRD,'read buffer, float')
 *
- 10   CALL PEREAD(NR)
+ 10   CALL PEREAD(NR)  ! read records
+      CALL PEPREP(0)   ! prepare records
       IF(NR.GT.0) GOTO 10 ! no EOD yet
 *     release read buffer
       CALL MEGRM('!')
@@ -3280,7 +3339,8 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
       CALL MEGARR('; I',NWRD,'read buffer, integer')
       CALL MEGARR('! S',NWRD,'read buffer, float')
 *
- 10   CALL PEREAD(NR) ! next "event"
+ 10   CALL PEREAD(NR) ! read records
+      CALL PEPREP(1)  ! prepare records
       IOFF=0
       DO IBUF=1,MQ(IDOT3)           ! buffer for current record
       NREC=MQ(IDOT4+LDOT3-IBUF+1)   ! record 
@@ -3371,6 +3431,7 @@ c         GOTO 15
       DSTAT(1)=DSTAT(1)+DFLOAT((NST-ISLAST(IBUF-1))*2+1) ! record size
       DSTAT(2)=DSTAT(2)+DFLOAT(NAGBN+2)                  ! indices,
       DSTAT(3)=DSTAT(3)+DFLOAT(NAGBN*NAGBN+NAGBN)        ! data for MUPDAT
+
 *     this section for sparse matrix mode requires cpu time! 
 
       IF(MATSTO.EQ.2) THEN            ! only for sparse matrix mode
@@ -3595,10 +3656,8 @@ c         GOTO 15
       NAGBN=MQ(INDC-1) ! max number of global parameters in one event 
       NALCN=MQ(INDC-2) ! max number of local parameters in one event
       NAEQN=MQ(INDC-3) ! max number of equations in one event
-      NAGBP=IPRIME(NAGBN)
       CALL MEGRM('c')
       CALL MEGRM('e')
-
 *     matrices for event matrices
 *       split up cache
       IF (FCACHE(2).EQ.0.0) THEN ! from data (DSTAT) 
