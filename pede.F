@@ -19,6 +19,7 @@
       COMMON/SDEVEC/SDEVX(NTOT),SDEVY(NTOT)
 *         
       DOUBLE PRECISION SUMS(9)
+!$    INTEGER OMP_GET_NUM_PROCS,OMP_GET_MAX_THREADS
 
       SAVE
 *     ...
@@ -33,14 +34,14 @@
       WRITE(*,*) '($Rev$)'     
 !$    WRITE(*,*) 'using OpenMP (TM)'
       WRITE(*,*) ' '
-      WRITE(*,*) '  <  Millepede II-B starting ... ',CHDATE 
+      WRITE(*,*) '  <  Millepede II-P starting ... ',CHDATE 
       WRITE(*,*) '                                 ',CHOST
       WRITE(*,*) ' '
       CALL MEGNIT             ! initialize dynal memory management
       WRITE(*,*) ' '
             
       WRITE(8,*) ' '
-      WRITE(8,*) 'Log-file Millepede II-B                        ',
+      WRITE(8,*) 'Log-file Millepede II-P                        ',
      +            CHDATE
       WRITE(8,*) '                                               ',
      +            CHOST
@@ -50,7 +51,17 @@ C     CALL MEGDEB  ! debug switched on
 
       CALL FILETC  ! command line and steering file analysis
       CALL FILETX  ! read text files
+!$    WRITE(*,*)
+!$    NPROC=1
+!$    MXTHRD=1
+!$    NPROC=OMP_GET_NUM_PROCS()         ! number of processors available
 !$    CALL OMP_SET_NUM_THREADS(MTHRD)   ! set max number of threads to MTHRD
+!$    MXTHRD=OMP_GET_MAX_THREADS()      ! get max number of threads back
+!$    WRITE(*,*) 'Number of processors available:   ', NPROC
+!$    WRITE(*,*) 'Maximum number of OpenMP threads: ', MXTHRD
+!$    WRITE(*,*) 'Number of threads for processing: ', MTHRD
+!$    IF (MXREC.GT.0) MTHRDR=1          ! to get allways the same MXREC records
+!$    WRITE(*,*) 'Number of threads for reading:    ', MTHRDR
 !$POMP INST INIT                        ! start profiling with ompP
 
 *     histogram file
@@ -303,6 +314,10 @@ c       END IF
       ENDIF
       WRITE(8,*) ' '
       WRITE(8,*) 'In total 2 +',NLOOPN,' loops through the data files'
+      IF (MNRSIT.GT.0) THEN
+         WRITE(8,*) ' '
+         WRITE(8,*) 'In total    ',MNRSIT,' internal MINRES iterations'
+      ENDIF
 
       WRITE(8,104) GBM,UBM,UBM/GBM*100.0
  104  FORMAT(/' Memory space: total   ',F13.6,' GB'/
@@ -328,7 +343,7 @@ c       END IF
       IF(NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
          WRITE(8,*) ' '
          WRITE(8,*) 'Data rejected in last iteration:   '
-        WRITE(8,*) '   ',
+         WRITE(8,*) '   ',
      +   NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'     
          WRITE(8,*) ' '
@@ -336,7 +351,7 @@ c       END IF
       CALL EXPLFC(8)
 
       WRITE(*,*) ' '
-      WRITE(*,*) '  <  Millepede II-B ending   ... ', CHDATE ! with exit code',ITEXIT,' >'
+      WRITE(*,*) '  <  Millepede II-P ending   ... ', CHDATE ! with exit code',ITEXIT,' >'
       WRITE(*,*) ' '
 C      CALL EXIT(ITEXIT)
 
@@ -657,8 +672,9 @@ c     +                LABEL,ITGBI,IVGB
       END 
 
 
-      SUBROUTINE PEREAD(NRD)
+      SUBROUTINE PEREAD(MORE)
       LOGICAL PRINT,FLOOP
+!$    INTEGER OMP_GET_THREAD_NUM
       SAVE 
 #include "largeint.inc"
 #include "dynal.inc"
@@ -669,157 +685,214 @@ c     +                LABEL,ITGBI,IVGB
 
       DATA PRINT/.TRUE./
       DATA FLOOP/.TRUE./
+      DATA NPRI / 1000 /
 *     ...
-!$POMP INST BEGIN(peread)
       IF(IFILE.EQ.0) THEN  ! start/restart
          NREC=0
-         NBLK=0 
-         DO K=0,5
+         NTOT=0
+         NRPR=1
+         DO K=3,6
            MQ(IDOT3-K )=0 ! reset statistics
          ENDDO
-         MQ(IDOT3-4)=LDOT3
-         IF(NFILB.NE.0) THEN 
-            IFILE=1 
-            LUN=10+IFILE
-         ELSE 
-            IFILE=-1
-         END IF 
-      END IF 
-      NRD=0
-      NBUF=MQ(IDOT3)
-      MQ(IDOT3  )=0 ! reset buffer
-      MQ(IDOT3-1)=0
-      IF (MQ(IDOT3-2).GT.0) THEN
-         MQ(IDOT3-3)=MQ(IDOT3-3)+NBUF
-         MQ(IDOT3-4)=MIN(MQ(IDOT3-4),NBUF)
-        MQ(IDOT3-5)=MAX(MQ(IDOT3-5),NBUF)
-      ENDIF
-      MQ(IDOT3-2)=MQ(IDOT3-2)+1 ! new block
+         MQ(IDOT3-5)=LDOT3
+         NTHR=MQ(IDOT3)
+         DO K=0,NTHR*5-1
+           MQ(IDOT2+LDOT2-K)=0  ! reset header (located at end)
+         ENDDO
 *
- 01   CONTINUE
-      NBUF=MQ(IDOT3  )+1
-      NOFF=MQ(IDOT3-1)
-      IF(IFILE.GT.0) THEN ! Fortran file
-c         READ(LUN,END=10) N,(IBUFF(I),I=1,N)
-         READ(LUN,END=10) N,(QM(IDOT4+NOFF+I),I=1,N/2),
-     &                      (MQ(IDOT3+NOFF+I),I=1,N/2)
-         NR=N/2 
-      ELSE         ! C file
-         NR=NDIMB
+         NACT=0   ! active threads (have something still to read)
+         DO K=0,NTHR-1
+           IF (IFILE.LT.NFILB) THEN
+             IFILE=IFILE+1
+             MQ(IDOT2+LDOT2     -K)=IFILE 
+             MQ(IDOT2+LDOT2-NTHR-K)=NACT
+             NACT=NACT+1 
+           ENDIF
+         ENDDO
+         MQ(IDOT4)=NACT ! active threads
+      END IF 
+      NACT=MQ(IDOT4)
+      MQ(IDOT2-1)=MQ(IDOT2-2)/NACT
+      MQ(IDOT3-1)=MQ(IDOT3-2)/NACT
+      MORE=-1
+      DO K=0,NTHR-1
+         IACT=MQ(IDOT2+LDOT2-NTHR-K)
+         MQ(IDOT2+LDOT2-NTHR*3-K)=0                 ! reset counter
+         MQ(IDOT2+LDOT2-NTHR*4-K)=IACT*MQ(IDOT3-1)  ! reset offset
+      ENDDO
+      MQ(IDOT3-3)=MQ(IDOT3-3)+1 ! new block
+*
+!$OMP  PARALLEL
+!$OMP& DEFAULT(PRIVATE)
+!$OMP& SHARED(MQ,QM,IDOT2,IDOT3,IDOT4,LDOT2,NTHR,NFILF,FLOOP,
+!$OMP&       IFD,KFD,IFILE,NFILB)  ! 'global' variables 
+!$OMP& NUM_THREADS(NTHR)
+*
+      ITHR=0
+!$    ITHR=OMP_GET_THREAD_NUM()         ! thread number 
+      JFILE=MQ(IDOT2+LDOT2       -ITHR)  ! file index
+      IACT =MQ(IDOT2+LDOT2-NTHR  -ITHR)  ! active thread number
+      JREC =MQ(IDOT2+LDOT2-NTHR*2-ITHR)  ! records read
+      IOFFP=IACT*MQ(IDOT2-1)
+      IF (JFILE.LE.0) GOTO 50
+      KFILE=KFD(2,JFILE)
+*
+ 01   CONTINUE  ! read next record
+         NBUF=MQ(IDOT2+LDOT2-NTHR*3-ITHR)+1
+          NOFF=MQ(IDOT2+LDOT2-NTHR*4-ITHR)+2     ! 2 header words per record
+         IF(KFILE.LE.NFILF) THEN ! Fortran file
+            LUN=KFILE+10
+            READ(LUN,END=10) N,(QM(IDOT4+NOFF+I),I=1,N/2),
+     &                         (MQ(IDOT3+NOFF+I),I=1,N/2)
+            NR=N/2 
+         ELSE         ! C file
+            LUN=KFILE-NFILF
+            NR=NDIMB
 #ifdef READ_C_FILES
-         NCFILE = 0 ! set to number of read file in next line
-         CALL READC(QM(IDOT4+NOFF+1),MQ(IDOT3+NOFF+1),NR,NCFILE,IERRC)
+            CALL READC(QM(IDOT4+NOFF+1),MQ(IDOT3+NOFF+1),NR,LUN,IERRC)
+            N=NR+NR
 #else
-         IERRC=0
+            IERRC=0
 #endif
-         IF(IERRC.LE.0) GOTO 90   ! end-of-files or error
-      END IF 
-      GOTO 02 ! read oK
+            IF(IERRC.LE.0) GOTO 11   ! end-of-files or error
+         END IF 
+         GOTO 02 ! read oK
 
- 10   REWIND LUN             ! Fortran eof
-      IF(NLOOPN.LE.1) THEN
-      END IF
-      IF(IFILE.LT.NFILB) THEN
-         IFILE=IFILE+1
-         LUN=10+IFILE
-         GOTO 01
-      END IF ! end-of -fortran files
-      IF(NFILC.NE.0) THEN       
-         IFILE=-1
-         GOTO 01
-      END IF 
-      GOTO 90  ! end
-
- 02   CONTINUE
-C      print *, ' peread ', nrec, nbuf, noff, nr
-      NRD=NRD+1
-      NREC=NREC+1
-      MQ(IDOT3  )=NBUF
-      MQ(IDOT3-1)=NOFF+NR
-      MQ(IDOT3+LDOT3-NBUF+1)=NOFF
-      MQ(IDOT3+LDOT3-NBUF)  =NOFF+NR
-      MQ(IDOT4+LDOT4-NBUF+1)=NREC
+ 10      REWIND LUN                    ! Fortran eof
+ 11      MQ(IDOT2+LDOT2-ITHR)=-JFILE   ! flag eof
+         IF (KFD(1,JFILE).EQ.0) THEN
+            print *, 'PEREAD: file ', KFILE, 
+     &        'read the first time, found',JREC,' records'
+            KFD(1,JFILE)=-JREC
+         ENDIF
+*        take next file
+!$OMP CRITICAL
+         IF (IFILE.LT.NFILB) THEN
+            IFILE=IFILE+1
+            JREC=0
+            MQ(IDOT2+LDOT2       -ITHR)=IFILE 
+            MQ(IDOT2+LDOT2-NTHR*2-ITHR)=JREC
+         ENDIF
+!$OMP END CRITICAL
+         JFILE=MQ(IDOT2+LDOT2-ITHR)
+         IF (JFILE.GT.0) THEN
+           KFILE=KFD(2,JFILE)
+           GOTO 07 ! continue with new file
+         ENDIF
+         GOTO 50
 *
-      IF (MXREC.GT.0.AND.NREC.GE.MXREC) GOTO 80 
+ 02      CONTINUE
+         JREC=JREC+1
+         MQ(IDOT2+LDOT2-NTHR*2-ITHR)=JREC
+         MQ(IDOT2+LDOT2-NTHR*3-ITHR)=NBUF
+         MQ(IDOT2+LDOT2-NTHR*4-ITHR)=NOFF+NR
 *
-      IF(NLOOPN.EQ.0) THEN 
-         IF(NREC.LE.2) WRITE(*,*) 'Record ',NREC 
-         IF(NREC.EQ.3) WRITE(*,*) 'Record ',NREC,' ...' 
-         IF(MOD(NREC,100000).EQ.0) THEN
-            WRITE(*,*) 'Record ',NREC,' ...'   
+         MQ(IDOT2+IOFFP+NBUF)=NOFF            ! pointer to start of buffer
+         MQ(IDOT3+NOFF  )    =NOFF+NR         ! pointer to  end  of buffer
+         MQ(IDOT3+NOFF-1)    =IFD(KFILE)+JREC ! global record number (available with LOOP2)
+         MQ(IDOT4+NOFF  )    =KFILE           ! file number
+         MQ(IDOT4+NOFF-1)    =JREC            ! record number
+*
+         IF(FLOOP.AND.ITHR.EQ.0) THEN
+            CALL HMPLNT(1,N)
+            IF(INDER(1).NE.0) CALL HMPENT(8,FLOAT(INDER(1)))
+         END IF 
+         IF(N.GT.2*NDIMB) THEN
+            WRITE(*,*) ' '
+            WRITE(*,*) 'Histogram of record length'
+            CALL HMPRNT(1) 
+            WRITE(*,*) 'PEREAD record length ',N,', buffer is',2*NDIMB 
+            STOP 'PEREAD: stop                                  '
          END IF
-      END IF
-        
-      IF(FLOOP) THEN
-         CALL HMPLNT(1,N)
-         IF(INDER(1).NE.0) CALL HMPENT(8,FLOAT(INDER(1)))
-      END IF 
-      IF(N.GT.2*NDIMB) THEN
-         WRITE(*,*) ' '
-         WRITE(*,*) 'Histogram of record length'
-         CALL HMPRNT(1) 
-         WRITE(*,*) 'PEREAD record length ',N,', buffer is',2*NDIMB 
-         STOP 'PEREAD: stop                                  '
-      END IF   
-c      DO I=2,NR
-c       GLDER(I-1)=RBUFF(I)
-c       INDER(I-1)=IBUFF(NR+I)
-c      END DO
-c      NR=NR-1
-
-      IF(NREC.LE.0) THEN               ! print out of 3 first events
-         WRITE(*,*) ' '
-         WRITE(*,*) 'Record ',NREC
-         WRITE(*,*) 'GLDER '
-         WRITE(*,*) (GLDER(I),I=1,NR)
-         WRITE(*,*) 'INDER '
-         WRITE(*,*) (INDER(I),I=1,NR)    
-         WRITE(*,*) ' '
-      END IF 
-
-C moved to PEPREP
-C      IST=NOFF+1
-C      NST=NOFF+NR
-C 15   CALL ISJAJB(NST,IST,JA,JB,JSP)
-C      IF(JB.NE.0) THEN
-C         DO J=1,IST-JB
-C          MQ(IDOT3+JB+J)=INONE( MQ(IDOT3+JB+J) ) ! translate to index
-C         END DO
-C         GOTO 15
-C      END IF
-
-      IF(NREC.LE.0) THEN               ! print out of 3 first events
-         WRITE(*,*) ' '
-         WRITE(*,*) 'Record ',NREC
-         WRITE(*,*) 'GLDER '
-         WRITE(*,*) (GLDER(I),I=1,NR)
-         WRITE(*,*) 'INDER '
-         WRITE(*,*) (INDER(I),I=1,NR)
-         WRITE(*,*) ' '
-      END IF
-      IF (MQ(IDOT3-1)+NDIMB.LT.LDOT3-NBUF) GOTO 01 ! buffer not yet full
-!$POMP INST ALTEND(peread)
-
-      RETURN
-
- 80   CONTINUE       ! maxrecord reached, reset current file
-      IF (IFILE.GT.0) THEN
-         REWIND LUN
-      ELSE
+*
+ 07      CONTINUE
+         IF ((NOFF+NR+2+NDIMB.LT.MQ(IDOT3-1)*(IACT+1)).AND.
+     &       (NBUF.LT.MQ(IDOT2-1))) GOTO 01 ! buffer not yet full
+*
+ 50   CONTINUE
+!$OMP END PARALLEL
+*     compress pointers
+      NRD=MQ(IDOT2+LDOT2-3*NTHR) ! buffers from 1 .thread
+      DO K=1,NTHR-1
+         IACT =MQ(IDOT2+LDOT2-NTHR-K)
+         IOFFP=IACT*MQ(IDOT2-1)
+         NBUF=MQ(IDOT2+LDOT2-3*NTHR-K)
+         DO L=1,NBUF
+            MQ(IDOT2+NRD+L)=MQ(IDOT2+IOFFP+L)
+         ENDDO
+         NRD=NRD+NBUF
+      ENDDO
+*
+      MORE=0
+      DO K=0,NTHR-1
+         JFILE=MQ(IDOT2+LDOT2-K)
+         IF (JFILE.GT.0) THEN ! no eof yet
+            MQ(IDOT2+LDOT2-NTHR-K)=MORE
+            MORE=MORE+1
+         ELSE
+* no more files, thread retires
+            MQ(IDOT2+LDOT2       -K)=0
+            MQ(IDOT2+LDOT2-NTHR  -K)=-1
+            MQ(IDOT2+LDOT2-NTHR*2-K)=0
+         ENDIF
+      ENDDO
+*     record limit ?
+      IF (MXREC.GT.0.AND.(NTOT+NRD).GE.MXREC) THEN
+         NRD=MXREC-NTOT
+         MORE=-1
+         DO K=0,NTHR-1
+            JFILE=MQ(IDOT2+LDOT2-K)
+            IF (JFILE.GT.0) THEN   ! rewind files
+               NRC=MQ(IDOT2+LDOT2-NTHR*2-K)
+               IF (KFD(1,JFILE).EQ.0) KFD(1,JFILE)=-NRC
+               IF (KFILE.LE.NFILF) THEN
+                  LUN=KFILE+10
+                  REWIND LUN
+               ELSE
+                  LUN=KFILE-NFILF
 #ifdef READ_C_FILES
-         CALL RESETC
+                  CALL RESETC(LUN)
 #endif
+               ENDIF
+            ENDIF
+         ENDDO
+      ENDIF 
+*
+      NTOT=NTOT+NRD
+      NREC=NTOT
+      MQ(IDOT2)=NRD
+      MQ(IDOT4)=MORE  ! number of active threads
+*
+      MQ(IDOT3-4)=MQ(IDOT3-4)+NRD
+      MQ(IDOT3-5)=MIN(MQ(IDOT3-5),NRD)
+      MQ(IDOT3-6)=MAX(MQ(IDOT3-6),NRD)
+*
+ 55   CONTINUE
+      IF (NLOOPN.EQ.0.AND.NTOT.GE.NRPR) THEN
+         WRITE(*,*) ' Record ',NRPR
+         IF (NRPR.LT.100000) THEN
+            NRPR=NRPR*10
+         ELSE
+            NRPR=NRPR+100000
+         ENDIF
+         GOTO 55
       ENDIF
-
- 90   NRD=-NRD       ! flag end of data
-      IFILE=0
-      NBUF=MQ(IDOT3)
-      MQ(IDOT3-3)=MQ(IDOT3-3)+NBUF
-      MQ(IDOT3-4)=MIN(MQ(IDOT3-4),NBUF)
-      MQ(IDOT3-5)=MAX(MQ(IDOT3-5),NBUF)
-      PRINT=.FALSE.
-      FLOOP=.FALSE.
-!$POMP INST END(peread)
+      IF (NLOOPN.LE.1.AND.NPRI.GT.0) THEN
+         NPRI=NPRI-1
+         WRITE(8,*) ' PeRead ', NREC, NRD, MORE ,IFILE
+      ENDIF
+*
+      IF (MORE.LE.0) THEN
+         IFILE=0
+         IF (FLOOP) THEN
+            DO K=2,NFILB ! integrate record numbers
+               IFD(K)=IFD(K-1)-KFD(1,K-1)
+            ENDDO
+            IF (NTHR.GT.1) CALL SORT2K(KFD,NFILB)
+         ENDIF
+         PRINT=.FALSE.
+         FLOOP=.FALSE.
+      ENDIF
       END
 
       SUBROUTINE PEPREP(MODE)
@@ -830,8 +903,8 @@ C      END IF
 #include "dynal.inc"
 #include "mpinds.inc"
 *
-      ISFRST(IBUF)=MQ(IDOT3+LDOT3-IBUF+1)+1
-      ISLAST(IBUF)=MQ(IDOT3+LDOT3-IBUF)
+      ISFRST(IBUF)=MQ(IDOT2+IBUF)+1
+      ISLAST(IBUF)=MQ(IDOT3+MQ(IDOT2+IBUF))
       INDER(I)=MQ(IDOT3+NOFF+I)
       GLDER(I)=QM(IDOT4+NOFF+I)
 *
@@ -839,13 +912,11 @@ C      END IF
         ICHUNK=MIN((MQ(IDOT3)+MTHRD-1)/MTHRD/8+1,256)
 !$OMP  PARALLEL DO                       ! parallelize record loop
 !$OMP&  DEFAULT(PRIVATE) 
-!$OMP&  SHARED(MQ,QM,DQ,IDOT3,IDOT4,LDOT3,ICHUNK)
+!$OMP&  SHARED(MQ,QM,DQ,IDOT2,IDOT3,IDOT4,ICHUNK)
 !$OMP&  SCHEDULE(DYNAMIC,ICHUNK)
-        DO IBUF=1,MQ(IDOT3)           ! buffer for current record
-          NREC=MQ(IDOT4+LDOT3-IBUF+1)   ! record 
+        DO IBUF=1,MQ(IDOT2)           ! buffer for current record
           IPROC=0
 !$        IPROC=OMP_GET_THREAD_NUM()         ! thread number
-C          print *, ' PEPREP ', IPROC, NREC
           IST=ISFRST(IBUF)
           NST=ISLAST(IBUF)
  10       CALL ISJAJB(NST,IST,JA,JB,JSP)
@@ -861,8 +932,7 @@ C          print *, ' PEPREP ', IPROC, NREC
 
 !$POMP INST BEGIN(peprep)
       IF (MODE.LE.0) THEN
-        DO IBUF=1,MQ(IDOT3)           ! buffer for current record
-C          NREC=MQ(IDOT4+LDOT3-IBUF+1)   ! record 
+        DO IBUF=1,MQ(IDOT2)           ! buffer for current record
           IST=ISFRST(IBUF)
           NST=ISLAST(IBUF)
  20       CALL ISJAJB(NST,IST,JA,JB,JSP)
@@ -942,8 +1012,8 @@ C          NREC=MQ(IDOT4+LDOT3-IBUF+1)   ! record
       COMMON/CIRIS/INIRIS
       SAVE
 *     ...
-      ISFRST(IBUF)=MQ(IDOT3+LDOT3-IBUF+1)+1
-      ISLAST(IBUF)=MQ(IDOT3+LDOT3-IBUF)
+      ISFRST(IBUF)=MQ(IDOT2+IBUF)+1
+      ISLAST(IBUF)=MQ(IDOT3+MQ(IDOT2+IBUF))
       INDER(I)=MQ(IDOT3+I)
       GLDER(I)=QM(IDOT4+I)
 *     ----- book and reset ---------------------------------------------   
@@ -1211,7 +1281,7 @@ c      END IF
          IF(NRECPR.LT.0) THEN
             NRECPR=NREC1
          END IF
-        IF(NRECP2.LT.0) THEN
+         IF(NRECP2.LT.0) THEN
             NRECP2=NREC2
          END IF
       END IF
@@ -1502,8 +1572,8 @@ c 103  FORMAT(I13,3X,A,G12.4)
       SAVE CHUBER,CAUCHY
 #include "mpinds.inc"
 *     ... 
-      ISFRST(IBUF)=MQ(IDOT3+LDOT3-IBUF+1)+1
-      ISLAST(IBUF)=MQ(IDOT3+LDOT3-IBUF)
+      ISFRST(IBUF)=MQ(IDOT2+IBUF)+1
+      ISLAST(IBUF)=MQ(IDOT3+MQ(IDOT2+IBUF))
       INDER(I)=MQ(IDOT3+I)
       GLDER(I)=QM(IDOT4+I)
 *
@@ -1516,14 +1586,14 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
 *
 !$OMP  PARALLEL DO                       ! parallelize record loop
 !$OMP&  DEFAULT(PRIVATE) 
-!$OMP&  SHARED(MQ,QM,DQ,IND0,INDA,INDC,INDE,INDF,IDOT3,IDOT4,LDOT3,
+!$OMP&  SHARED(MQ,QM,DQ,IND0,INDA,INDC,INDE,INDF,IDOT2,IDOT3,IDOT4,
 !$OMP&     NLG,NAGBN,ICALCM,ICHUNK, 
 !$OMP&     NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,IND5,INDH,MTHRD,
 !$OMP&     DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB,NRECER)  ! 'global' variables 
 !$OMP&  REDUCTION(+:NDFS,DCHI2S,NREJ) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
 !$OMP&  SCHEDULE(DYNAMIC,ICHUNK)
-      DO IBUF=1,MQ(IDOT3)           ! buffer for current record
-       NRC=MQ(IDOT4+LDOT3-IBUF+1)   ! record 
+      DO IBUF=1,MQ(IDOT2)           ! buffer for current record
+       NRC=MQ(IDOT3+ISFRST(IBUF)-2)   ! record 
        IPROC=0
 !$       IPROC=OMP_GET_THREAD_NUM()         ! thread number
        IOFFB=MQ(INDF-1)*IPROC                                    ! offset 'f'.
@@ -1653,7 +1723,8 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
 
        IF(NALC.LE.0) GOTO 90
        IF(NALC.GT.MLOCAL) THEN
-          WRITE(*,*) NALC, ' local parameters (=>skip), max. is', MLOCAL
+          WRITE(*,*) NALC, ' local parameters (=>skip), max. is', 
+     &       MLOCAL, NRC
           GOTO 90
        END IF
        IF (ICALCM.EQ.1) THEN
@@ -3055,9 +3126,17 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+LNDF/2
       CALL HMPLDF(1,'Number of words/record in binary file')
       CALL HMPDEF(8,0.0,60.0,'not_stored data per record')
 *     define read buffer
-      NWRD=2+NDIMB+NCACHE/2
-      CALL MEGARR('; I',NWRD,'read buffer, integer')
-      CALL MEGARR('! S',NWRD,'read buffer, float')
+      NC21=NCACHE/(21*MTHRDR) ! split read cache 1 : 10 : 10 for pointers, ints, floats
+      NWRD=NC21+1 
+      CALL MEGARR(': I',(NWRD+5)*MTHRDR,'read buffer, pointer')
+      MQ(IDOT2-2)=NWRD*MTHRDR     ! number of buffer words (total)
+      NWRD=NC21*10+2+NDIMB
+      CALL MEGARR('; I',NWRD*MTHRDR,'read buffer, integer')
+      MQ(IDOT3  )=MTHRDR          ! number of threads
+      MQ(IDOT3-2)=NWRD*MTHRDR     ! number of buffer words 
+      CALL MEGARR('! S',NWRD*MTHRDR,'read buffer, float')
+      MQ(IDOT4  )=MTHRDR          ! number of (active) threads
+      MQ(IDOT4-2)=NWRD*MTHRDR     ! number of buffer words
 *
  10   CALL PEREAD(NR)  ! read records
       CALL PEPREP(0)   ! prepare records
@@ -3065,6 +3144,7 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+LNDF/2
 *     release read buffer
       CALL MEGRM('!')
       CALL MEGRM(';')
+      CALL MEGRM(':')
 *
       IF(NHISTP.NE.0) THEN
          CALL HMPRNT(1)
@@ -3244,15 +3324,14 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
 *
 !$    INTEGER OMP_GET_THREAD_NUM
 *
-      ISFRST(IBUF)=MQ(IDOT3+LDOT3-IBUF+1)+1
-      ISLAST(IBUF)=MQ(IDOT3+LDOT3-IBUF)
+      ISFRST(IBUF)=MQ(IDOT2+IBUF)+1
+      ISLAST(IBUF)=MQ(IDOT3+MQ(IDOT2+IBUF))
       INDER(I)=MQ(IDOT3+I)
       GLDER(I)=QM(IDOT4+I)
 *
       DOUBLE PRECISION DGBM,DUBM,DSTAT(3)
       INTEGER*8 NOFF8,NBITS
       INTEGER(KIND=LARGE) NUSE,NDIMBI,NDIMSA(4),NDGN,MATSIZ(2),LNROW
-!$    INTEGER OMP_GET_NUM_PROCS,OMP_GET_MAX_THREADS
 *     ...
       WRITE(LUNLOG,*) ' '
       WRITE(LUNLOG,*) 'LOOP2: starting'
@@ -3335,15 +3414,23 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
         DSTAT(K)=0.0D0
       ENDDO
 *     define read buffer
-      NWRD=2+NDIMB+NCACHE/2
-      CALL MEGARR('; I',NWRD,'read buffer, integer')
-      CALL MEGARR('! S',NWRD,'read buffer, float')
+      NC21=NCACHE/(21*MTHRDR) ! split read cache 1 : 10 : 10 for pointers, ints, floats
+      NWRD=NC21+1 
+      CALL MEGARR(': I',(NWRD+5)*MTHRDR,'read buffer, pointer')
+      MQ(IDOT2-2)=NWRD*MTHRDR     ! number of buffer words (total)
+      NWRD=NC21*10+2+NDIMB
+      CALL MEGARR('; I',NWRD*MTHRDR,'read buffer, integer')
+      MQ(IDOT3  )=MTHRDR          ! number of threads
+      MQ(IDOT3-2)=NWRD*MTHRDR     ! number of buffer words 
+      CALL MEGARR('! S',NWRD*MTHRDR,'read buffer, float')
+      MQ(IDOT4  )=MTHRDR          ! number of (active) threads
+      MQ(IDOT4-2)=NWRD*MTHRDR     ! number of buffer words
 *
  10   CALL PEREAD(NR) ! read records
       CALL PEPREP(1)  ! prepare records
       IOFF=0
-      DO IBUF=1,MQ(IDOT3)           ! buffer for current record
-      NREC=MQ(IDOT4+LDOT3-IBUF+1)   ! record 
+      DO IBUF=1,MQ(IDOT2)           ! buffer for current record
+      NREC=MQ(IDOT3+ISFRST(IBUF)-2)   ! record 
 c      IF(NREC.LE.100001) WRITE(*,*) 'Record ',NREC
 
 *     Printout for DEBUG 
@@ -3383,9 +3470,9 @@ c      IF(NREC.LE.100001) WRITE(*,*) 'Record ',NREC
       NALCN =0                     ! count number of local  derivatives
       NAEQN =0                     ! count number of equations
       MAEQNF=NAEQNF
-      NST=NR
       IST=ISFRST(IBUF)
       NST=ISLAST(IBUF)
+      NWRD=NST-IST+1
  15   CALL ISJAJB(NST,IST,JA,JB,JSP)
       IF(JA.EQ.0.AND.JB.EQ.0) GOTO 18
       NAEQN=NAEQN+1
@@ -3428,7 +3515,7 @@ c         GOTO 15
       MQ(INDC-3)=MAX(NAEQN,MQ(INDC-3)) ! maximum number of equations
 
 *     sample statistics for caching
-      DSTAT(1)=DSTAT(1)+DFLOAT((NST-ISLAST(IBUF-1))*2+1) ! record size
+      DSTAT(1)=DSTAT(1)+DFLOAT((NWRD+2)*2)               ! record size
       DSTAT(2)=DSTAT(2)+DFLOAT(NAGBN+2)                  ! indices,
       DSTAT(3)=DSTAT(3)+DFLOAT(NAGBN*NAGBN+NAGBN)        ! data for MUPDAT
 
@@ -3465,26 +3552,27 @@ c         GOTO 15
       END IF
 
       CALL SORT1K(MQ(INDC+1),NAGBN) ! sort global par.
+      IOFF=IOFF+1
+      MQ(IDOT2+IBUF)=IOFF
+      MQ(IDOT3+IOFF)=IOFF+NAGBN
       DO I=1,NAGBN                  ! reset global index array
        IEXT=MQ(INDC+I) 
        MQ(INDE+IEXT)=0
        MQ(IDOT3+IOFF+I)=IEXT
       END DO
-      MQ(IDOT3+LDOT3-IBUF+1)=IOFF
       IOFF=IOFF+NAGBN
 *
       ENDDO
-      MQ(IDOT3+LDOT3-MQ(IDOT3))=IOFF
       IOFF=0
 *
       IF (MATSTO.EQ.2) THEN
 !$OMP  PARALLEL
 !$OMP& IF (ISAVES.NE.0)
 !$OMP& DEFAULT(PRIVATE)
-!$OMP& SHARED(MQ,QM,DQ,INDF,IDOT3,LDOT3,MTHRD,ISAVES)  ! 'global' variables 
+!$OMP& SHARED(MQ,QM,DQ,INDF,IDOT2,IDOT3,MTHRD,ISAVES)  ! 'global' variables 
         IPROC=0
 !$      IPROC=OMP_GET_THREAD_NUM()         ! thread number
-        DO IBUF=1,MQ(IDOT3)
+        DO IBUF=1,MQ(IDOT2)
          IST=ISFRST(IBUF)
          NST=ISLAST(IBUF)
          DO I=IST,NST                 ! store all combinations     
@@ -3511,9 +3599,10 @@ c         GOTO 15
       IF (NR.GT.0) GOTO 10 ! ... to read next block of events
 *     release read buffer
       IF (NCACHE.GT.0)
-     &WRITE(LUNLOG,*) 'LOOP2: number of blocks  is',(MQ(IDOT3-K),K=2,5)
+     &WRITE(LUNLOG,*) 'LOOP2: number of blocks  is',(MQ(IDOT3-K),K=3,6)
       CALL MEGRM('!')
       CALL MEGRM(';')
+      CALL MEGRM(':')
 * 
       WRITE(LUNLOG,*) 'LOOP2: number of records is',NREC
       WRITE(LUNLOG,*) 'LOOP2: event reading ended - end of data'
@@ -3671,9 +3760,17 @@ c         GOTO 15
       ENDDO
       NCACHR=IFIX(FLOAT(NCACHE)*FCACHE(1)+0.5) ! read cache
 *     define read buffer
-      NWRD=2+NDIMB+NCACHR/2
-      CALL MEGARR('; I',NWRD,'read buffer, integer')
-      CALL MEGARR('! S',NWRD,'read buffer, float')
+      NC21=NCACHR/(21*MTHRDR) ! split read cache 1 : 10 : 10 for pointers, ints, floats
+      NWRD=NC21+1 
+      CALL MEGARR(': I',(NWRD+5)*MTHRDR,'read buffer, pointer')
+      MQ(IDOT2-2)=NWRD*MTHRDR            ! number of buffer words (per thread)
+      NWRD=NC21*10+2+NDIMB
+      CALL MEGARR('; I',NWRD*MTHRDR,'read buffer, integer')
+      MQ(IDOT3  )=MTHRDR          ! number of threads
+      MQ(IDOT3-2)=NWRD*MTHRDR     ! number of buffer words 
+      CALL MEGARR('! S',NWRD*MTHRDR,'read buffer, float')
+      MQ(IDOT4  )=MTHRDR            ! number of (active) threads
+      MQ(IDOT4-2)=NWRD*MTHRDR     ! number of buffer words
 *
       NCACHI=IFIX(FLOAT(NCACHE)*FCACHE(2)+0.5) ! index cache
       NCACHD=NCACHE-NCACHR-NCACHI              ! data cache
@@ -3689,7 +3786,7 @@ c         GOTO 15
       CALL MEGARR('h D',2*NGGD*MTHRD,
      &                 'symmetric update matrices')
       MQ(INDH-1)=NGGD                  ! number of words per thread
-      MQ(INDH-2)=(NAGBN*NAGBN+NAGBN)/2 ! min free (double) words
+      MQ(less)=(NAGBN*NAGBN+NAGBN)/2 ! min free (double) words
       CALL MEGARR('5 I',(NGGI+MGGI)*MTHRD,
      &                 'symmetric update matrix indices')
       MQ(IND5  )=MGGI
@@ -3826,14 +3923,7 @@ c      END IF
       WRITE(*,104) DGBM,DUBM,DUBM/DGBM*100.0D0
       GBM=DGBM
       UBM=DUBM 
-!$    WRITE(*,*)
-!$    NPROC=1
-!$    MXTHRD=1
-!$    NPROC=OMP_GET_NUM_PROCS()         ! number of processors available
-!$    MXTHRD=OMP_GET_MAX_THREADS()      ! get max number of threads back
-!$    WRITE(*,*) 'Number of processors available:', NPROC
-!$    WRITE(*,*) 'Maximum number of threads:     ', MXTHRD
-!$    WRITE(*,*) 'Number of threads:             ', MTHRD
+
 *     print chi^2 cut tables  
 
       NDFMAX=NAEQN-1
@@ -4229,6 +4319,7 @@ c         IF(ICALCM.NE.0) WRITE(LUN,*) 'MMINRS: no preconditioning !!!'
       END IF 
       IITERA=ITN
       ISTOPA=ISTOP
+      MNRSIT=MNRSIT+ITN
 
 c      WRITE(*,*) 'Solution vector'
 c      WRITE(*,*) (DQ(ISOLV/2+I),I=1,NAGB)
@@ -4894,7 +4985,8 @@ c 103  FORMAT(1X,A,G12.4)
       FCACHE(1)= 0.8 ! read cache, average fill level
       FCACHE(2)= 0.0 ! write cache
       FCACHE(3)= 0.0 ! dynamic size
-
+      MTHRDR=1  ! number of threads for reading binary files
+      MNRSIT=0  ! total number of MINRES internal iterations
 
       DO I=1,8
        TIMES(I)=0.0
@@ -5073,18 +5165,18 @@ c         STOP
 *     open the binary (data) files on unit 11, 12, ...
  
       IOSUM=0
-      NFILB=0 
+      NFILF=0 
       DO I=1,NFILES                                 ! Fortran files
        IF(MFD(I).EQ.3) THEN
-          WRITE(*,*) 'Opening Fortran file ',10+NFILB+1,
+          WRITE(*,*) 'Opening Fortran file ',10+NFILF+1,
      +               ' ',TFD(I)(1:LFD(I))
-          OPEN(10+NFILB+1,FILE=TFD(I)(1:LFD(I)),IOSTAT=IOS,
+          OPEN(10+NFILF+1,FILE=TFD(I)(1:LFD(I)),IOSTAT=IOS,
      +         FORM='UNFORMATTED')
           IF(IOS.NE.0) THEN
              WRITE(*,*) 'Open error for file ',TFD(I)(1:LFD(I)) 
              IOSUM=IOSUM+1
           ELSE 
-             NFILB=NFILB+1
+             NFILF=NFILF+1
           END IF 
        END IF 
       END DO
@@ -5115,14 +5207,20 @@ c         STOP
        END IF
       END DO
       IF(NFILC.LT.0) NFILC=0
+      NFILB=NFILF+NFILC ! total number of binary files 
+      DO K=1,NFILB
+        KFD(1,K)=0   ! reset record counters
+        KFD(2,K)=K   ! set file number
+        IFD(K)=0
+      ENDDO
 
       IF(IOSUM.NE.0) THEN
          STOP 'FILETC: open error                                      '
       END IF
-      IF(NFILB+NFILC.EQ.0) THEN
+      IF(NFILB.EQ.0) THEN
          STOP 'FILETC: no binary files                                 '
       END IF
-      WRITE(*,*) NFILB+NFILC,' binary files opened' ! corrected by GF
+      WRITE(*,*) NFILB,' binary files opened' ! corrected by GF
       RETURN
 
 
@@ -5648,11 +5746,17 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          KEYSTX='threads'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-!$            IF (MTHRD.GT.0) THEN
-!$               IF (DNUM(1).GT.1.0) MTHRD=DNUM(1)
-!$            ELSE
+            IOMP=0
+!$          IOMP=1
+!$          IF (IOMP.GT.0) THEN
+!$             IF (NUMS.GE.1.AND.DNUM(1).GT.0.) MTHRD =DNUM(1)
+!$             IF (NUMS.GE.2) THEN
+!$                MTHRDR=MTHRD
+!$                IF (DNUM(2).GT.0.) MTHRDR=DNUM(2)
+!$             ENDIF
+!$          ELSE
                WRITE(*,*) 'WARNING: multithreading not available'
-!$            ENDIF
+!$          ENDIF
             RETURN
          END IF
 

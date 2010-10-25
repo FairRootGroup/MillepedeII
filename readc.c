@@ -41,10 +41,7 @@ gzFile *files[MAXNUMFILES];      /* pointers to opened binary files */
 FILE *files[MAXNUMFILES];      /* pointers to opened binary files */
 #endif
 
-int fileReadOnce[MAXNUMFILES]; /* flag to printout record number once */
 unsigned int numAllFiles;      /* number of opened files */
-int fileIndex;                 /* index of current file */
-int nRec;                      /* count records per file */
 
 
 /*______________________________________________________________*/
@@ -56,12 +53,9 @@ void initC()
     int i = 0;
     for ( ; i < MAXNUMFILES; ++i) {
       files[i] = 0;
-      fileReadOnce[i] = 0;
     }
   }
   numAllFiles = 0;
-  fileIndex = -1;
-  nRec = 0;
 #ifdef USE_ZLIB
   printf(" initC: using zlib version %s\n",ZLIB_VERSION);
 #endif
@@ -82,9 +76,10 @@ FCALLSCSUB0(initC,INITC,initc)
 
 /*______________________________________________________________*/
 
-void resetC()
+void resetC(int *nFileIn)
 {
   /* start again with first file */
+  int fileIndex = *nFileIn-1; /* index of current file */ 
   if (fileIndex < 0) return; /* no file opened at all... */
 #ifdef USE_ZLIB
   gzrewind(files[fileIndex]);
@@ -93,15 +88,8 @@ void resetC()
   fseek(files[fileIndex], 0L, SEEK_SET);
   clearerr(files[fileIndex]); /* These two should be the same as rewind... */
 #endif
-  if (!fileReadOnce[fileIndex]) {
-    printf("readC: %d. file read the first time, read  %d records.\n",
-              fileIndex+1, nRec);
-    fileReadOnce[fileIndex] = 1;
-  } 
-  fileIndex = 0;
-  nRec = 0; 
 }
-FCALLSCSUB0(resetC,RESETC,resetc)
+FCALLSCSUB1(resetC,RESETC,resetc,PINT)
 
 /*______________________________________________________________*/
 
@@ -136,7 +124,6 @@ void openC(const char *fileName, int *errorFlag)
     } else 
 #endif
     {
-      if (numAllFiles == 0) fileIndex = 0;
       ++numAllFiles; /* We have one more opened file! */
       *errorFlag = 0;
     }
@@ -147,11 +134,11 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
 /*______________________________________________________________*/
 
  void readC(float *bufferFloat, int *bufferInt, int *lengthBuffers,
-	    int *nFileOut, int *errorFlag)
+	    int *nFileIn, int *errorFlag)
 {
    /* No return value since to be called as subroutine from fortran,
       negative *errorFlag are errors, otherwise fine:
-      * -1: pointer to a buffer or lengthBuffers/nFileOut are null
+      * -1: pointer to a buffer or lengthBuffers are null
       * -2: problem reading record length
       * -4: given buffers too short for record
       * -8: problem with stream or EOF reading floats
@@ -159,13 +146,15 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
       *  0: reached end of all files (or read empty record?!)
       * >0: number of words (floats + integers) read and stored in buffers
       
-      *nFileOut: returns number of the file the record is read from,
-                 starting from 1 (not 0), but only if record read succesfully.
+      *nFileIn: number of the file the record is read from,
+                 starting from 1 (not 0)
    */
+
    if (!errorFlag) return;
    *errorFlag = 0;
-   if (fileIndex < 0) return; /* no file opened at all... */
-   if (!bufferFloat || !bufferInt || !lengthBuffers || !nFileOut) {
+   int fileIndex = *nFileIn-1; /* index of current file */ 
+   if (fileIndex < 0) return;  /* no file opened at all... */
+   if (!bufferFloat || !bufferInt || !lengthBuffers) {
      *errorFlag = -1;
      return;
    }
@@ -174,27 +163,14 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
    int recordLength = 0; /* becomes number of words following in file */
 #ifdef USE_ZLIB
    int nCheckR = gzread(files[fileIndex], &recordLength, sizeof(recordLength));
-   while (gzeof(files[fileIndex])) {
+   if (gzeof(files[fileIndex])) {
      gzrewind(files[fileIndex]); 
-     if (!fileReadOnce[fileIndex]) {
-       printf("readC: %d. file read the first time, found %d records.\n",
-	      fileIndex+1, nRec);
-       fileReadOnce[fileIndex] = 1;
-     }
-     nRec = 0;
-     if (fileIndex+1 >= numAllFiles) {
-       *errorFlag = 0; /* Means EOF of last file. */
-       fileIndex = (numAllFiles > 0 ? 0 : -1); /* Start first file, if any. */
-       return;
-     } else { /* Try next file! */
-       ++fileIndex;
-       nCheckR = gzread(files[fileIndex], &recordLength, sizeof(recordLength));
-     }
+     *errorFlag = 0; /* Means EOF of file. */
+     return;
    }
 
    if (sizeof(recordLength) != nCheckR) {
-     printf("readC: problem reading length of record %d, file %d\n",
- 	   nRec+1, fileIndex);
+     printf("readC: problem reading length of record file %d\n", fileIndex);
      *errorFlag = -2;
      return;
    }
@@ -226,24 +202,12 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
 #else
    size_t nCheckR = fread(&recordLength, sizeof(recordLength), 1,
  			 files[fileIndex]);
-   while (feof(files[fileIndex])) {
+   if (feof(files[fileIndex])) {
      /* rewind(files[fileIndex]);  Does not work with rfio, so call: */
      fseek(files[fileIndex], 0L, SEEK_SET);
      clearerr(files[fileIndex]); /* These two should be the same as rewind... */
-     if (!fileReadOnce[fileIndex]) {
-       printf("readC: %d. file read the first time, found %d records.\n",
-	      fileIndex+1, nRec);
-       fileReadOnce[fileIndex] = 1;
-     }
-     nRec = 0;
-     if (fileIndex+1 >= numAllFiles) {
-       *errorFlag = 0; /* Means EOF of last file. */
-       fileIndex = (numAllFiles > 0 ? 0 : -1); /* Start first file, if any. */
-       return;
-     } else { /* Try next file! */
-       ++fileIndex;
-       nCheckR = fread(&recordLength, sizeof(recordLength),1,files[fileIndex]);
-     }
+     *errorFlag = 0; /* Means EOF of file. */
+     return;
    }
 
    if (1 != nCheckR || ferror(files[fileIndex])) {
@@ -283,8 +247,6 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
    }
 #endif
 
-   ++nRec;
    *errorFlag = *lengthBuffers;
-   *nFileOut = fileIndex + 1; /* As output, starting from 1. */
  }
 FCALLSCSUB5(readC,READC,readc,PFLOAT,PINT,PINT,PINT,PINT)

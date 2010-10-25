@@ -25,11 +25,14 @@
 *      COMMON/MEMI/NST,GLDER(NDIMB),INDER(NDIMB)
 
       PARAMETER (MFILES=500)
-      INTEGER MFD(MFILES)  ! MFD(.)=1 binary   MFD(.)=2 text
-      INTEGER LFD(MFILES)  ! LFD(.)=  number of characters
-      INTEGER NFD(MFILES)  ! NFD(.)=  index in file  
+      INTEGER MFD(MFILES)   ! MFD(.)=1 binary   MFD(.)=2 text
+      INTEGER LFD(MFILES)   ! LFD(.)=  number of characters
+      INTEGER NFD(MFILES)   ! NFD(.)=  index in file
+      INTEGER KFD(2,MFILES) ! KFD(1,.)=  number of records in file
+      INTEGER IFD(MFILES)   ! IFD(.)=  integrated record numbers
       CHARACTER*500 TFD(MFILES)        ! file names
-      COMMON/MPFILE/IFILE,NFILES,NFILB,NFILC,MFD,LFD,TFD,NFD
+      COMMON/MPFILE/IFILE,NFILES,NFILB,NFILF,NFILC,
+     +              MFD,LFD,TFD,NFD,KFD,IFD
 
       INTEGER NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
      +        METSOL,MATSTO,MPRINT,MDEBUG,MREQEN,INTRAC,
@@ -65,7 +68,7 @@
      +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER,
      +              MREQPE,MHISPE,MSNGPE,MCMPRS,MTHRD,MXREC,MATMON,
      +              LFITNP,LFITBB,MNRSEL,LBMNRS(100),
-     +              NCACHE,FCACHE(3)
+     +              NCACHE,FCACHE(3),MTHRDR,MNRSIT
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
@@ -147,7 +150,7 @@ C removed*     ITEXIT = exit code
 *     MHISPE = upper bound for pair entry histogrammimg
 *     MSNGPE = upper bound for pair entry single precision storage
 *     MCMPRS = compression for sparsity (column indices)
-*     MTHRD  = number of threads (in AVPROD)
+*     MTHRD  = number of threads 
 *     MXREC  = max number of records
 *     MATMON = record interval for monitoring of (sparse) matrix
 *     LFITNP = local fit: number of iteration to calculate pulls
@@ -155,6 +158,8 @@ C removed*     ITEXIT = exit code
 *     MNRSEL = number of MINRES error labels in LBMNRS (calc err, corr with SOLGLO)
 *     NCACHE = buffer size for caching blocks of records
 *     FCACHE = fractions for cache splitting (read, write data, write indices)
+*     MTHRDR = number of threads for reading binary files
+*     MNRSIT = total number of MINRES internal iterations
 
       DOUBLE PRECISION FVALUE,FLINES
       COMMON/MPDOUB/FVALUE,FLINES
