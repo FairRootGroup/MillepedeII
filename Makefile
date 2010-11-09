@@ -139,7 +139,7 @@ pede.o : pede.F dynal.inc largeint.inc mpinds.inc localfit.inc Makefile
 %_32GB.o: %.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=8000000000_8 -c $< -o $@
 %_48GB.o: %.F dynal.inc largeint.inc Makefile
-	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=12500000000_8 -c $< -o $@
+	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=12000000000_8 -c $< -o $@
 %_64GB.o: %.F dynal.inc largeint.inc Makefile
 	${FCOMP} ${F_FLAGS}  -DNUMBER_OF_WORDS=16000000000_8 -c $< -o $@
 %_rfio.o: %.c Makefile
