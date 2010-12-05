@@ -35,11 +35,11 @@
      +              MFD,LFD,TFD,NFD,KFD,IFD
 
       INTEGER NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
-     +        METSOL,MATSTO,MPRINT,MDEBUG,MREQEN,INTRAC,
+     +        METSOL,MATSTO,MPRINT,MDEBUG,MDEBG2,MREQEN,INTRAC,
      +        MITERA,MBANDW,ICTEST,NAEQN,NREC,NLOOPN,
      +        LUNKNO,LHUBER,NREJEC,
      +        ITERAT,NTERAT,
-     +        NRECPR,NRECP2,NREC1,NREC2,
+     +        NRECPR,NRECP2,NREC1,NREC2,NREC3,
      +        ISUBIT,NHISTP,
      +        NOFEAS,
      +        NDFSUM,NREGUL,IITERA,ISTOPA,
@@ -56,7 +56,7 @@
       DOUBLE PRECISION MRESTL,CHICUT
       COMMON/MPSTER/MRESTL,CHICUT,
      +              NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
-     +              METSOL,MATSTO,MPRINT,MDEBUG,MREQEN,INTRAC,
+     +              METSOL,MATSTO,MPRINT,MDEBUG,MDEBG2,MREQEN,INTRAC,
      +              MITERA,MBANDW,ICTEST,NAEQN,NREC,NLOOPN,
      +              LUNKNO,LHUBER,CHIREM,CHHUGE,DFLIM,NREJEC(0:3),
      +              ITERAT,NTERAT,TIMES(0:8),GBM,UBM,STEPL,
@@ -65,7 +65,7 @@
      +              WOLFC1,WOLFC2,NOFEAS,DELFUN,ACTFUN,ANGRAS,
      +              NDFSUM,NREGUL,REGULA,REGPRE,IITERA,DELTIM,ISTOPA,
      +              LSINFO,ICALCM,RSTART,MATRIT,NPRESG,NRECAL, ! ITEXIT,
-     +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER,
+     +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER,NREC3,
      +              MREQPE,MHISPE,MSNGPE,MCMPRS,MTHRD,MXREC,MATMON,
      +              LFITNP,LFITBB,MNRSEL,LBMNRS(100),
      +              NCACHE,FCACHE(3),MTHRDR,MNRSIT
@@ -121,6 +121,7 @@
 *     MATSTO = matrix storage mode
 *     MPRINT = print flag
 *     MDEBUG = debug flag
+*     MDEBG2 = number of measurements for record debug printout
 *     MREQEN = min number of entries
 *     INTRAC = 0 batch, =1 interactive
 *     MITERA = number of iterations

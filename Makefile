@@ -31,8 +31,7 @@ NUMBER_OF_WORDS = 100000000 # =400 MB
 # Define the size of LARGE integers (4: INTERGER*4, 8: INTEGER*8)
 LARGE_SIZE=8
 # ompP profiler (http://www.ompp-tool.com)
-OMPP = 
-#kinst-ompp
+OMPP = kinst-ompp
 #
 FCOMP = $(OMPP) gcc
 F_FLAGS = -Wall -fautomatic -fno-backslash -O3 ${LARGE_MEMORY_OPT}

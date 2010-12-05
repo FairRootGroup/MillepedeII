@@ -213,7 +213,7 @@
       WRITE(*,*) ' '
       WRITE(*,*) 'Error: too many words required for array ',CCH
       WRITE(*,*) 'Request for array ',CCH,' with',ND,' words.'
-      STOP 
+      STOP 'recompile with larger memory'
       GOTO 02
    
       ENTRY MEGSPC(NWORDS) ! --------------- return number of free words

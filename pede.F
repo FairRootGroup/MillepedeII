@@ -308,8 +308,8 @@ c       END IF
             WRITE(8,*) 'Record',NREC2,' has largest Chi^2/Ndf:',VALUE2
          END IF
       END IF
-      IF(NRECER.GT.0) THEN
-         WRITE(8,*) 'Record',NRECER,
+      IF(NREC3.LT.MAXI4) THEN
+         WRITE(8,*) 'Record',NREC3,
      +               ' is first with error (rank deficit/NaN)'
       ENDIF
       WRITE(8,*) ' '
@@ -802,7 +802,7 @@ c     +                LABEL,ITGBI,IVGB
             WRITE(*,*) 'Histogram of record length'
             CALL HMPRNT(1) 
             WRITE(*,*) 'PEREAD record length ',N,', buffer is',2*NDIMB 
-            STOP 'PEREAD: stop                                  '
+            STOP 'recompile with larger buffer size (NDIMB)'
          END IF
 *
  07      CONTINUE
@@ -1278,6 +1278,7 @@ c      END IF
      
 
       IF(NEWITE.AND.ITERAT.EQ.2) THEN 
+         IF(NRECPR.NE.0.OR.NRECP2.NE.0) NRECER=NREC3
          IF(NRECPR.LT.0) THEN
             NRECPR=NREC1
          END IF
@@ -1322,7 +1323,7 @@ c         IF(NHISTP.NE.0) CALL HMPRNT(11) ! Nlocal
             WRITE(LUN,101) ' NBNDX',NBNDX,'max band width'
          ENDDO
       ENDIF
-*             
+*
       LASTIT=ITERAT
 
  101  FORMAT(1X,A6,' =',I10,' = ',A)
@@ -1521,7 +1522,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
                IJ=MQ(INDU+IA)-IA+JA
                IF(IA.GT.1.AND.IJ.LE.MQ(INDU+IA-1)) IJ=0
                IF(IJ.NE.0) DQ(INDV/2+IJ)=DQ(INDV/2+IJ)+ADD
-               IF(IJ.LT.0.OR.IJ.GT.LNDV/2) STOP          
+               IF(IJ.LT.0.OR.IJ.GT.LNDV/2) STOP 'MUPDAT: bad index'
             ELSE                  ! Lagrange multiplier
                IJ=MQ(INDU+NVGB)+(IA-NVGB-1)*NVGB+JA
                IF(IJ.NE.0) DQ(INDV/2+IJ)=DQ(INDV/2+IJ)+ADD
@@ -1578,19 +1579,23 @@ c 103  FORMAT(I13,3X,A,G12.4)
       GLDER(I)=QM(IDOT4+I)
 *
       ICHUNK=MIN((MQ(IDOT3)+MTHRD-1)/MTHRD/8+1,256)
-      DO K=1,MTHRD*5         ! reset header, 3 words per thread:
+      DO K=1,MTHRD*9         ! reset header, 3 words per thread:
         MQ(IND5+K)=0         !    number of entries, offset to data, indices
       ENDDO
 C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
+      NPRDBG=0
+      IPRDBG=-1
       
 *
 !$OMP  PARALLEL DO                       ! parallelize record loop
 !$OMP&  DEFAULT(PRIVATE) 
 !$OMP&  SHARED(MQ,QM,DQ,IND0,INDA,INDC,INDE,INDF,IDOT2,IDOT3,IDOT4,NLG,
-!$OMP&     NAGBN,ICALCM,ICHUNK,NLOOPN,NBNDR,NBDRX,NBNDX,VALUE1,VALUE2,
+!$OMP&     NAGBN,ICALCM,ICHUNK,NLOOPN,NRECER,NPRDBG,IPRDBG,
 !$OMP&     NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,IND5,INDH,MTHRD,
-!$OMP&     DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB,NRECER)  ! 'global' variables 
-!$OMP&  REDUCTION(+:NDFS,DCHI2S,NREJ) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
+!$OMP&     DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB)  ! 'global' variables 
+!$OMP&  REDUCTION(+:NDFS,DCHI2S,NREJ,NBNDR) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
+!$OMP&  REDUCTION(MAX:NBNDX,NBDRX)
+!$OMP&  REDUCTION(MIN:NREC3)
 !$OMP&  SCHEDULE(DYNAMIC,ICHUNK)
       DO IBUF=1,MQ(IDOT2)           ! buffer for current record
        NRC=MQ(IDOT3+ISFRST(IBUF)-2)   ! record 
@@ -1600,18 +1605,17 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
        IOFFC=MQ(INDC-1)*IPROC                                    ! offset 'c'.
        IOFFE=MQ(INDE-1)*IPROC                                    ! offset 'e'
        IOFFD=MQ(INDH-1)*IPROC+MQ(IND5+MTHRD  +IPROC+1)           ! offset data
-       IOFFI=MQ(IND5-1)*IPROC+MQ(IND5+MTHRD*2+IPROC+1)+MTHRD*5+2 ! offset indices
+       IOFFI=MQ(IND5-1)*IPROC+MQ(IND5+MTHRD*2+IPROC+1)+MTHRD*9+2 ! offset indices
 *     ----- reset ------------------------------------------------------
        LPRNT=.FALSE.
        LHIST=(IPROC.EQ.0)
        REC=NRC            ! floating point value
+       IF(NLOOPN.EQ.1.AND.MOD(NRC,100000).EQ.0) THEN 
+        WRITE(*,*) 'Record',NRC,' ... still reading'
+       END IF
 *
-*      printout/debug only for master thread
+*      printout/debug only for one thread at a time
 *
-       IF (IPROC.EQ.0) THEN
-        IF(NLOOPN.EQ.1.AND.MOD(NRC,100000).EQ.0) THEN 
-         WRITE(*,*) 'Record',NRC,' time ',DELTA,' ... still reading'
-        END IF
 
 *      flag for record printout -----------------------------------------
 
@@ -1619,9 +1623,15 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
         IF(NEWITE.AND.(ITERAT.EQ.1.OR.ITERAT.EQ.3)) THEN
          IF(NRC.EQ.NRECPR) LPRNT=.TRUE.
          IF(NRC.EQ.NRECP2) LPRNT=.TRUE.
-         IF((NRECPR.NE.0.OR.NRECP2.NE.0)
-     +     .AND.NRC.EQ.NRECER) LPRNT=.TRUE.
+         IF(NRC.EQ.NRECER) LPRNT=.TRUE.
         END IF
+        IF (LPRNT)THEN
+!$OMP ATOMIC
+         NPRDBG=NPRDBG+1               ! number of threads with debug
+         IF (NPRDBG.EQ.1) IPRDBG=IPROC ! first thread with debug
+         IF (IPROC.NE.IPRDBG) LPRNT=.FALSE.
+*         print *, ' LPRNT ', NRC, NPRDBG, IPRDBG, IPROC, LPRNT
+        ENDIF
         IF(LPRNT) THEN
          WRITE(1,*) ' '
          WRITE(1,*) '------------------ Loop',NLOOPN,
@@ -1652,8 +1662,9 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
          NST=ISLAST(IBUF)
 1026     CALL ISJAJB(NST,IST,JA,JB,JSP)
          IF(JA.NE.0) THEN
-            IF(IMEAS.EQ.0) WRITE(1,1123)
-            IMEAS=IMEAS+1
+           IF(IMEAS.EQ.0) WRITE(1,1123)
+           IMEAS=IMEAS+1
+           IF (JB.LT.IST) THEN
             IF(IST-JB.GT.2) THEN
             WRITE(1,1124) IMEAS,(JTGBL(INDER(JB+J)),INDER(JB+J),
      +      JVGBI(INDER(JB+J)),GLDER(JB+J),J=1,IST-JB)
@@ -1661,14 +1672,14 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
             WRITE(1,1125) IMEAS,(JTGBL(INDER(JB+J)),INDER(JB+J),
      +      JVGBI(INDER(JB+J)),GLDER(JB+J),J=1,IST-JB)
             END IF
-            GOTO 1026
+           ENDIF
+           GOTO 1026
          END IF
 1123     FORMAT(/'Global derivatives'/
      +   '  i  label gindex vindex derivative ...')   
 1124     FORMAT(I3,2(I9,I7,I7,G12.4)/(3X,2(I9,I7,I7,G12.4)))
 1125     FORMAT(I3,2(I9,I7,I7,G12.4))
         END IF
-       ENDIF
 
 *      ----- first loop -------------------------------------------------
 *       ------ prepare local fit ------ 
@@ -1708,8 +1719,9 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
            ENDIF
           END DO
           IF(LPRNT) THEN
-             IMEAS=IMEAS+1 
-             WRITE(1,102) IMEAS,GLDER(JA),RMEAS,GLDER(JB) 
+             IMEAS=IMEAS+1
+             IF (JB.LT.IST) 
+     +         WRITE(1,102) IMEAS,GLDER(JA),RMEAS,GLDER(JB) 
           END IF
           QM(IDOT4+JA)=RMEAS               ! global contribution subtracted
           DO J=1,JB-JA-1              ! local parameter loop
@@ -2002,18 +2014,17 @@ c          SUWT=SUWT+DCHI2/DCHIT
         IF(ITER.EQ.1) CALL HMPENT( 5,FLOAT(NDF))  ! histogram Ndf      
         IF(ITER.EQ.1) CALL HMPENT(11,FLOAT(NALC)) ! histogram Nlocal      
         IF(NLOOPN.EQ.2.AND.ITER.EQ.NTER) CALL HMPENT(6,RESING)
-        IF(LPRNT) THEN
-           WRITE(1,*) ' '
-           WRITE(1,*) 'Chi^2=',SUMM,' at',NDF,' degrees of freedom: ',
-     +     '3-sigma limit is',CHINDL(3,NDF)*FLOAT(NDF)
-
-           WRITE(1,*) SUWT,' is sum of factors, compared to',NWEIG,
-     +               ' Downweight fraction:',RESING    
-        END IF
        ENDIF
+       IF(LPRNT) THEN
+         WRITE(1,*) ' '
+         WRITE(1,*) 'Chi^2=',SUMM,' at',NDF,' degrees of freedom: ',
+     +   '3-sigma limit is',CHINDL(3,NDF)*FLOAT(NDF)
+         WRITE(1,*) SUWT,' is sum of factors, compared to',NWEIG,
+     +             ' Downweight fraction:',RESING 
+       END IF
        IF(NRANK.NE.NALC.OR.NAN.GT.0) THEN
           NREJ(0)=NREJ(0)+1         ! count cases
-          IF (NRECER.LE.0.AND.IPROC.EQ.0) NRECER=NRC
+          IF (NREC3.EQ.MAXI4) NREC3=NRC
           IF(LPRNT) THEN
             WRITE(1,*) ' rank deficit/NaN ', NALC, NRANK, NAN
             WRITE(1,*) '   ---> rejected!'
@@ -2037,10 +2048,10 @@ c          SUWT=SUWT+DCHI2/DCHIT
 
 *      ----- reject eventually ------------------------------------------
 
-       IF(NEWITE.AND.ITERAT.EQ.2.AND.IPROC.EQ.0) THEN ! find record with largest Chi^2/Ndf
-          IF(NRECP2.LT.0.AND.CHNDF.GT.VALUE2) THEN
-             VALUE2=CHNDF
-             NREC2 =NRC
+       IF(NEWITE.AND.ITERAT.EQ.2) THEN ! find record with largest Chi^2/Ndf
+          IF(NRECP2.LT.0.AND.CHNDF.GT.QM(IND5+MTHRD*8+IPROC+1)) THEN
+             QM(IND5+MTHRD*8+IPROC+1)=CHNDF
+             MQ(IND5+MTHRD*7+IPROC+1)=NRC
           END IF
        END IF
 
@@ -2096,10 +2107,10 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
           GOTO 90
        END IF 
 
-       IF(NEWITE.AND.ITERAT.EQ.2.AND.IPROC.EQ.0) THEN ! find record with largest residual
-          IF(NRECPR.LT.0.AND.RESMAX.GT.VALUE1) THEN
-             VALUE1=RESMAX
-             NREC1 =NRC
+       IF(NEWITE.AND.ITERAT.EQ.2) THEN ! find record with largest residual
+          IF(NRECPR.LT.0.AND.RESMAX.GT.QM(IND5+MTHRD*6+IPROC+1)) THEN
+             QM(IND5+MTHRD*6+IPROC+1)=RESMAX
+             MQ(IND5+MTHRD*5+IPROC+1)=NRC
           END IF 
        END IF 
  
@@ -2191,7 +2202,7 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
         NB=MQ(IND5+IPROC+1)
 C        print *, ' flush ', IPROC, NRC, NB, NFRED, NFREI
         JOFFD=MQ(INDH-1)*IPROC           ! offset data
-        JOFFI=MQ(IND5-1)*IPROC+MTHRD*5+2 ! offset indices
+        JOFFI=MQ(IND5-1)*IPROC+MTHRD*9+2 ! offset indices
         USED=FLOAT(MQ(IND5+MTHRD  +IPROC+1))/FLOAT(MQ(INDH-1))
         MQ(IND5+MTHRD*3+IPROC+1)=MQ(IND5+MTHRD*3+IPROC+1)
      &                          +IFIX(1000.0*USED+0.5)
@@ -2265,7 +2276,7 @@ C        print *, ' flush ', IPROC, NRC, NB, NFRED, NFREI
         NB=MQ(IND5+JPROC+1)
 C        print *, ' flush end ', JPROC, NRC, NB
         JOFFD=MQ(INDH-1)*JPROC           ! offset data
-        JOFFI=MQ(IND5-1)*JPROC+MTHRD*5+2 ! offset indices
+        JOFFI=MQ(IND5-1)*JPROC+MTHRD*9+2 ! offset indices
         DO IB=1,NB
 C         print *, '   buf end ', JPROC,IB,MQ(IND5+JOFFI-1),MQ(IND5+JOFFI)
          IJN=0 
@@ -2286,6 +2297,25 @@ C         print *, '   buf end ', JPROC,IB,MQ(IND5+JOFFI-1),MQ(IND5+JOFFI)
         ENDDO
        ENDDO
 !$OMP END PARALLEL
+      ENDIF
+*
+      IF(NEWITE.AND.ITERAT.EQ.2) THEN ! get worst records (for printrecord -1 -1)
+       IF (NRECPR.LT.0) THEN
+        DO K=1,MTHRD
+         IF (QM(IND5+MTHRD*6+K).GT.VALUE1) THEN
+          VALUE1=QM(IND5+MTHRD*6+K)
+          NREC1 =MQ(IND5+MTHRD*5+K)
+         ENDIF
+        ENDDO
+       ENDIF
+       IF (NRECP2.LT.0) THEN
+        DO K=1,MTHRD
+         IF (QM(IND5+MTHRD*8+K).GT.VALUE2) THEN
+          VALUE2=QM(IND5+MTHRD*8+K)
+          NREC2 =MQ(IND5+MTHRD*7+K)
+         ENDIF
+        ENDDO
+       ENDIF
       ENDIF
 *
       END  
@@ -2798,8 +2828,10 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
          IF(2*MQ(INDA-1).EQ.LNDA) THEN
             CALL MEGSPC(NWORDS)       ! nr of free words
             LND=MIN(2*LNDA,LNDA+NWORDS/2)
-            IF (.NOT.(LND.GT.LNDA.AND.LND.LE.MAXI4))
-     +         STOP ' INONE: too many items '
+            IF (.NOT.(LND.GT.LNDA.AND.LND.LE.MAXI4)) THEN
+               WRITE(*,*) 'INONE: too many items' 
+               STOP 'recompile with larger memory'
+            ENDIF
             MQ(INDA-3)=LND/2
             CALL UPONE          ! update with larger dimension
             WRITE(LUNLOG,*) 'INONE: array increased to',
@@ -2906,7 +2938,7 @@ c     +   +LNDF/2
             MQ(INDF-5)=MQ(INDF-5)+1      ! overflow
             WRITE(*,*) 'INTWO: ovfl return with J=',
      +                  J,MQ(INDF-1),LNDF/2
-            STOP 'recompile with large memory'
+            STOP 'recompile with larger memory'
             RETURN
          END IF
          MQ(INDF-1)=MQ(INDF-1)+1         ! increase number of elements
@@ -2919,11 +2951,13 @@ c     +   +LNDF/2
             CALL MEGSPC(NWORDS)
             IF(NWORDS.LT.100) THEN
                WRITE(*,*) 'insufficient space for INTWO routine' 
-               STOP 'recompile with large memory'
+               STOP 'recompile with larger memory'
             END IF
             LND=MIN(2*LNDF,LNDF+NWORDS/2)
-            IF (.NOT.(LND.GT.LNDF.AND.LND.LE.MAXI4))
-     +         STOP ' INTWO: too many item pairs '
+            IF (.NOT.(LND.GT.LNDF.AND.LND.LE.MAXI4)) THEN
+               WRITE(*,*) 'INTWO: too many item pairs '
+               STOP 'recompile with larger memory'
+            ENDIF
             MQ(INDF-3)=LND/2 
             CALL UPTWO          ! update with larger dimension
             WRITE(LUNLOG,*) 'INTWO: array increased to',
@@ -3069,7 +3103,7 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+LNDF/2
        IF(MQ(INDF+L+L-1).NE.IROW) GOTO 50
        JCOL=MQ(INDF+L+L)
        IF(K.EQ.NSPARS) THEN
-          STOP '[MSPARS: too small]                        '
+          STOP 'MSPARS: column list too short'
        END IF
        K=K+1
        MQ(INDD+K)=JCOL
@@ -3377,7 +3411,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
             IF (MXBITS.LE.0) THEN
                WRITE(*,*)  'STOP: not enough memory '//
      &            'for bit storage of off-diagonal elements'
-               STOP
+               STOP 'recompile with larger memory'
             ELSEIF (ISAVES.GT.MXBITS) THEN
                ISAVES=MXBITS
                MXCNT=2**MXBITS-1
@@ -3402,6 +3436,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
       NAEQNA=0  ! all
       WRITE(LUNLOG,*) 'LOOP2: start event reading'
 *     monitoring for sparse matrix?
+      IRECMM=0
       IF (MATSTO.EQ.2.AND.ISAVES.GT.0.AND.MATMON.NE.0) THEN
          NMATMO=0
          IF (MATMON.GT.0) THEN
@@ -3436,16 +3471,15 @@ c      IF(NREC.LE.100001) WRITE(*,*) 'Record ',NREC
 *     Printout for DEBUG 
       IF(MDEBUG.NE.0.AND.NREC.LE.3) THEN
          NDA=0
+         WRITE(*,*) ' '
          WRITE(*,*) 'Record number ',NREC
          IST=ISFRST(IBUF)
          NST=ISLAST(IBUF)
  12      CALL ISJAJB(NST,IST,JA,JB,JSP)
          IF(JA.NE.0) THEN
             NDA=NDA+1
-            IF(NDA.EQ.11) THEN
-               WRITE(*,*) '... and more data'
-               GOTO 12
-            ELSE IF(NDA.GT.11) THEN
+            IF(NDA.GT.MDEBG2) THEN
+               IF(NDA.EQ.MDEBG2+1)  WRITE(*,*) '... and more data'
                GOTO 12
             END IF 
             WRITE(*,*) ' '
@@ -3454,16 +3488,19 @@ c      IF(NREC.LE.100001) WRITE(*,*) 'Record ',NREC
             WRITE(*,*) 'Local derivatives:' 
             WRITE(*,107) (INDER(JA+J),GLDER(JA+J),J=1,JB-JA-1)
  107        FORMAT(6(I3,G12.4))
-            WRITE(*,*) 'Global derivatives:'
-            WRITE(*,108) (JTGBL(INDER(JB+J)),INDER(JB+J),
-     +                    JVGBI(INDER(JB+J)),GLDER(JB+J),J=1,IST-JB)
- 108        FORMAT(3I11,G12.4)
+            IF (JB.LT.IST) THEN
+             WRITE(*,*) 'Global derivatives:'
+             WRITE(*,108) (JTGBL(INDER(JB+J)),INDER(JB+J),
+     +                     JVGBI(INDER(JB+J)),GLDER(JB+J),J=1,IST-JB)
+ 108         FORMAT(3I11,G12.4)
+            ENDIF
             IF(NDA.EQ.1) THEN
                WRITE(*,*)
      +         'total_par_label  __label__   var_par_index   derivative'
             END IF
             GOTO 12
          END IF
+         WRITE(*,*) ' '
       END IF
 
       NAGBN =0                     ! count number of global derivatives
@@ -3508,6 +3545,7 @@ c         GOTO 15
 
  18   CONTINUE ! end-of-event
       IF (NAEQNF.GT.MAEQNF) NRECF=NRECF+1
+      IRECMM=IRECMM+1
 *     end-of-event-end-of-event-end-of-event-end-of-event-end-of-event-e
 
       MQ(INDC-1)=MAX(NAGBN,MQ(INDC-1)) ! maximum number of global parameters
@@ -3518,38 +3556,6 @@ c         GOTO 15
       DSTAT(1)=DSTAT(1)+DFLOAT((NWRD+2)*2)               ! record size
       DSTAT(2)=DSTAT(2)+DFLOAT(NAGBN+2)                  ! indices,
       DSTAT(3)=DSTAT(3)+DFLOAT(NAGBN*NAGBN+NAGBN)        ! data for MUPDAT
-
-*     this section for sparse matrix mode requires cpu time! 
-
-      IF(MATSTO.EQ.2) THEN            ! only for sparse matrix mode
-
-*        monitoring
-         IF (ISAVES.GT.0.AND.MATMON.NE.0.AND.
-     &      (NREC.EQ.NRECMM.OR.NREC.EQ.MXREC)) THEN
-            IF (NMATMO.EQ.0) THEN
-               WRITE(*,*)
-               WRITE(*,*) 'Monitoring of sparse matrix construction'
-               WRITE(*,*) '  record ........ off-diagonal elements ',
-     &                    '....... compression   memory'
-               WRITE(*,*) '             non-zero used(double)  used',
-     &                    '(float)       [%]       [GB]'
-            ENDIF
-            NMATMO=NMATMO+1
-            JCMPRS=MAX(MCMPRS,MSNGPE)
-            CALL CKBITS(NDIMSA,MQ(INDF+1),MREQPE,JCMPRS)
-            GBC=4.0E-9*FLOAT(NDIMSA(2)+2*NDIMSA(3)+NDIMSA(4)) ! GB compressed
-            GBU=1.2E-8*FLOAT(NDIMSA(3)+NDIMSA(4))             ! GB uncompressed
-            CPR=100.0*GBC/GBU
-            WRITE(*,1177) NREC,NDIMSA(1),NDIMSA(3),NDIMSA(4),CPR,GBC
- 1177       FORMAT(I9,3I13,F10.2,F11.6)
-            IF (MATMON.GT.0) THEN
-               NRECMM=NRECMM+MATMON
-            ELSE
-               NRECMM=NRECMM*2
-            ENDIF
-         ENDIF
-*
-      END IF
 
       CALL SORT1K(MQ(INDC+1),NAGBN) ! sort global par.
       IOFF=IOFF+1
@@ -3594,6 +3600,34 @@ c         GOTO 15
          END DO
         ENDDO
 !$OMP END PARALLEL
+*        monitoring
+         IF (ISAVES.GT.0.AND.MATMON.NE.0.AND.
+     &      (IRECMM.GE.NRECMM.OR.IRECMM.EQ.MXREC)) THEN
+            IF (NMATMO.EQ.0) THEN
+               WRITE(*,*)
+               WRITE(*,*) 'Monitoring of sparse matrix construction'
+               WRITE(*,*) ' records ........ off-diagonal elements ',
+     &                    '....... compression   memory'
+               WRITE(*,*) '             non-zero used(double)  used',
+     &                    '(float)       [%]       [GB]'
+            ENDIF
+            NMATMO=NMATMO+1
+            JCMPRS=MAX(MCMPRS,MSNGPE)
+            CALL CKBITS(NDIMSA,MQ(INDF+1),MREQPE,JCMPRS)
+            GBC=4.0E-9*FLOAT(NDIMSA(2)+2*NDIMSA(3)+NDIMSA(4)) ! GB compressed
+            GBU=1.2E-8*FLOAT(NDIMSA(3)+NDIMSA(4))             ! GB uncompressed
+            CPR=100.0*GBC/GBU
+            WRITE(*,1177) IRECMM,NDIMSA(1),NDIMSA(3),NDIMSA(4),CPR,GBC
+ 1177       FORMAT(I9,3I13,F10.2,F11.6)
+   25       CONTINUE
+            IF (MATMON.GT.0) THEN
+               NRECMM=NRECMM+MATMON
+            ELSE
+               NRECMM=NRECMM*2
+            ENDIF
+            IF (IRECMM.GE.NRECMM) GOTO 25
+         ENDIF
+*
       ENDIF
 *
       IF (NR.GT.0) GOTO 10 ! ... to read next block of events
@@ -3775,7 +3809,7 @@ c         GOTO 15
       NCACHI=IFIX(FLOAT(NCACHE)*FCACHE(2)+0.5) ! index cache
       NCACHD=NCACHE-NCACHR-NCACHI              ! data cache
       NGGD=(NAGBN*NAGBN+NAGBN)/2+NCACHD/(2*MTHRD) ! number of double
-      MGGI=5                                      ! header length
+      MGGI=9                                      ! header length
       NGGI=2+NAGBN+NCACHI/MTHRD                   ! number of ints
       CALL MEGARR('c I',NAGBN*MTHRD,
      &   'global parameters (dim =max/event)')
@@ -3786,7 +3820,7 @@ c         GOTO 15
       CALL MEGARR('h D',2*NGGD*MTHRD,
      &                 'symmetric update matrices')
       MQ(INDH-1)=NGGD                  ! number of words per thread
-      MQ(less)=(NAGBN*NAGBN+NAGBN)/2 ! min free (double) words
+      MQ(INDH-2)=(NAGBN*NAGBN+NAGBN)/2 ! min free (double) words
       CALL MEGARR('5 I',(NGGI+MGGI)*MTHRD,
      &                 'symmetric update matrix indices')
       MQ(IND5  )=MGGI
@@ -4046,7 +4080,7 @@ C         CALL MEGARR('t D',2*NAGB,'auxiliary array')  ! double aux 8
          WRITE(*,*) 'Space: double words left ',NWORDS/2,NMATS  
          IF(NMATS.LT.6) THEN
             WRITE(*,*) 'Insufficient space - stop'
-            STOP  
+            STOP 'recompile with larger memory'
          END IF 
          IF(METSOL.EQ.3) THEN
             CALL MEGARR('l D',6*2*NAGB,'auxiliary array')  ! double aux 1
@@ -4933,6 +4967,7 @@ c 103  FORMAT(1X,A,G12.4)
       MATSTO=2  ! reset matrix storage mode
       MPRINT=0  ! reset print flag
       MDEBUG=0  ! reset debug flag
+      MDEBG2=10 ! number of measurements for record debug printout
       MREQEN=10 ! required number of entries 
       MITERA=1  ! number of iterations
       NLOOPN=0  ! number of data reading, fitting loops
@@ -4969,7 +5004,8 @@ c 103  FORMAT(1X,A,G12.4)
       NBNDR =0  ! number of records with bordered band matrix for local fit
       NBDRX =0  ! max border size for local fit
       NBNDX =0  ! max band width for local fit
-      NRECER=0  ! (1.) record with error (rank deficit or Not-a-Number)
+      NRECER=0  ! record with error (rank deficit or Not-a-Number) for printout
+      NREC3 =MAXI4  ! (1.) record number with error
       MREQPE=1  ! min number of pair entries
       MHISPE=0  ! upper bound for pair entry histogrammimg
       MSNGPE=0  ! upper bound for pair entry single precision storage
@@ -5569,7 +5605,8 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             MDEBUG=1
 * GF            IF(NUMS.GT.0) MPRINT=DNUM(1)
             IF(NUMS.GT.0) MDEBUG=DNUM(1)
-            RETURN
+            IF(NUMS.GT.1) MDEBG2=DNUM(2)
+           RETURN
          END IF
 
          KEYSTX='entries'
