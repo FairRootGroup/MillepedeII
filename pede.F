@@ -28,10 +28,11 @@
 
 *     millepede.log file
       LUNLOG=8
+      LVLLOG=1
       CALL MVOPEN(LUNLOG,'millepede.log')
       CALL GETENV('HOSTNAME',CHOST)
       IF (CHOST(1:1).EQ.' ') CALL GETENV('HOST',CHOST)
-      WRITE(*,*) '($Rev$)'     
+      WRITE(*,*) '($Rev$)'
 !$    WRITE(*,*) 'using OpenMP (TM)'
       WRITE(*,*) ' '
       WRITE(*,*) '  <  Millepede II-P starting ... ',CHDATE 
@@ -49,8 +50,9 @@ C     CALL MEGDEB  ! debug switched on
 
 *     read command line and text files
 
-      CALL FILETC  ! command line and steering file analysis
-      CALL FILETX  ! read text files
+      CALL FILETC   ! command line and steering file analysis
+      CALL FILETX   ! read text files
+      LVLLOG=MPRINT ! export print level
 !$    WRITE(*,*)
 !$    NPROC=1
 !$    MXTHRD=1
@@ -685,7 +687,7 @@ c     +                LABEL,ITGBI,IVGB
 
       DATA PRINT/.TRUE./
       DATA FLOOP/.TRUE./
-      DATA NPRI / 1000 /
+      DATA NPRI / 0 /, MPRI / 1000 /
 *     ...
       IF(IFILE.EQ.0) THEN  ! start/restart
          NREC=0
@@ -877,9 +879,14 @@ c     +                LABEL,ITGBI,IVGB
          ENDIF
          GOTO 55
       ENDIF
-      IF (NLOOPN.LE.1.AND.NPRI.GT.0) THEN
-         NPRI=NPRI-1
-         WRITE(8,*) ' PeRead ', NREC, NRD, MORE ,IFILE
+      IF (NCACHE.GT.0.AND.NLOOPN.LE.1.AND.
+     +    NPRI.LT.MPRI.AND.MPRINT.GT.1) THEN
+         NPRI=NPRI+1
+         IF (NPRI.EQ.1) WRITE(*,100)
+         WRITE(*,101) NREC, NRD, MORE ,IFILE
+  100    FORMAT(/' PeRead        records         active      file'
+     +          /'            total     block   threads    number')
+  101    FORMAT(' PeRead',4I10)
       ENDIF
 *
       IF (MORE.LE.0) THEN
@@ -892,6 +899,10 @@ c     +                LABEL,ITGBI,IVGB
          ENDIF
          PRINT=.FALSE.
          FLOOP=.FALSE.
+         IF (NCACHE.GT.0.AND.NLOOPN.LE.1.AND.MPRINT.GT.0)
+     &     WRITE(*,1179) (MQ(IDOT3-K),K=3,6)
+ 1179      FORMAT(/' Read  cache usage (#blocks, #records, ',
+     &            'min,max records/block'/17X,4I10)
       ENDIF
       END
 
@@ -1266,7 +1277,7 @@ c      WRITE(*,*) 'NREGUL ',NREGUL,NLOOPN
          IF(NREJ.NE.0) THEN
             WRITE(*,*) ' '
             WRITE(*,*) 'Data rejected in initial loop:'
-           WRITE(*,*) '   ',
+            WRITE(*,*) '   ',
      +      NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +      NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'           
          END IF 
@@ -2834,8 +2845,9 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
             ENDIF
             MQ(INDA-3)=LND/2
             CALL UPONE          ! update with larger dimension
-            WRITE(LUNLOG,*) 'INONE: array increased to',
-     +                       LNDA,' words'  
+            IF (LVLLOG.GT.1)
+     +         WRITE(LUNLOG,*) 'INONE: array increased to',
+     +                         LNDA,' words'  
             GOTO 20             ! redefine index 
          END IF   
       END IF
@@ -2878,9 +2890,11 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       END DO
       IF(MQDIFF.NE.0) RETURN
       MQ(INDA-2)=1       ! set flag to inhibit further updates
-      WRITE(LUNLOG,*) ' '
-      WRITE(LUNLOG,*) 'INONE: array reduced to',LNDA,' words' 
-      WRITE(LUNLOG,*) 'INONE:',MQ(INDA-1),' items stored.'
+      IF (LVLLOG.GT.1) THEN
+       WRITE(LUNLOG,*) ' '
+       WRITE(LUNLOG,*) 'INONE: array reduced to',LNDA,' words' 
+       WRITE(LUNLOG,*) 'INONE:',MQ(INDA-1),' items stored.'
+      ENDIF
       END 
 
 
@@ -2960,8 +2974,9 @@ c     +   +LNDF/2
             ENDIF
             MQ(INDF-3)=LND/2 
             CALL UPTWO          ! update with larger dimension
-            WRITE(LUNLOG,*) 'INTWO: array increased to',
-     +                       LNDF,' words'
+            IF (LVLLOG.GT.1)
+     +         WRITE(LUNLOG,*) 'INTWO: array increased to',
+     +                          LNDF,' words'
             GOTO 10             ! redefine index
          END IF
       END IF
@@ -3019,9 +3034,11 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+LNDF/2
        MQ(INDG+K)=I
       END DO
       IF(MQDIFF.NE.0) RETURN
-      WRITE(LUNLOG,*) ' '
-      WRITE(LUNLOG,*) 'INTWO: array reduced to',LNDF,' words' 
-      WRITE(LUNLOG,*) 'INTWO:',MQ(INDF-1),' pairs stored.'
+      IF (LVLLOG.GT.1) THEN
+       WRITE(LUNLOG,*) ' '
+       WRITE(LUNLOG,*) 'INTWO: array reduced to',LNDF,' words'
+       WRITE(LUNLOG,*) 'INTWO:',MQ(INDF-1),' pairs stored.'
+      ENDIF
       END
 
 
@@ -3295,8 +3312,8 @@ c          WRITE(*,111) I,ITGBL,QM(IND1+I)
        END IF  
       END DO
 c 111  FORMAT(I5,I10,F10.5,E12.4)       
-         WRITE(*,101) 'NTGB',NTGB,'total number of parameters'
-         WRITE(*,101) 'NVGB',NVGB,'number of variable parameters'
+      WRITE(*,101) 'NTGB',NTGB,'total number of parameters'
+      WRITE(*,101) 'NVGB',NVGB,'number of variable parameters'
 
 *     print overview over important numbers ----------------------------
 
@@ -3469,7 +3486,7 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
 c      IF(NREC.LE.100001) WRITE(*,*) 'Record ',NREC
 
 *     Printout for DEBUG 
-      IF(MDEBUG.NE.0.AND.NREC.LE.3) THEN
+      IF(NREC.LE.MDEBUG) THEN
          NDA=0
          WRITE(*,*) ' '
          WRITE(*,*) 'Record number ',NREC
@@ -3632,13 +3649,10 @@ c         GOTO 15
 *
       IF (NR.GT.0) GOTO 10 ! ... to read next block of events
 *     release read buffer
-      IF (NCACHE.GT.0)
-     &WRITE(LUNLOG,*) 'LOOP2: number of blocks  is',(MQ(IDOT3-K),K=3,6)
       CALL MEGRM('!')
       CALL MEGRM(';')
       CALL MEGRM(':')
 * 
-      WRITE(LUNLOG,*) 'LOOP2: number of records is',NREC
       WRITE(LUNLOG,*) 'LOOP2: event reading ended - end of data'
       DO K=1,3
         DSTAT(K)=DSTAT(K)/DFLOAT(NREC)
@@ -3722,7 +3736,8 @@ c         GOTO 15
               ELSE
                  CALL INBITS(IVGBIJ,IVGBIK,MREQPE,MQ(INDF+1))
               END IF
-              WRITE(*,*) 'add index pair ',IVGBIJ,IVGBIK 
+              IF (MPRINT.GT.1)
+     +           WRITE(*,*) 'add index pair ',IVGBIJ,IVGBIK
            END IF
           END DO
          END DO
@@ -3855,7 +3870,7 @@ c         GOTO 15
      +       'NALCN',NALCN,'max number of local parameters in an event' 
       WRITE(LU,101)
      +       'NAEQN',NAEQN,'max number of equations in an event' 
-      IF (MDEBUG.GT.0) THEN
+      IF (MPRINT.GT.1) THEN
          WRITE(LU,101) 'NAEQNA',NAEQNA,'number of equations'
          WRITE(LU,101) 'NAEQNG',NAEQNG,
      +   'number of equations with       global derivatives'
@@ -4632,7 +4647,7 @@ C                  CALL PLOOPA(LUNLOG)
       IF(3*NREJ.GT.NRECAL) THEN
          WRITE(*,*) ' '
          WRITE(*,*) 'Data rejected in previous loop:   '
-        WRITE(*,*) '   ',
+         WRITE(*,*) '   ',
      +   NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'    
          WRITE(*,*) 'Too many rejects (>33.3%) - stop'
@@ -4745,7 +4760,7 @@ C      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
       
       IF (NAN.GT.0) THEN
          WRITE(*,*) 'Result vector containes ', NAN,' NaNs - stop'
-        STOP
+         STOP
       ENDIF
       
 *     subito exit, if required -----------------------------------------
@@ -4783,7 +4798,7 @@ C      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
  91   IF(NREJEC(0)+NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
          WRITE(*,*) ' '
          WRITE(*,*) 'Data rejected in last loop:   '
-        WRITE(*,*) '   ',
+         WRITE(*,*) '   ',
      +   NREJEC(0), ' (rank deficit/NaN) ',NREJEC(1),' (Ndf=0)   ',
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'
       END IF
@@ -4965,8 +4980,8 @@ c 103  FORMAT(1X,A,G12.4)
       ICTEST=0  ! no test 
       METSOL=0  ! reset solution method
       MATSTO=2  ! reset matrix storage mode
-      MPRINT=0  ! reset print flag
-      MDEBUG=0  ! reset debug flag
+      MPRINT=1  ! reset print flag (0:minimal, 1:normal, >1: more)
+      MDEBUG=0  ! reset debug flag (number of records to print)
       MDEBG2=10 ! number of measurements for record debug printout
       MREQEN=10 ! required number of entries 
       MITERA=1  ! number of iterations
@@ -5128,7 +5143,7 @@ c 103  FORMAT(1X,A,G12.4)
  10   READ(10,102,END=20) TEXT        ! read steering file
       CALL RLTEXT(TEXT,IA,IB,NAB)     ! return indices for non-blank area
       NLINE=NLINE+1 
-      IF(NLINE.LE.50) THEN                ! print up to 50 lines
+      IF(NLINE.LE.50) THEN   ! print up to 50 lines
          WRITE(*,101) NLINE,TEXT(1:NAB)
          IF(NLINE.EQ.50)  WRITE(*,*) '     ...'
       END IF
@@ -5187,16 +5202,21 @@ c         STOP
 
 *     print table of files ---------------------------------------------  
 
-      WRITE(*,*) 'Table of files:'
+      IF (MPRINT.GT.1) THEN
+         WRITE(*,*) 'Table of files:'
+         WRITE(*,*) '---------------'
+      ENDIF
       WRITE(8,*) ' '
       WRITE(8,*) 'Text and data files:' 
-      WRITE(*,*) '---------------'
       DO I=1,NFILES
-       WRITE(*,103) I,BITE(MFD(I)),TFD(I)(1:LFD(I))
-       WRITE(8,103) I,BITE(MFD(I)),TFD(I)(1:LFD(I))
+         IF (MPRINT.GT.1)
+     +   WRITE(*,103) I,BITE(MFD(I)),TFD(I)(1:LFD(I))
+         WRITE(8,103) I,BITE(MFD(I)),TFD(I)(1:LFD(I))
       END DO
-      WRITE(*,*) '---------------'
-      WRITE(*,*) ' ' 
+      IF (MPRINT.GT.1) THEN
+         WRITE(*,*) '---------------'
+         WRITE(*,*) ' '
+      ENDIF
 
 *     open the binary (data) files on unit 11, 12, ...
  
@@ -5329,7 +5349,7 @@ c      CALL MSTART('FILETX')
           NLINMX=10 
           IF(MFD(I).NE.2) GOTO 80 ! exclude binary files
           WRITE(*,*) 'File ',TFD(I)(1:LFD(I))
-          WRITE(*,*) ' '
+          IF (MPRINT.GT.1) WRITE(*,*) ' '
           OPEN(10,FILE=TFD(I)(1:LFD(I)),IOSTAT=IOS,FORM='FORMATTED')
           IF(IOS.NE.0) THEN
               WRITE(*,*) 'Open error for file ',TFD(I)(1:LFD(I))
@@ -5343,7 +5363,7 @@ c      CALL MSTART('FILETX')
 *      read text file     
  30    READ(10,102,END=40) TEXT 
        NLINE=NLINE+1
-       IF(NLINE.LE.NLINMX) THEN ! print first 10 lines of every text file
+       IF(NLINE.LE.NLINMX.AND.MPRINT.GT.1) THEN ! print first 10 lines of every text file
           CALL RLTEXT(TEXT,IA,IB,NAB)
           NAB=MAX(1,NAB)
           WRITE(*,101) NLINE,TEXT(1:NAB)
@@ -5440,8 +5460,6 @@ c            MATSTO=1 ! default is symmetric matrix
          METSOL=3 ! forced
          MATSTO=2 ! forced
       END IF
-
-      IF(MDEBUG.EQ.0.AND.MPRINT.EQ.0) MPRINT=1
 
 *     print information about methods and matrix storage modes 
         
@@ -5602,7 +5620,7 @@ C         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN          
 c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
-            MDEBUG=1
+            MDEBUG=3
 * GF            IF(NUMS.GT.0) MPRINT=DNUM(1)
             IF(NUMS.GT.0) MDEBUG=DNUM(1)
             IF(NUMS.GT.1) MDEBG2=DNUM(2)
