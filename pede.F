@@ -169,10 +169,10 @@ c       END IF
           SUMS(I)=0.0D0
          END DO
          DO I=1,100
-          DIFF=-DEL(I)-DQ(IND0/2+I)
+          DIFF=SNGL(-DEL(I)-DQ(IND0/2+I))
           SUMS(1)=SUMS(1)+DIFF
           SUMS(2)=SUMS(2)+DIFF*DIFF
-          DIFF=-DVD(I)-DQ(IND0/2+100+I)
+          DIFF=SNGL(-DVD(I)-DQ(IND0/2+100+I))
           SUMS(3)=SUMS(3)+DIFF
           SUMS(4)=SUMS(4)+DIFF*DIFF
          END DO
@@ -192,9 +192,9 @@ c       END IF
          DO I=1,100
           WRITE(*,102) I,-DEL(I),DQ(IND0/2+I),-DEL(I)-DQ(IND0/2+I),
      +                -DVD(I),DQ(IND0/2+100+I),-DVD(I)-DQ(IND0/2+100+I)
-          DIFF=-DEL(I)-DQ(IND0/2+I)
+          DIFF=SNGL(-DEL(I)-DQ(IND0/2+I))
           CALL HMPENT( 9,DIFF)
-          DIFF=-DVD(I)-DQ(IND0/2+100+I)
+          DIFF=SNGL(-DVD(I)-DQ(IND0/2+100+I))
           CALL HMPENT(10,DIFF)
          END DO 
          IF(NHISTP.NE.0) THEN
@@ -220,14 +220,14 @@ c       END IF
         DO I=1,NLYR
          DO K=1,NMXY
           IX=IX+1
-          DIFF=-SDEVX((I-1)*NMXY+K)-DQ(IND0/2+IX)
+          DIFF=SNGL(-SDEVX((I-1)*NMXY+K)-DQ(IND0/2+IX))
           SUMS(1)=SUMS(1)+1.0D0
           SUMS(2)=SUMS(2)+DIFF
           SUMS(3)=SUMS(3)+DIFF*DIFF
           IXV=JVGBI(IX)
           IF (IXV.GT.0.AND.METSOL.EQ.1.OR.METSOL.EQ.2) THEN
            II=(IXV*IXV+IXV)/2
-           GMATI=DQ(IGMAT/2+II)
+           GMATI=SNGL(DQ(IGMAT/2+II))
            ERR=SQRT(ABS(GMATI))
            DIFF=DIFF/ERR
            SUMS(7)=SUMS(7)+1.0D0
@@ -238,14 +238,14 @@ c       END IF
          IF (MOD(I,3).EQ.1) THEN
           DO K=1,NMXY
            IY=IY+1
-           DIFF=-SDEVY((I-1)*NMXY+K)-DQ(IND0/2+IY)
+           DIFF=-SNGL(SDEVY((I-1)*NMXY+K)-DQ(IND0/2+IY))
            SUMS(4)=SUMS(4)+1.0D0
            SUMS(5)=SUMS(5)+DIFF
            SUMS(6)=SUMS(6)+DIFF*DIFF
            IXV=JVGBI(IY)
            IF (IXV.GT.0.AND.METSOL.EQ.1.OR.METSOL.EQ.2) THEN
             II=(IXV*IXV+IXV)/2
-            GMATI=DQ(IGMAT/2+II)
+            GMATI=SNGL(DQ(IGMAT/2+II))
             ERR=SQRT(ABS(GMATI))
             DIFF=DIFF/ERR
             SUMS(7)=SUMS(7)+1.0D0
@@ -278,7 +278,7 @@ c       END IF
          DO I=1,NLYR
          DO K=1,NMXY
           IX=IX+1
-           DIFF=-SDEVX((I-1)*NMXY+K)-DQ(IND0/2+IX)
+           DIFF=SNGL(-SDEVX((I-1)*NMXY+K)-DQ(IND0/2+IX))
            CALL HMPENT( 9,DIFF)                  
            WRITE(*,102) IX,-SDEVX((I-1)*NMXY+K),DQ(IND0/2+IX),-DIFF
          END DO
@@ -287,7 +287,7 @@ c       END IF
          IF (MOD(I,3).EQ.1) THEN
           DO K=1,NMXY
            IY=IY+1
-            DIFF=-SDEVY((I-1)*NMXY+K)-DQ(IND0/2+IY)
+            DIFF=SNGL(-SDEVY((I-1)*NMXY+K)-DQ(IND0/2+IY))
             CALL HMPENT(10,DIFF)                 
             WRITE(*,102) IY,-SDEVY((I-1)*NMXY+K),DQ(IND0/2+IY),-DIFF
           END DO       
@@ -330,9 +330,9 @@ c       END IF
      +             TIMES(5),TIMES(8),TIMES(3),TIMES(6)
       CALL ETIME(TA,RST) 
       DELTAT=RST-RSTP
-      NTSEC=DELTAT+0.5
+      NTSEC=NINT(DELTAT)
       CALL SECHMS(DELTAT,NHOUR,MINUT,SECND)
-      NSECND=SECND+0.5  ! round
+      NSECND=NINT(SECND)  ! round
       WRITE(8,*) 'Total time =',NTSEC,' seconds =',NHOUR,' h',MINUT,
      +           ' m',NSECND,' seconds'
       CALL FDATE(CHDATE)
@@ -371,7 +371,7 @@ C      CALL EXIT(ITEXIT)
       SUBROUTINE SOLGLO(IVGBI) ! single error from minres
 #include "largeint.inc"
 #include "dynal.inc"
-      DOUBLE PRECISION SHIFT,RTOL,ANORM,ACOND,RNORM,YNORM,GMATI
+      DOUBLE PRECISION SHIFT,RTOL,ANORM,ACOND,RNORM,YNORM,GMATI,DIAG
       EXTERNAL AVPROD, MVSOLV
       SAVE
 #include "mpinds.inc"
@@ -407,7 +407,7 @@ c     $                   AVPROD, Msolve, .TRUE. , .FALSE. , SHIFT,
 c     $                   NOUT , ITNLIM, rtol,
 c     $                   ISTOP, ITN, Anorm, Acond, rnorm, ynorm )
 
-      PAR=DQ(IND0/2+ITGBI)
+      PAR=SNGL(DQ(IND0/2+ITGBI))
       DPA=PAR-QM(IND2+ITGBI)
       GMATI=DQ(ISOLV/2+IVGBI)
       ERR=SQRT(ABS(SNGL(GMATI)))
@@ -451,7 +451,7 @@ c     +               CLIMIT,' are printed'
       DO ICGB=1,NCGB
 c       WRITE(*,*) 'Constraint ',ICGB 
        RHS=QM(IND8+I+2) ! right hand side
-       RHSI=RHS
+c       RHSI=RHS
        SGM=QM(IND8+I+4) ! sigma parameter
 c       WRITE(*,*) 'ADDCST   ',ICGB,RHS,SGM
        I=I+4
@@ -676,6 +676,7 @@ c     +                LABEL,ITGBI,IVGB
 
       SUBROUTINE PEREAD(MORE)
       LOGICAL PRINT,FLOOP
+      DOUBLE PRECISION DS0,DS1,DS2,DW
 !$    INTEGER OMP_GET_THREAD_NUM
       SAVE 
 #include "largeint.inc"
@@ -727,7 +728,7 @@ c     +                LABEL,ITGBI,IVGB
 !$OMP  PARALLEL
 !$OMP& DEFAULT(PRIVATE)
 !$OMP& SHARED(MQ,QM,IDOT2,IDOT3,IDOT4,LDOT2,NTHR,NFILF,FLOOP,
-!$OMP&       IFD,KFD,IFILE,NFILB)  ! 'global' variables 
+!$OMP&       IFD,KFD,IFILE,NFILB,WFD)  ! 'global' variables 
 !$OMP& NUM_THREADS(NTHR)
 *
       ITHR=0
@@ -793,7 +794,7 @@ c     +                LABEL,ITGBI,IVGB
          MQ(IDOT3+NOFF  )    =NOFF+NR         ! pointer to  end  of buffer
          MQ(IDOT3+NOFF-1)    =IFD(KFILE)+JREC ! global record number (available with LOOP2)
          MQ(IDOT4+NOFF  )    =KFILE           ! file number
-         MQ(IDOT4+NOFF-1)    =JREC            ! record number
+         QM(IDOT4+NOFF-1)    =WFD(KFILE)      ! weight
 *
          IF(FLOOP.AND.ITHR.EQ.0) THEN
             CALL HMPLNT(1,N)
@@ -892,9 +893,31 @@ c     +                LABEL,ITGBI,IVGB
       IF (MORE.LE.0) THEN
          IFILE=0
          IF (FLOOP) THEN
-            DO K=2,NFILB ! integrate record numbers
+*           check for file weights
+            DS0=0.0D0
+            DS1=0.0D0
+            DS2=0.0D0
+            DO K=1,NFILB
+               DW=DFLOAT(-KFD(1,K))
+               IF (WFD(K).NE.1.0) NFILW=NFILW+1
+               DS0=DS0+DW
+               DS1=DS1+DW*DBLE(WFD(K))
+               DS2=DS2+DW*DBLE(WFD(K)**2)
+            ENDDO
+            IF (NFILW.GT.0.AND.DS0.GT.0.0D0) THEN
+               DS1=DS1/DS0
+               DS2=DS2/DS0-DS1*DS1
+               DO LUN=6,LUNLOG,2
+                  WRITE(LUN,1177) NFILW,SNGL(DS1),SNGL(DS2)
+ 1177      FORMAT(/' !!!!!',I4,' weighted binary files',
+     &            /' !!!!! mean, variance of weights =',2G12.4)
+               ENDDO
+            ENDIF
+*           integrate record numbers
+            DO K=2,NFILB 
                IFD(K)=IFD(K-1)-KFD(1,K-1)
             ENDDO
+*           sort
             IF (NTHR.GT.1) CALL SORT2K(KFD,NFILB)
          ENDIF
          PRINT=.FALSE.
@@ -1018,7 +1041,7 @@ c     +                LABEL,ITGBI,IVGB
 #include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
-      DOUBLE PRECISION ADDER,FUNREF,DCHI2S
+      DOUBLE PRECISION ADDER,FUNREF,DCHI2S,SNDF
       INTEGER INIRIS
       COMMON/CIRIS/INIRIS
       SAVE
@@ -1037,6 +1060,7 @@ c     +                LABEL,ITGBI,IVGB
 
       NLOOPN=NLOOPN+1           ! increase loop counter
       NDFSUM=0
+      SUMNDF=0.0D0
 
       IF(NLOOPN.EQ.1) THEN      ! book histograms for 1. iteration
          CALL GMPDEF(1,4,'Function value in iterations') 
@@ -1106,17 +1130,18 @@ c         WRITE(*,111) ! header line
        MQ(IND5-K)=0  ! cache usage
        MQ(INDH-K)=0
       ENDDO
-      NDFST=0
 *     ----- read next data ----------------------------------------------
  10   CALL PEREAD(NR)  ! read records
       CALL PEPREP(1)   ! prepare records
-      NDFS=0
+      NDFS  =0
+      SNDF  =0.0D0
       DCHI2S=0.0D0
       CALL LOOPBF(NREJEC,
      &            NAGBN*NALCN,         DQ(IGLMA/2+1),      ! 'g'
      &            NAEQN,               QM(INDW+1),         ! 'w'
-     &            NDFS,DCHI2S) 
+     &            NDFS,SNDF,DCHI2S) 
       NDFSUM=NDFSUM+NDFS
+      SUMNDF=SUMNDF+SNDF
       CALL ADDSUM(DCHI2S)
       IF (NR.GT.0) GOTO 10 ! -> read next block of events 
 *     sum up RHS (over threads)
@@ -1136,7 +1161,7 @@ C        print *, ' cache/w ',(MQ(INDH-K),K=3,6),(MQ(IND5-K),K=3,6)
         USEI=FLOAT(MQ(IND5-5))/FLOAT(MQ(IND5-3))*0.1
         PEAKD=FLOAT(MQ(INDH-6))*0.1
         PEAKI=FLOAT(MQ(IND5-6))*0.1
-        WRITE(*,111), NPARL,NCRIT,USEI,USED,PEAKI,PEAKD
+        WRITE(*,111) NPARL,NCRIT,USEI,USED,PEAKI,PEAKD
   111   FORMAT(' Write cache usage (#flush,#overrun,<levels>,',
      &         'peak(levels))'/2I7,',',4(F6.1,'%'))
       ENDIF
@@ -1151,7 +1176,7 @@ C        print *, ' cache/w ',(MQ(INDH-K),K=3,6),(MQ(IND5-K),K=3,6)
           IF(MATSTO.EQ.2) II=I
           IF(MATSTO.EQ.3) II=I
           IF(II.NE.0) THEN
-             ELMT=DQ(IGMAT/2+II)
+             ELMT=SNGL(DQ(IGMAT/2+II))
              IF(ELMT.GT.0.0) CALL HMPENT(23,1.0/SQRT(ELMT))
           END IF
          END DO 
@@ -1212,7 +1237,7 @@ c      WRITE(*,*) 'NREGUL ',NREGUL,NLOOPN
       FACTR=QM(IND9+I+2)
       ITGBI=INONE(LABEL)
       IF(ITGBI.NE.0) THEN   
-         DSUM=DSUM+FACTR*DQ(IND0/2+ITGBI)     ! residuum
+         DSUM=DSUM+FACTR*SNGL(DQ(IND0/2+ITGBI))     ! residuum
       END IF
       I=I+2
       IF(I.LT.LND9) THEN
@@ -1260,15 +1285,15 @@ c      WRITE(*,*) 'NREGUL ',NREGUL,NLOOPN
       CALL GETSUM(FVALUE)   ! get accurate sum (Chi^2)
       FLINES=0.5D0*FVALUE   ! Likelihood function value
       RLOOP=ITERAT+0.01*NLOOPN
-      ACTFUN=FUNREF-FVALUE
+      ACTFUN=SNGL(FUNREF-FVALUE)
       IF(NLOOPN.EQ.1) ACTFUN=0.0
-      NGRAS=ANGRAS+0.5
+      NGRAS=NINT(ANGRAS)
       RATAE=0.0                              !!!
       IF(DELFUN.NE.0.0) THEN
          RATAE=MIN(99.9,ACTFUN/DELFUN)  !!!
          RATAE=MAX(-99.9,RATAE)
       END IF 
-      NSECND=SECND+0.5
+      NSECND=NINT(SECND)
 
 *     rejects ...
 
@@ -1364,7 +1389,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
       CALL ETIME(TA,RSTB)
       DELTIM=RSTB-RSTART
       CALL SECHMS(DELTIM,NHOUR,MINUT,SECND) ! time
-      NSECND=SECND+0.5
+      NSECND=NINT(SECND)
       IF(ITERAT.EQ.0) THEN
          WRITE(LUNP,103) ITERAT,NLOOPN,FVALUE,
      +                   CHICUT,NREJ,NHOUR,MINUT,NSECND,CCALCM(LCALCM)
@@ -1384,7 +1409,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
       CALL ETIME(TA,RSTB)
       DELTIM=RSTB-RSTART
       CALL SECHMS(DELTIM,NHOUR,MINUT,SECND) ! time
-      NSECND=SECND+0.5 
+      NSECND=NINT(SECND)
       CALL PTLOPT(NFA,MA,SLOPES,STEPS)  ! slopes steps
       RATAE=ABS(SLOPES(2)/SLOPES(1))
       STEPL=STEPS(2)
@@ -1396,7 +1421,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
       CALL ETIME(TA,RSTB)
       DELTIM=RSTB-RSTART
       CALL SECHMS(DELTIM,NHOUR,MINUT,SECND) ! time
-      NSECND=SECND+0.5
+      NSECND=IFIX(SECND+0.5)
 
       WRITE(LUNP,106) NHOUR,MINUT,NSECND,CCALCM(LCALCM)
      
@@ -1552,7 +1577,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
 *
 *      loop over events in buffer, fits and sums
 *
-      SUBROUTINE LOOPBF(NREJ,NLG,VLG,NR,RV,NDFS,DCHI2S)
+      SUBROUTINE LOOPBF(NREJ,NLG,VLG,NR,RV,NDFS,SNDF,DCHI2S)
 *     contains  
 *     SUBROUTINE FITLOC(NALC,NALG) ! number of local, global parameters
 *
@@ -1569,7 +1594,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
 #include "localfit.inc"     
       PARAMETER (MLMSYM=(MLOCAL*MLOCAL+MLOCAL)/2)
       DOUBLE PRECISION BLVEC(MLOCAL),CLMAT(MLMSYM),SCDIAG(MLOCAL)
-      DOUBLE PRECISION DCHI2,DVAR,DCHI2S,VLG(NLG)
+      DOUBLE PRECISION DCHI2,DVAR,DCHI2S,SNDF,VLG(NLG),DW1,DW2,SUMM
       DIMENSION RV(NR),NREJ(0:3)
       INTEGER SCFLAG(MLOCAL),IBANDH(MLOCAL)
 *      scratch arrays for local fit
@@ -1604,12 +1629,16 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
 !$OMP&     NAGBN,ICALCM,ICHUNK,NLOOPN,NRECER,NPRDBG,IPRDBG,
 !$OMP&     NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,IND5,INDH,MTHRD,
 !$OMP&     DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB)  ! 'global' variables 
-!$OMP&  REDUCTION(+:NDFS,DCHI2S,NREJ,NBNDR) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
+!$OMP&  REDUCTION(+:NDFS,SNDF,DCHI2S,NREJ,NBNDR) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
 !$OMP&  REDUCTION(MAX:NBNDX,NBDRX)
 !$OMP&  REDUCTION(MIN:NREC3)
 !$OMP&  SCHEDULE(DYNAMIC,ICHUNK)
       DO IBUF=1,MQ(IDOT2)           ! buffer for current record
        NRC=MQ(IDOT3+ISFRST(IBUF)-2)   ! record 
+       WRC=QM(IDOT4+ISFRST(IBUF)-2)   ! weight 
+       DW1=DBLE(WRC)
+       DW2=DSQRT(DW1)
+*
        IPROC=0
 !$       IPROC=OMP_GET_THREAD_NUM()         ! thread number
        IOFFB=MQ(INDF-1)*IPROC                                    ! offset 'f'.
@@ -1716,7 +1745,7 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
 *         subtract global ... from measured value
           DO J=1,IST-JB                 ! global parameter loop
            ITGBI=INDER(JB+J)            ! global parameter label
-           RMEAS=RMEAS-GLDER(JB+J)*DQ(IND0/2+ITGBI) ! subtract   !!! reversed
+           RMEAS=RMEAS-GLDER(JB+J)*SNGL(DQ(IND0/2+ITGBI)) ! subtract   !!! reversed
            IF (ICALCM.EQ.1) THEN
             IJ=JVGBI(ITGBI)             ! index of variable global parameter
             IF(IJ.GT.0) THEN
@@ -1935,7 +1964,7 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
           RMLOC=0.0                     ! local fit result reset
           DO J=1,JB-JA-1                ! local parameter loop
            IJ=INDER(JA+J)
-           RMLOC=RMLOC+GLDER(JA+J)*BLVEC(IJ) ! local fit result
+           RMLOC=RMLOC+GLDER(JA+J)*SNGL(BLVEC(IJ)) ! local fit result
           END DO
           RMEAS=RMEAS-RMLOC             ! reduced to residual
  
@@ -1952,7 +1981,7 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
            ENDDO
 *          some variance left to define a pull?          
            IF (0.999999D0/DBLE(WGHT).GT.DVAR) THEN
-            PULL=RMEAS/DSQRT(1.0D0/DBLE(WGHT)-DVAR)
+            PULL=RMEAS/SNGL(DSQRT(1.0D0/DBLE(WGHT)-DVAR))
             IF (LHIST) THEN
              IF (JB.LT.IST) THEN
               CALL HMPENT(13,PULL) ! histogram pull
@@ -1968,7 +1997,7 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
      &      CALL GMPMS(4,REC,RMEAS/RERR) ! residual (with global deriv.)
 
           DCHI2=WGHT*RMEAS*RMEAS
-          DCHIT=DCHI2
+c          DCHIT=DCHI2
           RESID=RMEAS
           IF(NLOOPN.NE.1.AND.ITER.NE.1.AND.LHUBER.NE.0) THEN
              IF(ITER.LE.3) THEN
@@ -2050,12 +2079,13 @@ c          SUWT=SUWT+DCHI2/DCHIT
           GOTO 90
        END IF 
       
-       CHNDF=SUMM/FLOAT(NDF)
+       CHNDF=SNGL(SUMM/DFLOAT(NDF))
 
        IF(ITER.EQ.1.AND.LHIST) CALL HMPENT(4,CHNDF) ! histogram chi^2/Ndf
        IF(ITER.LT.NTER) GOTO 05     ! outlier iteration loop
 
-       NDFS=NDFS+NDF    ! (local) sum of Ndf
+       NDFS=NDFS+NDF              ! (local) sum of Ndf
+       SNDF=SNDF+DFLOAT(NDF)*DW1  ! (local) weighted sum of Ndf
 
 *      ----- reject eventually ------------------------------------------
 
@@ -2091,7 +2121,7 @@ c          END IF
          END IF
 
          IF(CHICUT.GT.0.0) THEN      
-            CHLIMT=CHICUT*CHICHI
+            CHLIMT=SNGL(CHICUT)*CHICHI
 c          WRITE(*,*) 'chi^2 ',SUMM,CHLIMT,CHICUT,CHINDL(3,NDF),NDF
             IF(SUMM.GT.CHLIMT) THEN
                IF(LPRNT) THEN
@@ -2099,7 +2129,7 @@ c          WRITE(*,*) 'chi^2 ',SUMM,CHLIMT,CHICUT,CHINDL(3,NDF),NDF
               END IF
 *              add to FVALUE
                DCHI2=CHLIMT               ! total contribution limit
-               DCHI2S=DCHI2S+DCHI2        ! add total contribution
+               DCHI2S=DCHI2S+DCHI2*DW1    ! add total contribution
               NREJ(3)=NREJ(3)+1      ! count cases with large chi^2
               GOTO 90
             END IF 
@@ -2109,7 +2139,7 @@ c          WRITE(*,*) 'chi^2 ',SUMM,CHLIMT,CHICUT,CHINDL(3,NDF),NDF
        IF(LHUBER.GT.1.AND.DWCUT.NE.0.0.AND.RESING.GT.DWCUT) THEN
 *         add to FVALUE
           DCHI2=SUMM                 ! total contribution
-          DCHI2S=DCHI2S+DCHI2        ! add total contribution
+          DCHI2S=DCHI2S+DCHI2*DW1    ! add total contribution
           NREJ(3)=NREJ(3)+1      ! count cases with large chi^2
 c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
           IF(LPRNT) THEN
@@ -2147,7 +2177,7 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
                 DCHI2=2.0*CHUBER*(RESID/RERR-0.5*CHUBER) ! modified contribution
              END IF
           END IF
-          DCHI2S=DCHI2S+DCHI2        ! add to total objective function
+          DCHI2S=DCHI2S+DCHI2*DW1    ! add to total objective function
 
 *         global-global matrix contribution: add directly to gg-matrix 
 
@@ -2155,7 +2185,7 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
            IVGBJ=JVGBI(INDER(JB+J))     ! variable-parameter index
            IF(IVGBJ.GT.0) THEN
               DQ(INDF/2+IOFFB+IVGBJ)=DQ(INDF/2+IOFFB+IVGBJ)
-     &                              +WGHT*RMEAS*GLDER(JB+J) ! vector  !!! reverse
+     &                              +DW1*WGHT*RMEAS*GLDER(JB+J) ! vector  !!! reverse
               IF(ICALCM.EQ.1) THEN
                  IJE=MQ(INDE+IOFFE+IVGBJ)        ! get index of index, non-zero
                  DO K=1,J
@@ -2166,7 +2196,7 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
                     IB=MIN(IJE,IKE)          ! smaller
                     IJ=IB+(IA*IA-IA)/2
                     DQ(INDH/2+IOFFD+IJ)=DQ(INDH/2+IOFFD+IJ)
-     &                                 -WGHT*GLDER(JB+J)*GLDER(JB+K)
+     &                                 -DW1*WGHT*GLDER(JB+J)*GLDER(JB+K)
                   END IF 
                  END DO
               END IF
@@ -2183,7 +2213,7 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
               DO K=1,JB-JA-1
                IK=INDER(JA+K)           ! local index
                JK=IK+(IJE-1)*NALC       ! matrix index
-               VLG(JK)=VLG(JK)+WGHT*GLDER(JB+J)*GLDER(JA+K)
+               VLG(JK)=VLG(JK)+DW2*WGHT*GLDER(JB+J)*GLDER(JA+K)
               END DO
            END IF
           END DO
@@ -2369,12 +2399,12 @@ C         print *, '   buf end ', JPROC,IB,MQ(IND5+JOFFI-1),MQ(IND5+JOFFI)
       DO ITGBI=1,NTGB  ! all parameter variables
        ITGBL=JTGBL(ITGBI)
        IVGBI=JVGBI(ITGBI)
-       PAR=DQ(IND0/2+ITGBI)              ! initial value
+       PAR=SNGL(DQ(IND0/2+ITGBI))      ! initial value
        IF(IVGBI.GT.0) THEN
           DPA=PAR-QM(IND2+ITGBI)       ! difference
           IF(METSOL.EQ.1.OR.METSOL.EQ.2) THEN
              II=(IVGBI*IVGBI+IVGBI)/2
-             GMATI=DQ(IGMAT/2+II)
+             GMATI=SNGL(DQ(IGMAT/2+II))
              ERR=SQRT(ABS(GMATI))
              IF(GMATI.LT.0.0D0) ERR=-ERR
           END IF
@@ -2437,7 +2467,7 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
            END IF
            IEV=IEV+1
            LABELE(IEV)=LABEL
-           COMPNT(IEV)=DQ(IJ)                ! component
+           COMPNT(IEV)=SNGL(DQ(IJ))    ! component
            IF(IEV.EQ.3) THEN
               WRITE(LUP,103) (LABELE(IE),COMPNT(IE),IE=1,IEV)
               IEV=0
@@ -2650,7 +2680,7 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
       SUBROUTINE SECHMS(DELTAT,NHOUR,MINUT,SECND)
 *     DELTAT = time in sec  -> NHOUR,MINUT,SECND 
 *     ...
-      NSECD=DELTAT ! -> integer  
+      NSECD=NINT(DELTAT) ! -> integer  
       NHOUR=NSECD/3600
       MINUT=NSECD/60-60*NHOUR
       SECND=DELTAT-60*(MINUT+60*NHOUR) 
@@ -2953,7 +2983,6 @@ c     +   +LNDF/2
             WRITE(*,*) 'INTWO: ovfl return with J=',
      +                  J,MQ(INDF-1),LNDF/2
             STOP 'recompile with larger memory'
-            RETURN
          END IF
          MQ(INDF-1)=MQ(INDF-1)+1         ! increase number of elements
          MQ(INDF-3)=MQ(INDF-1)           ! next 
@@ -3051,7 +3080,7 @@ c     +         MQ(INDF+I+I-1)-MQ(INDF+I+I))/2,MQ(INDF-4))+LNDF/2
       NPRIME=N                               ! max number
       IF(MOD(NPRIME,2).EQ.0) NPRIME=NPRIME+1 ! ... odd number
   10  NPRIME=NPRIME-2                        ! next lower odd number
-      NSQRT=SQRT(FLOAT(NPRIME))
+      NSQRT=IFIX(SQRT(FLOAT(NPRIME)))
       DO I=3,NSQRT,2                         ! 
        IF(I*(NPRIME/I).EQ.NPRIME) GOTO 10    ! test prime number
       END DO      
@@ -3292,7 +3321,7 @@ c             IF(PRESG.GT.0.0) QM(IND6+IN)=PRESG ! pre-sigma copy > 0
       DO IVGBI=1,NVGB         ! IVGBI     = variable parameter index
        ITGBI=JTGBI(IVGBI)     ! ITGBI = global parameter index
        PRESG=QM(IND1+ITGBI)   ! get pre-sigma 
-       PREWT=0.0D0            ! pre-weight
+       PREWT=0.0              ! pre-weight
        IF(PRESG.GT.0.0) THEN
          PREWT=1.0/PRESG**2           ! 1/presigma^2
        ELSE IF(PRESG.EQ.0.0.AND.REGPRE.GT.0.0) THEN
@@ -3488,8 +3517,11 @@ c      IF(NREC.LE.100001) WRITE(*,*) 'Record ',NREC
 *     Printout for DEBUG 
       IF(NREC.LE.MDEBUG) THEN
          NDA=0
+         KFILE=MQ(IDOT4+ISFRST(IBUF)-1)   ! file
+         WREC =QM(IDOT4+ISFRST(IBUF)-2)   ! weight
          WRITE(*,*) ' '
-         WRITE(*,*) 'Record number ',NREC
+         WRITE(*,*) 'Record number ',NREC,' from file ',KFILE
+         IF (WGH.NE.1.0) WRITE(*,*) '       weight ',WREC
          IST=ISFRST(IBUF)
          NST=ISLAST(IBUF)
  12      CALL ISJAJB(NST,IST,JA,JB,JSP)
@@ -3970,8 +4002,8 @@ c      END IF
       DUBM=4.0D-9*DFLOAT(MEGA-NUSE) ! used space in Gbytes 
       WRITE(*,*) ' '
       WRITE(*,104) DGBM,DUBM,DUBM/DGBM*100.0D0
-      GBM=DGBM
-      UBM=DUBM 
+      GBM=SNGL(DGBM)
+      UBM=SNGL(DUBM) 
 
 *     print chi^2 cut tables  
 
@@ -4174,12 +4206,12 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
 
 *        histogram of positive eigenvalues
 
-         NMAX=1.0+LOG10(DQ(IDUX6/2+1)) ! > log of largest eigenvalue
+         NMAX=INT(1.0+LOG10(SNGL(DQ(IDUX6/2+1)))) ! > log of largest eigenvalue
          DO I=NAGB,1,-1
           IF(DQ(IDUX6/2+I).GT.0.0D0) GOTO 20
          END DO
          I=1
-  20     NMIN=LOG10(DQ(IDUX6/2+I))   ! log of smallest pos. eigenvalue 
+  20     NMIN=INT(LOG10(SNGL(DQ(IDUX6/2+I))))   ! log of smallest pos. eigenvalue 
          IMIN=I                      ! index of smallest pos. eigenvalue
          NTOP=NMIN+6
   21     IF(NTOP.LT.NMAX) THEN
@@ -4191,7 +4223,7 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
      +              'log10 of positive eigenvalues')
          DO IDIA=1,NAGB
           IF(DQ(IDUX6/2+IDIA).GT.0.0D0) THEN ! positive 
-             EVALUE=LOG10(DQ(IDUX6/2+IDIA))
+             EVALUE=LOG10(SNGL(DQ(IDUX6/2+IDIA)))
              CALL HMPENT(7,EVALUE)
           END IF 
          END DO
@@ -4201,7 +4233,7 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
          IAST=MAX(1,IMIN-60)
          CALL GMPDEF(3,2,'low-value end of eigenvalues')
          DO I=IAST,NAGB  
-          EVALUE=DQ(IDUX6/2+I)
+          EVALUE=SNGL(DQ(IDUX6/2+I))
           CALL GMPXY(3,FLOAT(I),EVALUE) 
          END DO
          IF(NHISTP.NE.0) CALL GMPRNT(3)
@@ -4435,7 +4467,7 @@ C      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
       SUBROUTINE XLOOPN                ! standard solution algorithm
 #include "largeint.inc"
 #include "dynal.inc"
-      DOUBLE PRECISION STP,DRATIO,DFACIN,DJRAT
+      DOUBLE PRECISION STP,DRATIO,DFACIN,DJRAT,DWMEAN
       DOUBLE PRECISION DB,DB1,DB2,DBDOT
       LOGICAL WARNER 
       SAVE
@@ -4532,7 +4564,7 @@ C FIXME: NPRESG contains parameters that failed the 'entries' cut...
       INFO  =0
       LSINFO=0
       STP   =0.0D0
-      STEPL =STP  
+      STEPL =SNGL(STP)
       CONCUT=1.0E-12            ! initial constraint accuracy
       CONCU2=1.0E-06            ! constraint accuracy
       ICALCM=1                  ! require matrix calculation
@@ -4541,16 +4573,16 @@ C FIXME: NPRESG contains parameters that failed the 'entries' cut...
       LITERA=-2
       NREJ=0                    ! reset number of rejects 
       IF(METSOL.EQ.1) THEN
-         WOLFC2=0.5D0            ! not accurate
+         WOLFC2=0.5             ! not accurate
          MINF=1
       ELSE IF(METSOL.EQ.2) THEN
-         WOLFC2=0.5D0            ! not acurate
+         WOLFC2=0.5             ! not acurate
          MINF=2  
       ELSE IF(METSOL.EQ.3) THEN
-         WOLFC2=0.1D0           ! accurate
+         WOLFC2=0.1             ! accurate
          MINF=3
       ELSE IF(METSOL.EQ.4) THEN
-         WOLFC2=0.1D0           ! accurate 
+         WOLFC2=0.1             ! accurate 
          MINF=3
       END IF
 
@@ -4696,23 +4728,23 @@ C                  CALL PLOOPA(LUNLOG)
 
       CALL PTLDEF(WOLFC2, 10.0, MINF,10)
       IF(METSOL.EQ.1) THEN
-         WOLFC2=0.5D0            ! not accurate
+         WOLFC2=0.5            ! not accurate
          MINF=3
       ELSE IF(METSOL.EQ.2) THEN
-         WOLFC2=0.5D0            ! not acurate
+         WOLFC2=0.5            ! not acurate
          MINF=3
       ELSE IF(METSOL.EQ.3) THEN
-         WOLFC2=0.1D0           ! accurate
+         WOLFC2=0.1            ! accurate
          MINF=4
       ELSE IF(METSOL.EQ.4) THEN
-         WOLFC2=0.1D0           ! accurate
+         WOLFC2=0.1            ! accurate
          MINF=4
       END IF
       DB=DBDOT(NVGB,DQ(ISOLV/2+1),DQ(IGVEC/2+1))
       DB1=DBDOT(NVGB,DQ(ISOLV/2+1),DQ(ISOLV/2+1))
       DB2=DBDOT(NVGB,DQ(IGVEC/2+1),DQ(IGVEC/2+1))
-      DELFUN=DB
-      ANGRAS=DB/SQRT(DB1*DB2) 
+      DELFUN=SNGL(DB)
+      ANGRAS=SNGL(DB/DSQRT(DB1*DB2))
 
       IF(DB.LE.0.0D0) THEN 
          WRITE(*,*) 'Function not decreasing:',DB
@@ -4748,7 +4780,7 @@ C                  CALL PLOOPA(LUNLOG)
 C      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
       LSINFO=INFO
 
-      STEPL=STP      
+      STEPL=SNGL(STP)
       NAN=0
       DO I=1,NVGB
        ITGBI=JTGBI(I)
@@ -4756,7 +4788,6 @@ C      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
      +     (.NOT.(DQ(IDUX2/2+I).GT.0.0D0))) NAN=NAN+1
        DQ(IND0/2+ITGBI)=DQ(IDUX2/2+I) ! current parameter values
       END DO
-      SFUN=FVALUE
       
       IF (NAN.GT.0) THEN
          WRITE(*,*) 'Result vector containes ', NAN,' NaNs - stop'
@@ -4803,15 +4834,25 @@ C      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
      +   NREJEC(2), ' (huge)   ',NREJEC(3),' (large)'
       END IF
 
-      RATIO=FVALUE/FLOAT(NDFSUM-NAGB)
-      CATIO=RATIO
+      DWMEAN=SUMNDF/DFLOAT(NDFSUM)
+      DRATIO=FVALUE/DWMEAN/DFLOAT(NDFSUM-NAGB)
+      CATIO=SNGL(DRATIO)
       IF(LHUBER.NE.0) CATIO=1.07*CATIO  ! correction   
-      MRATI=100.0*CATIO+0.5
+      MRATI=NINT(100.0*CATIO)
 
       DO LUNP=6,LUNLOG,LUNLOG-6
        WRITE(LUNP,*) ' '
-       WRITE(LUNP,*) 'Chi^2/Ndf =',FVALUE,'/ (',NDFSUM,'-',NAGB,')'
-       WRITE(LUNP,*) '          =',RATIO
+       IF (NFILW.LE.0) THEN
+          WRITE(LUNP,*) 'Sum(Chi^2)/Sum(Ndf) =',FVALUE
+          WRITE(LUNP,*) '                    / (',NDFSUM,'-',NAGB,')'
+          WRITE(LUNP,*) '                    =',DRATIO
+       ELSE
+          WRITE(LUNP,*) 'Sum(W*Chi^2)/Sum(Ndf)/<W> =',FVALUE
+          WRITE(LUNP,*) '                          / (',NDFSUM,'-',
+     +                                                  NAGB,')'
+          WRITE(LUNP,*) '                          /',DWMEAN
+          WRITE(LUNP,*) '                          =',DRATIO
+       ENDIF
        WRITE(LUNP,*) ' '
        IF(LHUBER.NE.0) WRITE(LUNP,*)
      + '            with correction for down-weighting   ',CATIO     
@@ -4835,9 +4876,9 @@ C     + '-----------------------------------------------------------'
 C      WRITE(*,199) ' '
 
 
-      NRATI=DFLOAT(10000*NREJ)/DFLOAT(NRECAL)
+      NRATI=NINT(FLOAT(10000*NREJ)/FLOAT(NRECAL))
       DJRAT=0.01D0*DFLOAT(NRATI)
-      NFACI=100.0*SQRT(CATIO)+0.5
+      NFACI=NINT(100.0*SQRT(CATIO))
 
       DRATIO=0.01D0*DFLOAT(MRATI)
       DFACIN=0.01D0*DFLOAT(NFACI)
@@ -4970,6 +5011,7 @@ c 103  FORMAT(1X,A,G12.4)
 #include "dynal.inc"
       CHARACTER*14 BITE(3)
       CHARACTER*32 KEYSTX
+      DOUBLE PRECISION DNUM(100)
       SAVE
 #include "mpinds.inc"
       DATA BITE/'C_binary','text  ','Fortran_binary'/
@@ -5177,10 +5219,14 @@ c         WRITE(*,*) 'Cfiles'
          GOTO 10
       END IF
   
-*     file names
-
+* file names
+*     check for file options (' -- ')
+      IE=IB
+      IOPT=INDEX(TEXT(IA:IB),' -- ')
+      IF (IOPT.GT.0) IE=IOPT-1
+*
       IF(NAB.EQ.0) GOTO 10
-      NU=NUFILE(TEXT(IA:IB))          ! inquire on file existence 
+      NU=NUFILE(TEXT(IA:IE))          ! inquire on file existence 
       IF(NU.GT.0) THEN                ! existing file
          IF(NFILES.GE.MFILES) THEN
             STOP 'in FILETC: too many files.                           '
@@ -5188,9 +5234,14 @@ c         WRITE(*,*) 'Cfiles'
          NFILES=NFILES+1              ! count number of files
          IF(NU.EQ.1) NU=NUF           !
          MFD(NFILES)=NU               ! cbinary =1, text =2, fbinary=3
-         LFD(NFILES)=IB-IA+1          ! number of chars in file name 
-         TFD(NFILES)=TEXT(IA:IB)      ! file name
+         LFD(NFILES)=IE-IA+1          ! number of chars in file name 
+         TFD(NFILES)=TEXT(IA:IE)      ! file name
          NFD(NFILES)=NLINE            ! line number 
+         OFD(NFILES)=1.0              ! option for file
+         IF (IOPT.GT.0) THEN
+            CALL RATEXT(TEXT(IOPT+4:NAB),NUMS,DNUM) ! translate text to DP numbers
+            IF (NUMS.GT.0) OFD(NFILES)=SNGL(DNUM(1))
+         ENDIF
       ELSE   
 c         WRITE(*,*) 'Open error for file ',TEXT(IA:IB)
 c         STOP 
@@ -5222,6 +5273,8 @@ c         STOP
  
       IOSUM=0
       NFILF=0 
+      NFILB=0
+      NFILW=0
       DO I=1,NFILES                                 ! Fortran files
        IF(MFD(I).EQ.3) THEN
           WRITE(*,*) 'Opening Fortran file ',10+NFILF+1,
@@ -5233,6 +5286,8 @@ c         STOP
              IOSUM=IOSUM+1
           ELSE 
              NFILF=NFILF+1
+             NFILB=NFILB+1
+             WFD(NFILB)=OFD(I)
           END IF 
        END IF 
       END DO
@@ -5243,8 +5298,8 @@ c         STOP
       DO I=1,NFILES                                 ! Cfiles
        IF(MFD(I).EQ.1) THEN
 #ifdef READ_C_FILES
-          IF(NFILC.LE.0) CALL INITC ! uncommented by GF
-          IF(NFILC.LE.0) NFILC=0
+          IF(NFILC.LT.0) CALL INITC ! uncommented by GF
+          IF(NFILC.LT.0) NFILC=0
           WRITE(*,*) 'Opening C file ',NFILC+1, ': ',TFD(I)(1:LFD(I)) ! by GF
           CALL OPENC(TFD(I)(1:LFD(I)),IOS)
           IF(IOS.NE.0) THEN
@@ -5253,6 +5308,8 @@ c         STOP
              IOSUM=IOSUM+1 ! typo fixed by GF
           ELSE 
              NFILC=NFILC+1
+             NFILB=NFILB+1
+             WFD(NFILB)=OFD(I)
           END IF 
 #else
           WRITE(*,*) 'Opening of C-files not supported.'
@@ -5262,8 +5319,6 @@ c         STOP
 #endif
        END IF
       END DO
-      IF(NFILC.LT.0) NFILC=0
-      NFILB=NFILF+NFILC ! total number of binary files 
       DO K=1,NFILB
         KFD(1,K)=0   ! reset record counters
         KFD(2,K)=K   ! set file number
@@ -5612,7 +5667,7 @@ c         IF(MAT.GE.NTEXT) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
 C         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             MPRINT=1
-            IF(NUMS.GT.0) MPRINT=DNUM(1)
+            IF(NUMS.GT.0) MPRINT=IDNINT(DNUM(1))
             RETURN 
          END IF
 
@@ -5622,8 +5677,8 @@ C         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
 c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             MDEBUG=3
 * GF            IF(NUMS.GT.0) MPRINT=DNUM(1)
-            IF(NUMS.GT.0) MDEBUG=DNUM(1)
-            IF(NUMS.GT.1) MDEBG2=DNUM(2)
+            IF(NUMS.GT.0) MDEBUG=IDNINT(DNUM(1))
+            IF(NUMS.GT.1) MDEBG2=IDNINT(DNUM(2))
            RETURN
          END IF
 
@@ -5632,7 +5687,7 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN          
 c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             MREQEN=0
-            IF(NUMS.GT.0) MREQEN=DNUM(1)
+            IF(NUMS.GT.0) MREQEN=IDNINT(DNUM(1))
             IF (MREQEN.LE.0) MREQEN=1
             RETURN
          END IF
@@ -5640,27 +5695,27 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          KEYSTX='printrecord'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            NRECPR=DNUM(1)
-            NRECP2=DNUM(2)
+            NRECPR=IDNINT(DNUM(1))
+            NRECP2=IDNINT(DNUM(2))
             RETURN
          END IF
 
          KEYSTX='maxrecord'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            IF (NUMS.GT.0.AND.DNUM(1).GT.0.) MXREC=DNUM(1)
+            IF (NUMS.GT.0.AND.DNUM(1).GT.0.) MXREC=IDNINT(DNUM(1))
             RETURN
          END IF
 
          KEYSTX='cache'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            IF (NUMS.GT.0.AND.DNUM(1).GE.0.) NCACHE=DNUM(1)     ! cache size, <0 keeps default
-            IF (NUMS.EQ.2.AND.DNUM(2).GT.0..AND.DNUM(2).LE.1.0) ! read cache fill level
-     &         FCACHE(1)=DNUM(2)
-            IF (NUMS.GE.4) THEN                                 ! explicit cache splitting
+            IF (NUMS.GT.0.AND.DNUM(1).GE.0.) NCACHE=IDNINT(DNUM(1)) ! cache size, <0 keeps default
+            IF (NUMS.EQ.2.AND.DNUM(2).GT.0..AND.DNUM(2).LE.1.0)     ! read cache fill level
+     &         FCACHE(1)=SNGL(DNUM(2))
+            IF (NUMS.GE.4) THEN                                     ! explicit cache splitting
                DO K=1,3
-                 FCACHE(K)=DNUM(K+1)
+                 FCACHE(K)=SNGL(DNUM(K+1))
                ENDDO
             ENDIF
             RETURN
@@ -5678,9 +5733,9 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
                IF(NUMS.EQ.1) THEN 
                   CHIREM=1.0  ! 3-sigma cut, if not specified
                ELSE  
-                  CHIREM=DNUM(2)
+                  CHIREM=SNGL(DNUM(2))
                   IF(CHIREM.LT.1.0) CHIREM=1.0
-                  IF(CHICUT.GE.1.0) CHIREM=MIN(CHIREM,CHICUT)
+                  IF(CHICUT.GE.1.0) CHIREM=MIN(CHIREM,SNGL(CHICUT))
                END IF
             END IF
             RETURN
@@ -5690,7 +5745,7 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          KEYSTX='hugecut'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN          
-            IF(NUMS.GT.0) CHHUGE=DNUM(1)
+            IF(NUMS.GT.0) CHHUGE=SNGL(DNUM(1))
             IF(CHHUGE.LT.1.0) CHHUGE=1.0 ! at least (!!) 3-sigma
             RETURN
          END IF
@@ -5699,8 +5754,8 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          KEYSTX='localfit'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN          
-            IF(NUMS.GT.0) LFITNP=DNUM(1)
-            IF(NUMS.GT.1) LFITBB=DNUM(2)
+            IF(NUMS.GT.0) LFITNP=IDNINT(DNUM(1))
+            IF(NUMS.GT.1) LFITBB=IDNINT(DNUM(2))
             RETURN
          END IF
 
@@ -5708,8 +5763,8 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             NREGUL=1
-            REGULA=DNUM(1)
-            IF(NUMS.GE.2) REGPRE=DNUM(2)
+            REGULA=SNGL(DNUM(1))
+            IF(NUMS.GE.2) REGPRE=SNGL(DNUM(2))
             RETURN
          END IF
 
@@ -5717,22 +5772,22 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             NREGUL=1
-            REGULA=DNUM(1)
-            IF(NUMS.GE.2) REGPRE=DNUM(2)
+            REGULA=SNGL(DNUM(1))
+            IF(NUMS.GE.2) REGPRE=SNGL(DNUM(2))
             RETURN
          END IF
 
          KEYSTX='presigma'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            REGPRE=DNUM(1)
+            REGPRE=SNGL(DNUM(1))
             RETURN
          END IF
 
          KEYSTX='matiter'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            MATRIT=DNUM(1)
+            MATRIT=IDNINT(DNUM(1))
             RETURN
          END IF
 
@@ -5740,7 +5795,7 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             MATMON=-1
-            IF (NUMS.GT.0.AND.DNUM(1).GT.0.) MATMON=DNUM(1)
+            IF (NUMS.GT.0.AND.DNUM(1).GT.0.) MATMON=IDNINT(DNUM(1))
             RETURN
          END IF
 
@@ -5748,7 +5803,7 @@ c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
 c         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            IF(NUMS.GT.0)   MBANDW=DNUM(1)
+            IF(NUMS.GT.0)   MBANDW=IDNINT(DNUM(1))
             IF(MBANDW.LT.0) MBANDW=-1
             RETURN
          END IF
@@ -5778,7 +5833,7 @@ C         END IF
 c         WRITE(*,*) KEYSTX,MAT,(NTEXT+NTEXT)/3
 c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            LHUBER=DNUM(1)
+            LHUBER=IDNINT(DNUM(1))
             IF(LHUBER.GT.0.AND.LHUBER.LE.2) LHUBER=2 ! at least 2 Huber iterations (if any)
             RETURN
          END IF
@@ -5786,7 +5841,7 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          KEYSTX='dwfractioncut'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            DWCUT=DNUM(1)
+            DWCUT=SNGL(DNUM(1))
             IF(DWCUT.GT.0.5) DWCUT=0.5
             RETURN
          END IF
@@ -5804,10 +5859,10 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
             IOMP=0
 !$          IOMP=1
 !$          IF (IOMP.GT.0) THEN
-!$             IF (NUMS.GE.1.AND.DNUM(1).GT.0.) MTHRD =DNUM(1)
+!$             IF (NUMS.GE.1.AND.DNUM(1).GT.0.) MTHRD =IDNINT(DNUM(1))
 !$             IF (NUMS.GE.2) THEN
 !$                MTHRDR=MTHRD
-!$                IF (DNUM(2).GT.0.) MTHRDR=DNUM(2)
+!$                IF (DNUM(2).GT.0.) MTHRDR=IDNINT(DNUM(2))
 !$             ENDIF
 !$          ELSE
                WRITE(*,*) 'WARNING: multithreading not available'
@@ -5827,7 +5882,7 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5).AND.MNRSEL.LT.100) THEN
             NL=MIN(NUMS,100-MNRSEL)
             DO K=1,NL
-               LBMNRS(MNRSEL+K)=DNUM(K)
+               LBMNRS(MNRSEL+K)=IDNINT(DNUM(K))
             ENDDO
             MNRSEL=MNRSEL+NL
             RETURN
@@ -5839,9 +5894,11 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
 c     This option could be implemented to get rid of parameter pairs
 c     that have very few entries - to save matrix memory size. 
             IF (NUMS.GT.0.AND.DNUM(1).GT.0.0) THEN
-               MREQPE=DNUM(1)
-               IF (NUMS.GE.2.AND.DNUM(2).GE.DNUM(1)) MHISPE=DNUM(2)
-               IF (NUMS.GE.3.AND.DNUM(3).GT.0.0) MSNGPE=DNUM(3)
+               MREQPE=IDNINT(DNUM(1))
+               IF (NUMS.GE.2.AND.DNUM(2).GE.DNUM(1)) 
+     +            MHISPE=IDNINT(DNUM(2))
+               IF (NUMS.GE.3.AND.DNUM(3).GT.0.0) 
+     +            MSNGPE=IDNINT(DNUM(3))
                ICOUNT=MAX(MSNGPE+1,MHISPE)
                ICOUNT=MAX(MREQPE,ICOUNT)
                ISAVES=1 ! number of bits needed to count up to ICOUNT
@@ -5859,8 +5916,8 @@ c     that have very few entries - to save matrix memory size.
          KEYSTX='wolfe'
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
-            WOLFC1=DNUM(1)
-            WOLFC2=DNUM(2)
+            WOLFC1=SNGL(DNUM(1))
+            WOLFC2=SNGL(DNUM(2))
             RETURN
          END IF
 
@@ -5874,7 +5931,7 @@ c     that have very few entries - to save matrix memory size.
                   WRITE(*,*) 'ERROR: need 1.0D-10 <= MRESTL ',
      +                 '<= 1.0D-04, but get ', DNUM(1)
                ELSE
-                  MRESTL=DNUM(1)
+                  MRESTL=IDNINT(DNUM(1))
                ENDIF
             ENDIF
             RETURN
@@ -5941,9 +5998,9 @@ c         IF(MAT.GE.(NPAT-NPAT/5)) THEN
          LKEY=NKEY
          IF(LKEY.EQ.2) THEN                                 ! parameter
             IF(NUMS.EQ.3) THEN
-               LPVS(1)=DNUM(1)   ! label
-               PLVS(2)=DNUM(2)   ! start value
-               PLVS(3)=DNUM(3)   ! pre-sigma
+               LPVS(1)=IDNINT(DNUM(1)) ! label
+               PLVS(2)=SNGL(DNUM(2))   ! start value
+               PLVS(3)=SNGL(DNUM(3))   ! pre-sigma
                IF(LPVS(1).NE.0) THEN
                   CALL MEGVEC('7',PLVS,3,0)      ! always 3 words
                ELSE
@@ -5960,14 +6017,14 @@ c            WRITE(*,*) 'Keyword is constraint!',NUMS,' numerical data'
             IF(NUMS.GE.1.AND.NUMS.LE.2) THEN ! start constraint
 c               WRITE(*,*) 'NUMs is ',NUMS
                LPVS(1)=0
-               PLVS(2)=DNUM(1)               ! r = r.h.s. value
+               PLVS(2)=SNGL(DNUM(1))         ! r = r.h.s. value
                CALL MEGVEC('8',PLVS,2,0)
 c               WRITE(*,*) 'LPVS PLVS ',LPVS,PLVS
                LPVS(1)=-1                    ! constraint  
                IF(LKEY.EQ.4) LPVS(1)=-2      ! wconstraint (weighted)
                PLVS(2)=0.0
 c               WRITE(*,*) 'LPVS PLVS ',LPVS,PLVS
-               IF(NUMS.EQ.2) PLVS(2)=DNUM(2) ! sigma 
+               IF(NUMS.EQ.2) PLVS(2)=SNGL(DNUM(2)) ! sigma 
                CALL MEGVEC('8',PLVS,2,0)
 c               WRITE(*,*) 'LPVS PLVS ',LPVS,PLVS
             ELSE
@@ -5979,10 +6036,10 @@ c               WRITE(*,*) 'LPVS PLVS ',LPVS,PLVS
          ELSE IF(LKEY.EQ.5) THEN                           ! measurement
             IF(NUMS.EQ.2) THEN ! start measurement
                LPVS(1)=0
-               PLVS(2)=DNUM(1)               ! r = r.h.s. value
+               PLVS(2)=SNGL(DNUM(1))         ! r = r.h.s. value
                CALL MEGVEC('9',PLVS,2,0)
                LPVS(1)=-1                    ! constraint
-               PLVS(2)=DNUM(2) ! sigma
+               PLVS(2)=SNGL(DNUM(2))         ! sigma
                CALL MEGVEC('9',PLVS,2,0)
             ELSE
                KKEY=1   ! switch to "unknown"
@@ -5993,9 +6050,9 @@ c               WRITE(*,*) 'LPVS PLVS ',LPVS,PLVS
 
          ELSE IF(LKEY.EQ.6) THEN                                ! method
             MITER=MITERA
-            IF(NUMS .GE.1) MITER=DNUM(1)
+            IF(NUMS .GE.1) MITER=IDNINT(DNUM(1))
             IF(MITER.GE.1) MITERA=MITER
-            DFLIM=DNUM(2)  
+            DFLIM=SNGL(DNUM(2))
             LKEY=0
             DO I=1,NMETH  
              KEYSTX=METHXT(I)
@@ -6023,9 +6080,9 @@ c                  METSOL=4
       ELSE IF(NKEY.EQ.0) THEN  ! data for continuation
          IF(LKEY.EQ.2) THEN                                  ! parameter
             IF(NUMS.GE.3) THEN   ! store data from this line
-               LPVS(1)=DNUM(1)   ! label
-               PLVS(2)=DNUM(2)   ! start value
-               PLVS(3)=DNUM(3)   ! pre-sigma
+               LPVS(1)=IDNINT(DNUM(1)) ! label
+               PLVS(2)=SNGL(DNUM(2))   ! start value
+               PLVS(3)=SNGL(DNUM(3))   ! pre-sigma
                IF(LPVS(1).NE.0) THEN
                   CALL MEGVEC('7',PLVS,3,0)      ! always 3 words
                ELSE
@@ -6041,14 +6098,14 @@ c                  METSOL=4
          ELSE IF(LKEY.EQ.3.OR.LKEY.EQ.4) THEN            ! (w)constraint
             IER=0
             DO I=1,NUMS,2 
-             LABEL=DNUM(I)
+             LABEL=IDNINT(DNUM(I))
              IF(LABEL.LE.0) IER=1
             END DO
             IF(MOD(NUMS,2).NE.0) IER=1 ! reject odd number
             IF(IER.EQ.0) THEN
                DO I=1,NUMS,2
-                LPVS(1)=DNUM(I)   ! label
-                PLVS(2)=DNUM(I+1) ! factor
+                LPVS(1)=IDNINT(DNUM(I)) ! label
+                PLVS(2)=SNGL(DNUM(I+1)) ! factor
                 CALL MEGVEC('8',PLVS,2,0)
                END DO
             ELSE
@@ -6062,15 +6119,15 @@ c                  METSOL=4
 c            WRITE(*,*) 'continuation                          < ',NUMS
             IER=0
             DO I=1,NUMS,2 
-             LABEL=DNUM(I)
+             LABEL=IDNINT(DNUM(I))
              IF(LABEL.LE.0) IER=1
             END DO
             IF(MOD(NUMS,2).NE.0) IER=1 ! reject odd number
 c            WRITE(*,*) 'IER NUMS ',IER,NUMS
             IF(IER.EQ.0) THEN
                DO I=1,NUMS,2
-                LPVS(1)=DNUM(I)   ! label
-                PLVS(2)=DNUM(I+1) ! factor
+                LPVS(1)=IDNINT(DNUM(I)) ! label
+                PLVS(2)=SNGL(DNUM(I+1)) ! factor
                 CALL MEGVEC('9',PLVS,2,0)
                END DO
             ELSE

@@ -30,9 +30,11 @@
       INTEGER NFD(MFILES)   ! NFD(.)=  index in file
       INTEGER KFD(2,MFILES) ! KFD(1,.)=  number of records in file
       INTEGER IFD(MFILES)   ! IFD(.)=  integrated record numbers
+      REAL    OFD(MFILES)   ! option 
+      REAL    WFD(MFILES)   ! weight 
       CHARACTER*500 TFD(MFILES)        ! file names
-      COMMON/MPFILE/IFILE,NFILES,NFILB,NFILF,NFILC,
-     +              MFD,LFD,TFD,NFD,KFD,IFD
+      COMMON/MPFILE/IFILE,NFILES,NFILB,NFILF,NFILC,NFILW,
+     +              MFD,LFD,TFD,NFD,KFD,IFD,OFD,WFD
 
       INTEGER NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
      +        METSOL,MATSTO,MPRINT,MDEBUG,MDEBG2,MREQEN,INTRAC,
@@ -162,8 +164,8 @@ C removed*     ITEXIT = exit code
 *     MTHRDR = number of threads for reading binary files
 *     MNRSIT = total number of MINRES internal iterations
 
-      DOUBLE PRECISION FVALUE,FLINES
-      COMMON/MPDOUB/FVALUE,FLINES
+      DOUBLE PRECISION FVALUE,FLINES,SUMNDF
+      COMMON/MPDOUB/FVALUE,FLINES,SUMNDF
 
 *     statement functions to get from the total parameter index the ... 
       INTEGER JTGBL,JVGBI,JTGBI,IJSYM,ITGBI,IVGBI,I,J
