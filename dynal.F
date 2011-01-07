@@ -627,8 +627,8 @@ c      FULLPR=.FALSE. !!!!!!!!!!!!!!!!
       WRITE(*,*) 'EATIME'
       MODE=2
       GOTO 10
- 101  FORMAT(I2,' h',I3,' min',F5.1,' sec total',22X,'elapsed',
-     +       I2,' h',I3,' min',F5.1,' sec')
+ 101  FORMAT(I4,' h',I3,' min',F5.1,' sec total',18X,'elapsed',
+     +       I4,' h',I3,' min',F5.1,' sec')
       END
 
 

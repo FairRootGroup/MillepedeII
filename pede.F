@@ -372,6 +372,7 @@ C      CALL EXIT(ITEXIT)
 #include "largeint.inc"
 #include "dynal.inc"
       DOUBLE PRECISION SHIFT,RTOL,ANORM,ACOND,RNORM,YNORM,GMATI,DIAG
+      INTEGER (KIND=LARGE) IJADD,JK,II
       EXTERNAL AVPROD, MVSOLV
       SAVE
 #include "mpinds.inc"
@@ -413,7 +414,8 @@ c     $                   ISTOP, ITN, Anorm, Acond, rnorm, ynorm )
       ERR=SQRT(ABS(SNGL(GMATI)))
       IF(GMATI.LT.0.0D0) ERR=-ERR
       IF(MQ(IGMAT-2).EQ.1) THEN ! normal matrix               ! ???
-         JK=IJSYM(IVGBI,IVGBI)
+         II=IVGBI
+         JK=(II*II+II)/2
       ELSE IF(MQ(IGMAT-2).EQ.2) THEN ! sparse matrix
          JK=IJADD(IVGBI,IVGBI)
       END IF
@@ -1043,6 +1045,7 @@ c     +                LABEL,ITGBI,IVGB
 #include "mpinds.inc"
       DOUBLE PRECISION ADDER,FUNREF,DCHI2S,SNDF
       INTEGER INIRIS
+      INTEGER(KIND=LARGE) II
       COMMON/CIRIS/INIRIS
       SAVE
 *     ...
@@ -1172,7 +1175,10 @@ C        print *, ' cache/w ',(MQ(INDH-K),K=3,6),(MQ(IND5-K),K=3,6)
          ELMT=0.0
          DO I=1,NVGB        ! diagonal elements
           II=0
-          IF(MATSTO.EQ.1) II=(I*I+I)/2
+          IF(MATSTO.EQ.1) THEN
+           II=I
+           II=(II*II+II)/2
+          ENDIF
           IF(MATSTO.EQ.2) II=I
           IF(MATSTO.EQ.3) II=I
           IF(II.NE.0) THEN
@@ -2378,6 +2384,7 @@ C         print *, '   buf end ', JPROC,IB,MQ(IND5+JOFFI-1),MQ(IND5+JOFFI)
 #include "largeint.inc"
 #include "dynal.inc"
       INTEGER LABELE(3)
+      INTEGER(KIND=LARGE) II
       REAL    COMPNT(3)
       SAVE
 #include "mpinds.inc"
@@ -2403,7 +2410,8 @@ C         print *, '   buf end ', JPROC,IB,MQ(IND5+JOFFI-1),MQ(IND5+JOFFI)
        IF(IVGBI.GT.0) THEN
           DPA=PAR-QM(IND2+ITGBI)       ! difference
           IF(METSOL.EQ.1.OR.METSOL.EQ.2) THEN
-             II=(IVGBI*IVGBI+IVGBI)/2
+             II=IVGBI
+             II=(II*II+II)/2
              GMATI=SNGL(DQ(IGMAT/2+II))
              ERR=SQRT(ABS(GMATI))
              IF(GMATI.LT.0.0D0) ERR=-ERR
@@ -2493,30 +2501,37 @@ c        DO I=IMIN,MAX(1,IMIN-9),-1    ! backward loop, up to 10 vectors
 #include "largeint.inc"
 #include "dynal.inc"
       DOUBLE PRECISION X(N),B(N)
-      INTEGER(KIND=LARGE) K,KK,KL,KU,LL,LJ,INDIJ,INDID,I2
+      INTEGER(KIND=LARGE) K,KK,KL,KU,LL,LJ,INDIJ,INDID,I2,IJ
       SAVE
 #include "mpinds.inc"
 *     ...
+!$    DO I=1,N
+!$     B(I)=0.0D0             ! reset 'global' B()
+!$    END DO
+*
       IF(MQ(INDJ-2).EQ.2) GOTO 10
-      IJ=0     ! full symmetric matrix
+* full symmetric matrix
+!$OMP PARALLEL DO             ! parallelize row loop
+!$OMP& PRIVATE(J,IJ)          ! variables local to thread
+!$OMP& REDUCTION(+:B)         ! private copy of B(N) for each thread, combined at end, init with 0.
+!$OMP& SCHEDULE(DYNAMIC,1024) ! slot of 1024 'I' for next idle thread
       DO I=1,N
+       IJ=I
+       IJ=(IJ*IJ-IJ)/2
        B(I)=DQ(INDJ/2+IJ+I)*X(I)
        DO J=1,I-1
         B(J)=B(J)+DQ(INDJ/2+IJ+J)*X(I)
         B(I)=B(I)+DQ(INDJ/2+IJ+J)*X(J)
        END DO
-       IJ=IJ+I
       END DO
+!$OMP END PARALLEL DO
       RETURN
 
+* sparse, compressed matrix
  10   IF(LQ(INDZ/LSCALE+2).NE.N+1) 
      +   STOP 'AVPROD: mismatched vector and matrix'
       IENCDB=MQ(INDD-1)
       IENCDM=ISHFT(1,IENCDB)-1
-*
-!$    DO I=1,N
-!$     B(I)=0.0D0             ! reset 'global' B()
-!$    END DO
 *
       NSPC=MQ(INDZ-1)         ! number of precisions, 1=D, 2=F
 !$OMP PARALLEL DO             ! parallelize row loop
@@ -4156,7 +4171,7 @@ c         CALL MEGARR('t D',2*NAGB,'auxiliary array')  ! double aux 8
 
 c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
       IF(ICALCM.EQ.1) THEN 
-         CALL SQMINV(DQ(IGMAT/2+1),
+         CALL SQMINL(DQ(IGMAT/2+1),
      +               DQ(ISOLV/2+1),NAGB,NRANK,
      +               DQ(IDUX1/2+1),MQ(IAUX1+1))
          NDEFEC=NAGB-NRANK   ! rank defect
@@ -4169,7 +4184,7 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
             WRITE(LUN,*) 'No rank defect of the symmetric matrix'
          END IF 
       ELSE             ! multiply gradient by inverse matrix
-         CALL DBSVX(DQ(IGMAT/2+1),DQ(IGVEC/2+1),DQ(ISOLV/2+1),NAGB)
+         CALL DBSVXL(DQ(IGMAT/2+1),DQ(IGVEC/2+1),DQ(ISOLV/2+1),NAGB)
       END IF
       END 
 
@@ -4179,6 +4194,7 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
 #include "largeint.inc"
 #include "dynal.inc"
 #include "mpinds.inc"
+      INTEGER(KIND=LARGE) II
       SAVE
 *     ...
 
@@ -4189,7 +4205,8 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
       IF(ICALCM.EQ.1) THEN
          NVAR=NAGB
          DO I=1,NVAR      ! used in FEASIB
-          DQ(IDUX1/2+I)=DQ(IGMAT/2+(I*I+I)/2) ! save diagonal elements
+          II=I
+          DQ(IDUX1/2+I)=DQ(IGMAT/2+(II*II+II)/2) ! save diagonal elements
          END DO
 
 *        IDUX1 = original diagonal elements

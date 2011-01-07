@@ -5,6 +5,7 @@
 *      
 *     Solution by inversion
 *        SQMINV
+CHK      SQMINL  for LARGE matrix, use OpenMP
 *
 *     Solution by diagonalization
 *        DEVROT, DEVPRT, DEFSOL,DEVINV
@@ -22,6 +23,7 @@ CHK      SQMIBB
 *        DBDOT     dot vector product
 *        DBAXPY    multiplication and addition
 *        DBSVX     symmetric matrix vector
+CHK      DBSVX     LARGE symmetric matrix vector
 *        DBGAX     general matrix vector
 *        DBAVAT    AVAT product          
 *        DBMPRV    print parameter and matrix 
@@ -153,6 +155,123 @@ CHK      SORT1K   sort 1-dim key-array
       END DO
       END
 
+*     matrix inversion ---------------------------------------------
+
+      SUBROUTINE SQMINL(V,B,N,NRANK,DIAG,NEXT)   ! matrix inversion for LARGE matrices
+*
+*     parallelization with OpenMP
+*
+#include "largeint.inc"
+*
+      INTEGER*8 I8,J8,JJ,K8,KK,KKMK,JK,JL,LLK,LJL,L8
+      DOUBLE PRECISION V(*),B(N),DIAG(N),VKK,VJK,EPS
+      INTEGER        NEXT(N)
+      PARAMETER     (EPS=1.0D-10) 
+*     ...
+      NEXT0=1
+      L=1
+      DO I=1,N
+       I8=INT8(I)
+       NEXT(I)=I+1                ! set "next" pointer
+       DIAG(I)=ABS(V((I8*I8+I8)/2))  ! save abs of diagonal elements
+      END DO
+      NEXT(N)=-1                  ! end flag
+
+      NRANK=0
+      DO I=1,N                    ! start of loop
+       K  =0
+       VKK=0.0D0
+       J=NEXT0
+       LAST=0 
+ 05    IF(J.GT.0) THEN
+          J8=INT8(J)
+          JJ=(J8*J8+J8)/2
+          IF(ABS(V(JJ)).GT.MAX(ABS(VKK),EPS*DIAG(J))) THEN
+             VKK=V(JJ)
+             K=J
+             L=LAST
+          END IF
+          LAST=J
+          J=NEXT(LAST)
+          GOTO 05   
+       END IF 
+
+       IF(K.NE.0) THEN            ! pivot found
+          K8=INT8(K)
+          KK=(K8*K8+K8)/2
+          KKMK=KK-K8
+          IF(L.EQ.0) THEN
+             NEXT0=NEXT(K)
+          ELSE 
+             NEXT(L)=NEXT(K)
+          END IF
+          NEXT(K)=0               ! index is used, reset
+          NRANK=NRANK+1           ! increase rank and ...
+          VKK    =1.0/VKK
+          V(KK)  =-VKK
+          B(K)   =B(K)*VKK
+                                  ! elimination
+          JK     =KKMK
+          DO J=1,N
+           IF(J.EQ.K) THEN
+              JK=KK
+           ELSE
+              IF(J.LT.K) THEN
+                 JK=JK+1
+              ELSE
+                 JK=JK+INT8(J)-1
+              END IF
+              V(JK)=V(JK)*VKK
+           ENDIF
+          ENDDO
+*
+!$OMP PARALLEL DO                ! parallelize row loop
+!$OMP& PRIVATE(JL,JK,L,LJL,LLK,VJK,J8,L8)  ! variables local to thread
+!$OMP& SCHEDULE(DYNAMIC,128)     ! slot of 128 'J' for next idle thread
+          DO J=N,1,-1
+           J8=INT8(J)
+           JL=J8*(J8-1)/2
+           IF(J.NE.K) THEN
+              IF(J.LT.K) THEN
+                 JK=KKMK+J8
+              ELSE
+                 JK=K8+JL
+              END IF
+              VJK  =V(JK)/VKK
+              B(J) =B(J)-B(K)*VJK
+              DO L=1,J
+               IF (L.NE.K) THEN
+                  L8=INT8(L)
+                  LJL=JL+L8
+                  IF(L.LT.K) THEN
+                     LLK=KKMK+L8
+                  ELSE
+                     LLK=K8+L8*(L8-1)/2
+                  END IF
+                  V(LJL)=V(LJL)-V(LLK)*VJK
+               ENDIF
+              END DO
+           END IF
+          END DO
+!$OMP END PARALLEL DO
+       ELSE
+          DO K=1,N
+           K8=INT8(K)
+           KK=(K8*K8-K8)/2
+           IF(NEXT(K).NE.0) THEN
+              B(K)=0.0D0       ! clear vector element
+              DO J=1,K
+               IF(NEXT(J).NE.0) V(KK+INT8(J))=0.0D0  ! clear matrix row/col
+              END DO
+           END IF
+          END DO
+          GOTO 10
+       END IF
+      END DO             ! end of loop
+ 10   DO JJ=1,(INT8(N)*INT8(N)+INT8(N))/2
+       V(JJ)=-V(JJ)      ! finally reverse sign of all matrix elements
+      END DO
+      END
 
 *     diagonalization --------------------------------------------------
 
@@ -785,6 +904,37 @@ c       X(K)=X(K)/VAL(ILPTR(K))            ! X_k := X_k/D_kk
        END DO
        B(I)=SUM
        IJS=IJS+I
+      END DO
+      END
+
+      SUBROUTINE DBSVXL(V,A,B,N)                  ! LARGE symm. matrix, vector
+*     multiply symmetric N-by-N matrix and N-vector
+*
+*                   - -   - 
+*        CALL DBSVXL(V,A,B,N)
+*                       -
+*
+*         B   :=    V   *    A
+*         N        N*N       N
+*
+      DOUBLE PRECISION V,A,B
+      DIMENSION V(*),A(*),B(*)
+      DOUBLE PRECISION SUM
+      INTEGER*8 IJ,IJS
+      IJS=1
+      DO I=1,N
+       SUM=0.0
+       IJ=IJS
+       DO J=1,N
+        SUM=SUM+V(IJ)*A(J)
+        IF(J.LT.I) THEN
+           IJ=IJ+1
+        ELSE
+           IJ=IJ+INT8(J)
+        END IF
+       END DO
+       B(I)=SUM
+       IJS=IJS+INT8(I)
       END DO
       END
 
