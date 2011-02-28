@@ -1599,7 +1599,8 @@ c 103  FORMAT(I13,3X,A,G12.4)
 *     arrays for local fit
 #include "localfit.inc"     
       PARAMETER (MLMSYM=(MLOCAL*MLOCAL+MLOCAL)/2)
-      DOUBLE PRECISION BLVEC(MLOCAL),CLMAT(MLMSYM),SCDIAG(MLOCAL)
+      DOUBLE PRECISION BLVEC(MLOCAL),CLMAT(MLMSYM),SCDIAG(MLOCAL),
+     +                 CLXSD(MLMSYM),DCH2SD
       DOUBLE PRECISION DCHI2,DVAR,DCHI2S,SNDF,VLG(NLG),DW1,DW2,SUMM
       DIMENSION RV(NR),NREJ(0:3)
       INTEGER SCFLAG(MLOCAL),IBANDH(MLOCAL)
@@ -1743,9 +1744,20 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
        NALG=0                         ! count number of global derivatives
        NALC=0                         ! count number of local derivatives
        IMEAS=0
+       IXSD=0                         ! special data with external track seed?
+       NXSD=0
        IST=ISFRST(IBUF)
        NST=ISLAST(IBUF)
  01    CALL ISJAJB(NST,IST,JA,JB,JSP)
+*      check special data
+       IF (JSP.GT.0.AND.IXSD.EQ.0) THEN
+          ISP=IFIX(-GLDER(JSP)*10.0+0.5)
+          IF (MOD(ISP,10).EQ.1) THEN
+             IXSD=JSP
+             NXSD=ISP/10
+          ENDIF
+       ENDIF
+*
        IF(JA.NE.0) THEN       
           RMEAS=GLDER(JA)               ! data
 *         subtract global ... from measured value
@@ -1815,8 +1827,11 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
        MBDR=NALC
        DO I=1, NALC
           IBANDH(I)=0
-       ENDDO      
-      
+       ENDDO
+       IROW=1
+       IDIAG=1
+       NDFSD=0
+
        ITER=0
  05    ITER=ITER+1                  ! outlier suppresssion iteration
        RESMAX=0.0
@@ -1831,11 +1846,34 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
 *      ----- second loop ------------------------------------------------
 *      accumulate normal equations for local fit and determine solution
 
+       DO I=1,(NALC*NALC+NALC)/2
+        CLXSD(I)=0.0D0                  ! reset external seed matrix
+       END DO
+       IF (IXSD.GT.0) THEN
+         DO I=1,NXSD
+           IJ=INDER(IXSD+I)
+           IF (ITER.EQ.1) THEN          ! check structure of seed matrix
+ 07          CONTINUE
+             IF (IJ.GT.IDIAG) THEN
+               IROW=IROW+1
+               IDIAG=IDIAG+IROW
+               GOTO 7
+             ENDIF
+             ICOL=IJ+IROW-IDIAG
+             ID=IABS(IROW-ICOL)+1
+             IM=MIN(IROW,ICOL)
+             IBANDH(ID)=MAX(IBANDH(ID),IM)
+             IF (IROW.EQ.ICOL) NDFSD=NDFSD+1
+           ENDIF
+           CLXSD(IJ)=DBLE(GLDER(IXSD+I))
+         ENDDO
+       ENDIF
+*
        DO I=1,NALC
         BLVEC(I)=0.0D0                  ! reset vector
        END DO
        DO I=1,(NALC*NALC+NALC)/2 ! GF: FIXME - not really, local parameter number...
-        CLMAT(I)=0.0D0                  ! reset matrix  
+        CLMAT(I)=CLXSD(I)               ! (p)reset matrix  
        END DO
        NEQ=0
        NDOWN=0
@@ -2053,8 +2091,15 @@ c          SUWT=SUWT+DCHI2/DCHIT
           ENDIF            
           SUMM=SUMM+DCHI2        ! accumulate chi-square sum
           GOTO 30 
-       END IF    
-       NDF=NEQ-NRANK 
+       END IF
+       NDF=NEQ-NRANK
+*      external seed ?
+       DCHISD=0.0D0
+       IF (IXSD.GT.0) THEN
+         CALL DBAVAT(CLXSD,BLVEC,DCH2SD,NALC,1)
+         SUMM=SUMM+DCH2SD
+         NDF=NDF+NDFSD
+       ENDIF
        RESING=(FLOAT(NWEIG)-SUWT)/FLOAT(NWEIG)
        IF (LHIST) THEN
         IF(ITER.EQ.1) CALL HMPENT( 5,FLOAT(NDF))  ! histogram Ndf      
@@ -2165,6 +2210,8 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
 *      ----- fourth loop ------------------------------------------------
 *      update of global matrix and vector according to the "Millepede"
 *      principle, from the global/local information
+
+       DCHI2S=DCHI2S+DCH2SD
 
        IST=ISFRST(IBUF)
        NST=ISLAST(IBUF)
