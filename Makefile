@@ -9,6 +9,8 @@
 # If compiler doesn't understands INTEGER(KIND=) (FORTRAN95) use
 # LARGE_SIZE=4 and replace INTEGER(KIND=) by INTEGER*4 or
 # LARGE_SIZE=8 and replace INTEGER(KIND=) by INTEGER*8
+# e.g. change source files with sed:
+# for name in pede.F dynal.F dynal.inc mpinds.inc; do sed 's/(KIND=LARGE)/*4/' $name >! tmp; mv tmp $name; done
 # #################################################################
 #
 # compiler options

@@ -30,11 +30,13 @@
       INTEGER NFD(MFILES)   ! NFD(.)=  index in file
       INTEGER KFD(2,MFILES) ! KFD(1,.)=  number of records in file
       INTEGER IFD(MFILES)   ! IFD(.)=  integrated record numbers
+      INTEGER JFD(MFILES)   ! JFD(.)=  accepted records
+      REAL    CFD(MFILES)   ! chi2 
       REAL    OFD(MFILES)   ! option 
       REAL    WFD(MFILES)   ! weight 
       CHARACTER*500 TFD(MFILES)        ! file names
       COMMON/MPFILE/IFILE,NFILES,NFILB,NFILF,NFILC,NFILW,
-     +              MFD,LFD,TFD,NFD,KFD,IFD,OFD,WFD
+     +              MFD,LFD,TFD,NFD,KFD,IFD,OFD,WFD,JFD,CFD
 
       INTEGER NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
      +        METSOL,MATSTO,MPRINT,MDEBUG,MDEBG2,MREQEN,INTRAC,
@@ -70,7 +72,7 @@
      +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER,NREC3,
      +              MREQPE,MHISPE,MSNGPE,MCMPRS,MTHRD,MXREC,MATMON,
      +              LFITNP,LFITBB,MNRSEL,LBMNRS(100),
-     +              NCACHE,FCACHE(3),MTHRDR,MNRSIT
+     +              NCACHE,FCACHE(3),MTHRDR,MNRSIT,IFORCE
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
@@ -163,6 +165,7 @@ C removed*     ITEXIT = exit code
 *     FCACHE = fractions for cache splitting (read, write data, write indices)
 *     MTHRDR = number of threads for reading binary files
 *     MNRSIT = total number of MINRES internal iterations
+*     IFORCE = 0 switch to SUBITO for (global) rank defects, <> 0: don't care
 
       DOUBLE PRECISION FVALUE,FLINES,SUMNDF
       COMMON/MPDOUB/FVALUE,FLINES,SUMNDF

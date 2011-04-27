@@ -152,12 +152,41 @@ c       END IF
          ENDIF
       END IF
       IF(NHISTP.NE.0) THEN
-         CALL GMPRNT(1)       
+         CALL GMPRNT(1)
          CALL GMPRNT(2)
       END IF
       CALL GMPWRT(1)             ! output of xy data 
       CALL GMPWRT(2)             ! output of xy data
+*     'track quality' per binary file
+      IF (NFILB.GT.1) THEN
+         CALL GMPDEF(6,1,'log10(#records) vs file number')
+         CALL GMPDEF(7,1,'final rejection fraction vs file number')
+         CALL GMPDEF(8,1,
+     +   'final <Chi^2/Ndf> from accepted local fits vs file number')
 
+         DO I=1,NFILB
+            KFL=KFD(2,I)
+            NRC=-KFD(1,I)
+            IF (NRC.GT.0) THEN
+               REJ=FLOAT(NRC-JFD(KFL))/FLOAT(NRC)
+               CALL GMPXY(6,FLOAT(KFL),ALOG10(FLOAT(NRC))) ! log10(#records) vs file
+               CALL GMPXY(7,FLOAT(KFL),REJ)    ! rejection fraction vs file
+            ENDIF
+            IF (JFD(KFL).GT.0) THEN
+               C2NDF=CFD(KFL)/FLOAT(JFD(KFL))
+               CALL GMPXY(8,FLOAT(KFL),C2NDF)  ! <Chi2/NDF> vs file
+            ENDIF
+         ENDDO
+         IF(NHISTP.NE.0) THEN
+            CALL GMPRNT(6)
+            CALL GMPRNT(7)
+            CALL GMPRNT(8)
+         END IF
+         CALL GMPWRT(6)             ! output of xy data
+         CALL GMPWRT(7)             ! output of xy data
+         CALL GMPWRT(8)             ! output of xy data
+      ENDIF
+* 
       IF(ICTEST.EQ.1) THEN
          WRITE(*,*) ' '
          WRITE(*,*) 'Misalignment test wire chamber'
@@ -570,7 +599,12 @@ c     +                LABEL,ITGBI,IVGB
      +           ' for',NCGB,' constraint equations'
       IF(NRANK.LT.NCGB) THEN
          WRITE(*,*) 'Warning: insufficient constraint equations!' 
-         WRITE(8,*) 'Warning: insufficient constraint equations!' 
+         WRITE(8,*) 'Warning: insufficient constraint equations!'
+         IF (IFORCE.EQ.0) THEN
+           ISUBIT=1
+           WRITE(*,*) '         --> enforcing SUBITO mode' 
+           WRITE(8,*) '         --> enforcing SUBITO mode' 
+         ENDIF
       END IF
 
       CALL MEGRM('y')
@@ -1133,6 +1167,11 @@ c         WRITE(*,111) ! header line
        MQ(IND5-K)=0  ! cache usage
        MQ(INDH-K)=0
       ENDDO
+C     statistics per binary file
+      DO I=1,NFILB
+         JFD(I)=0
+         CFD(I)=0.0
+      ENDDO
 *     ----- read next data ----------------------------------------------
  10   CALL PEREAD(NR)  ! read records
       CALL PEPREP(1)   ! prepare records
@@ -1142,7 +1181,7 @@ c         WRITE(*,111) ! header line
       CALL LOOPBF(NREJEC,
      &            NAGBN*NALCN,         DQ(IGLMA/2+1),      ! 'g'
      &            NAEQN,               QM(INDW+1),         ! 'w'
-     &            NDFS,SNDF,DCHI2S) 
+     &            NDFS,SNDF,DCHI2S,JFD,CFD) 
       NDFSUM=NDFSUM+NDFS
       SUMNDF=SUMNDF+SNDF
       CALL ADDSUM(DCHI2S)
@@ -1168,6 +1207,7 @@ C        print *, ' cache/w ',(MQ(INDH-K),K=3,6),(MQ(IND5-K),K=3,6)
   111   FORMAT(' Write cache usage (#flush,#overrun,<levels>,',
      &         'peak(levels))'/2I7,',',4(F6.1,'%'))
       ENDIF
+
 *     ----- after end-of-data add contributions from pre-sigma ---------
 
       IF(NLOOPN.EQ.1) THEN
@@ -1583,7 +1623,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
 *
 *      loop over events in buffer, fits and sums
 *
-      SUBROUTINE LOOPBF(NREJ,NLG,VLG,NR,RV,NDFS,SNDF,DCHI2S)
+      SUBROUTINE LOOPBF(NREJ,NLG,VLG,NR,RV,NDFS,SNDF,DCHI2S,NACCF,CHI2F)
 *     contains  
 *     SUBROUTINE FITLOC(NALC,NALG) ! number of local, global parameters
 *
@@ -1595,6 +1635,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
 *
 #include "largeint.inc"
 #include "dynal.inc"
+#include "mpinds.inc"
 *     
 *     arrays for local fit
 #include "localfit.inc"     
@@ -1602,7 +1643,7 @@ c 103  FORMAT(I13,3X,A,G12.4)
       DOUBLE PRECISION BLVEC(MLOCAL),CLMAT(MLMSYM),SCDIAG(MLOCAL),
      +                 CLXSD(MLMSYM),DCH2SD
       DOUBLE PRECISION DCHI2,DVAR,DCHI2S,SNDF,VLG(NLG),DW1,DW2,SUMM
-      DIMENSION RV(NR),NREJ(0:3)
+      DIMENSION RV(NR),NREJ(0:3),NACCF(MFILES),CHI2F(MFILES)
       INTEGER SCFLAG(MLOCAL),IBANDH(MLOCAL)
 *      scratch arrays for local fit
       DOUBLE PRECISION VBND(MLOCAL*(MXBND+1)),VBDR(MLOCAL*MXBDR),
@@ -1614,7 +1655,6 @@ c 103  FORMAT(I13,3X,A,G12.4)
       DATA CHUBER/1.345/  ! constant for Huber down-weighting
       DATA CAUCHY/2.3849/ ! constant for Cauchy down-weighting 
       SAVE CHUBER,CAUCHY
-#include "mpinds.inc"
 *     ... 
       ISFRST(IBUF)=MQ(IDOT2+IBUF)+1
       ISLAST(IBUF)=MQ(IDOT3+MQ(IDOT2+IBUF))
@@ -1636,12 +1676,13 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
 !$OMP&     NAGBN,ICALCM,ICHUNK,NLOOPN,NRECER,NPRDBG,IPRDBG,
 !$OMP&     NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,IND5,INDH,MTHRD,
 !$OMP&     DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB)  ! 'global' variables 
-!$OMP&  REDUCTION(+:NDFS,SNDF,DCHI2S,NREJ,NBNDR) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
+!$OMP&  REDUCTION(+:NDFS,SNDF,DCHI2S,NREJ,NBNDR,NACCF,CHI2F) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
 !$OMP&  REDUCTION(MAX:NBNDX,NBDRX)
 !$OMP&  REDUCTION(MIN:NREC3)
 !$OMP&  SCHEDULE(DYNAMIC,ICHUNK)
       DO IBUF=1,MQ(IDOT2)           ! buffer for current record
        NRC=MQ(IDOT3+ISFRST(IBUF)-2)   ! record 
+       KFL=MQ(IDOT4+ISFRST(IBUF)-1)   ! record 
        WRC=QM(IDOT4+ISFRST(IBUF)-2)   ! weight 
        DW1=DBLE(WRC)
        DW2=DSQRT(DW1)
@@ -2204,8 +2245,10 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
              QM(IND5+MTHRD*6+IPROC+1)=RESMAX
              MQ(IND5+MTHRD*5+IPROC+1)=NRC
           END IF 
-       END IF 
- 
+       END IF
+*      'track quality' per binary file: accepted records
+       NACCF(KFL)=NACCF(KFL)+1
+       CHI2F(KFL)=CHI2F(KFL)+CHNDF
 
 *      ----- fourth loop ------------------------------------------------
 *      update of global matrix and vector according to the "Millepede"
@@ -4227,9 +4270,15 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
      +      '-by-',NAGB,' matrix is ',NDEFEC,' (should be zero).'
             WRITE(LUN,*) 'The rank defect of the symmetric',NAGB,
      +      '-by-',NAGB,' matrix is ',NDEFEC,' (should be zero).'
+           IF (IFORCE.EQ.0) THEN
+             ISUBIT=1
+             WRITE(*,*)   '         --> enforcing SUBITO mode' 
+             WRITE(LUN,*) '         --> enforcing SUBITO mode' 
+           ENDIF
          ELSE
             WRITE(LUN,*) 'No rank defect of the symmetric matrix'
          END IF 
+
       ELSE             ! multiply gradient by inverse matrix
          CALL DBSVXL(DQ(IGMAT/2+1),DQ(IGVEC/2+1),DQ(ISOLV/2+1),NAGB)
       END IF
@@ -4901,7 +4950,13 @@ C      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
       DWMEAN=SUMNDF/DFLOAT(NDFSUM)
       DRATIO=FVALUE/DWMEAN/DFLOAT(NDFSUM-NAGB)
       CATIO=SNGL(DRATIO)
-      IF(LHUBER.NE.0) CATIO=1.07*CATIO  ! correction   
+      IF(LHUBER.NE.0) THEN
+        IF (LHUBER.LE.3) THEN
+          CATIO=CATIO/0.9326  ! correction Huber downweighting
+        ELSE
+          CATIO=CATIO/0.8228  ! correction Cauchy downweighting
+        ENDIF
+      ENDIF
       MRATI=NINT(100.0*CATIO)
 
       DO LUNP=6,LUNLOG,LUNLOG-6
@@ -5144,6 +5199,7 @@ c 103  FORMAT(1X,A,G12.4)
       FCACHE(3)= 0.0 ! dynamic size
       MTHRDR=1  ! number of threads for reading binary files
       MNRSIT=0  ! total number of MINRES internal iterations
+      IFORCE=0  ! switch to SUBITO for (global) rank defects
 
       DO I=1,8
        TIMES(I)=0.0
@@ -5195,6 +5251,7 @@ c 103  FORMAT(1X,A,G12.4)
             ENDIF
          ENDIF   
           IF(INDEX(TEXT(IA:IB),'s').NE.0) ISUBIT=1  ! like "subito"
+          IF(INDEX(TEXT(IA:IB),'f').NE.0) IFORCE=1  ! like "force"
        END IF
        IF(I.EQ.IARGC()) WRITE(*,*) '--------------------- '
       END DO
@@ -5914,6 +5971,13 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             ISUBIT=1
+            RETURN
+         END IF
+
+         KEYSTX='force'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+            IFORCE=1
             RETURN
          END IF
 
