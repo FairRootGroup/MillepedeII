@@ -72,7 +72,7 @@
      +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER,NREC3,
      +              MREQPE,MHISPE,MSNGPE,MCMPRS,MTHRD,MXREC,MATMON,
      +              LFITNP,LFITBB,MNRSEL,LBMNRS(100),
-     +              NCACHE,FCACHE(3),MTHRDR,MNRSIT,IFORCE
+     +              NCACHE,FCACHE(3),MTHRDR,MNRSIT,IFORCE,IGCORR
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
@@ -166,6 +166,7 @@ C removed*     ITEXIT = exit code
 *     MTHRDR = number of threads for reading binary files
 *     MNRSIT = total number of MINRES internal iterations
 *     IFORCE = 0 switch to SUBITO for (global) rank defects, <> 0: don't care
+*     IGCORR = flag for output of global correlations for inversion, =0: none
 
       DOUBLE PRECISION FVALUE,FLINES,SUMNDF
       COMMON/MPDOUB/FVALUE,FLINES,SUMNDF

@@ -34,6 +34,10 @@
       IF (CHOST(1:1).EQ.' ') CALL GETENV('HOST',CHOST)
       WRITE(*,*) '($Rev$)'
 !$    WRITE(*,*) 'using OpenMP (TM)'
+#ifdef __GFORTRAN__
+      WRITE(*,111)  __GNUC__ , __GNUC_MINOR__ , __GNUC_PATCHLEVEL__
+  111 FORMAT(' compiled with gcc ',I0,'.',I0,'.',I0)
+#endif
       WRITE(*,*) ' '
       WRITE(*,*) '  <  Millepede II-P starting ... ',CHDATE 
       WRITE(*,*) '                                 ',CHOST
@@ -402,7 +406,8 @@ C      CALL EXIT(ITEXIT)
 #include "dynal.inc"
       DOUBLE PRECISION SHIFT,RTOL,ANORM,ACOND,RNORM,YNORM,GMATI,DIAG
       INTEGER (KIND=LARGE) IJADD,JK,II
-      EXTERNAL AVPROD, MVSOLV
+      LOGICAL CHECKA
+      EXTERNAL AVPROD, MCSOLV, MVSOLV
       SAVE
 #include "mpinds.inc"
       DATA IPH/0/
@@ -422,15 +427,33 @@ c      NOUT  =6
       ITNLIM=200
       SHIFT =0.0D0
       RTOL  = MRESTL ! from steering
+      CHECKA=.FALSE.
 
-      NVAR=NAGB
-      CALL MINRES(NVAR,DQ(IGVEC/2+1),
+      IF(MBANDW.EQ.0) THEN           ! default preconditioner
+         CALL MINRES(NAGB,DQ(IGVEC/2+1),
+     +   DQ(IDUX1/2+1),       DQ(IDUX1/2+1+NAGB),  DQ(IDUX1/2+1+2*NAGB),
+     +   DQ(IDUX1/2+1+3*NAGB),DQ(IDUX1/2+1+4*NAGB),DQ(IDUX1/2+1+5*NAGB),        
+     +                 DQ(ISOLV/2+1),DQ(IDUX7/2+1),
+     +                 AVPROD, MCSOLV, CHECKA ,.TRUE. , SHIFT,
+     +                 NOUT , ITNLIM, RTOL,
+     +                 ISTOP, ITN, ANORM, ACOND, RNORM, YNORM)
+      ELSE IF(MBANDW.GT.0) THEN                          ! band matrix preconditioner 
+         CALL MINRES(NAGB,DQ(IGVEC/2+1),
      +   DQ(IDUX1/2+1),       DQ(IDUX1/2+1+NAGB),  DQ(IDUX1/2+1+2*NAGB),
      +   DQ(IDUX1/2+1+3*NAGB),DQ(IDUX1/2+1+4*NAGB),DQ(IDUX1/2+1+5*NAGB),
      +                 DQ(ISOLV/2+1),DQ(IDUX7/2+1),
-     +                 AVPROD, MVSOLV, .TRUE. , .FALSE. , SHIFT,
-     +                 NOUT , ITNLIM, RTOL,
-     +                 ISTOP, ITN, ANORM, ACOND, RNORM, YNORM)
+     +                 AVPROD, MVSOLV, CHECKA ,.TRUE. , SHIFT,
+     +                 NOUT,   ITNLIM, RTOL,
+     +                 ISTOP,  ITN, ANORM, ACOND, RNORM, YNORM)
+      ELSE
+         CALL MINRES(NAGB,DQ(IGVEC/2+1),
+     +   DQ(IDUX1/2+1),       DQ(IDUX1/2+1+NAGB),  DQ(IDUX1/2+1+2*NAGB),
+     +   DQ(IDUX1/2+1+3*NAGB),DQ(IDUX1/2+1+4*NAGB),DQ(IDUX1/2+1+5*NAGB),
+     +                 DQ(ISOLV/2+1),DQ(IDUX7/2+1),
+     +                 AVPROD, MVSOLV, CHECKA ,.FALSE., SHIFT,
+     +                 NOUT,   ITNLIM, RTOL,
+     +                 ISTOP,  ITN, ANORM, ACOND, RNORM, YNORM)
+      END IF 
 
 c      subroutine MINRES( n, b, r1, r2, v, w, w1, w2, x, y,
 c     $                   AVPROD, Msolve, .TRUE. , .FALSE. , SHIFT,
@@ -1292,8 +1315,7 @@ c      WRITE(*,*) 'NREGUL ',NREGUL,NLOOPN
       IB=I-2     
         
       ADDER=WEIGHT*DSUM**2
-      CALL ADDSUM(ADDER)
-      FVALUE=FVALUE+WEIGHT*DSUM**2 ! accumulate chi-square
+      CALL ADDSUM(ADDER)   ! accumulate chi-square
 
       DO J=IA,IB,2
        LABELJ=MQ(IND9+J+1)
@@ -2473,6 +2495,7 @@ C         print *, '   buf end ', JPROC,IB,MQ(IND5+JOFFI-1),MQ(IND5+JOFFI)
 
 #include "largeint.inc"
 #include "dynal.inc"
+      DOUBLE PRECISION DIAG,GMATI,GCOR2
       INTEGER LABELE(3)
       INTEGER(KIND=LARGE) II
       REAL    COMPNT(3)
@@ -2502,9 +2525,16 @@ C         print *, '   buf end ', JPROC,IB,MQ(IND5+JOFFI-1),MQ(IND5+JOFFI)
           IF(METSOL.EQ.1.OR.METSOL.EQ.2) THEN
              II=IVGBI
              II=(II*II+II)/2
-             GMATI=SNGL(DQ(IGMAT/2+II))
-             ERR=SQRT(ABS(GMATI))
+             GMATI=DQ(IGMAT/2+II)
+             ERR=SQRT(ABS(SNGL(GMATI)))
              IF(GMATI.LT.0.0D0) ERR=-ERR
+             DIAG=DQ(IDUX1/2+IVGBI)
+             GCOR=-1.0
+             IF(GMATI*DIAG.GT.0.0D0) THEN   ! global correlation
+                GCOR2=1.0D0-1.0D0/(GMATI*DIAG)
+                IF(GCOR2.GE.0.0D0.AND.GCOR2.LE.1.0D0) 
+     +             GCOR=SNGL(DSQRT(GCOR2))
+             END IF
           END IF
        END IF
        IF(ITGBI.LE.IPRLIM) THEN 
@@ -2512,7 +2542,11 @@ C         print *, '   buf end ', JPROC,IB,MQ(IND5+JOFFI-1),MQ(IND5+JOFFI)
              WRITE(*  ,102) ITGBL,PAR,QM(IND1+ITGBI)
           ELSE 
              IF(METSOL.EQ.1.OR.METSOL.EQ.2) THEN
-                WRITE(*,102) ITGBL,PAR,QM(IND1+ITGBI),DPA,ERR
+                IF (IGCORR.EQ.0) THEN
+                   WRITE(*,102) ITGBL,PAR,QM(IND1+ITGBI),DPA,ERR
+                ELSE
+                   WRITE(*,102) ITGBL,PAR,QM(IND1+ITGBI),DPA,ERR,GCOR
+                ENDIF
              ELSE
                 WRITE(*,102) ITGBL,PAR,QM(IND1+ITGBI),DPA
              END IF
@@ -2527,7 +2561,11 @@ C         print *, '   buf end ', JPROC,IB,MQ(IND5+JOFFI-1),MQ(IND5+JOFFI)
           WRITE(LUP,102) ITGBL,PAR,QM(IND1+ITGBI)
        ELSE
           IF(METSOL.EQ.1.OR.METSOL.EQ.2) THEN
-             WRITE(LUP,102) ITGBL,PAR,QM(IND1+ITGBI),DPA,ERR
+             IF (IGCORR.EQ.0) THEN
+                WRITE(LUP,102) ITGBL,PAR,QM(IND1+ITGBI),DPA,ERR
+             ELSE
+                WRITE(LUP,102) ITGBL,PAR,QM(IND1+ITGBI),DPA,ERR,GCOR
+             ENDIF
           ELSE
              WRITE(LUP,102) ITGBL,PAR,QM(IND1+ITGBI),DPA
           END IF
@@ -4458,7 +4496,6 @@ c      WRITE(*,*) 'MINVER ICALCM=',ICALCM
       ITNLIM=2000    ! iteration limit
       SHIFT =0.0D0   ! not used
       RTOL = MRESTL ! from steering
-      NVAR=NAGB
       CHECKA=.FALSE.
 
 c      WRITE(*,*) 'METSOL MATSTO',METSOL,MATSTO
@@ -4515,6 +4552,7 @@ c         IF(ICALCM.NE.0) WRITE(LUN,*) 'MMINRS: no preconditioning !!!'
       ISTOPA=ISTOP
       MNRSIT=MNRSIT+ITN
 
+      IF (ISTOPA.EQ.0) PRINT *, 'MINRES: istop=0, exact solution x=0.'
 c      WRITE(*,*) 'Solution vector'
 c      WRITE(*,*) (DQ(ISOLV/2+I),I=1,NAGB)
 
@@ -5200,6 +5238,7 @@ c 103  FORMAT(1X,A,G12.4)
       MTHRDR=1  ! number of threads for reading binary files
       MNRSIT=0  ! total number of MINRES internal iterations
       IFORCE=0  ! switch to SUBITO for (global) rank defects
+      IGCORR=0  ! flag for output of global correlations for inversion, =0: none
 
       DO I=1,8
        TIMES(I)=0.0
@@ -5978,6 +6017,13 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             IFORCE=1
+            RETURN
+         END IF
+
+         KEYSTX='globalcorr'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+            IGCORR=1
             RETURN
          END IF
 

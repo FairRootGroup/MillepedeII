@@ -1552,8 +1552,11 @@ c      END IF
       DO I=1,N
        JK=0
        DIV=C(I)                          ! copy       
-       CU(I)=0.0D0
-       IF(DIV.GT.0.0) CU(I)=1.0D0/SQRT(DIV) 
+       IF (DIV.GT.0.0D0) THEN
+          CU(I)=1.0D0/DSQRT(DIV)
+       ELSE
+          CU(I)=0.0D0
+       ENDIF
        DO J=1,P
         A(I,J)=A(I,J)*CU(I)              ! K = A C^{-1/2}
         DO K=1,J
