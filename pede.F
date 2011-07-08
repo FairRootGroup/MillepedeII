@@ -1860,11 +1860,12 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
      &       MLOCAL, NRC
           GOTO 90
        END IF
+*
+       NGG=(NALG*NALG+NALG)/2 
        IF (ICALCM.EQ.1) THEN
          DO K=1,NALG*NALC
            VLG(K)=0.0D0 ! reset global-local matrix
          ENDDO
-         NGG=(NALG*NALG+NALG)/2 
          MQ(IND5+IOFFI-1)=NRC       ! index header:
          MQ(IND5+IOFFI  )=NALG      ! event number, number of global par
          CALL SORT1K(MQ(INDC+IOFFC+1),NALG) ! sort global par.
@@ -1876,9 +1877,6 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
          DO K=1,NGG
            DQ(INDH/2+IOFFD+K)=0.0D0 ! reset global-global matrix 
          ENDDO
-         MQ(IND5        +IPROC+1)=MQ(IND5        +IPROC+1)+1
-         MQ(IND5+MTHRD  +IPROC+1)=MQ(IND5+MTHRD  +IPROC+1)+NGG
-         MQ(IND5+MTHRD*2+IPROC+1)=MQ(IND5+MTHRD*2+IPROC+1)+NALG+2
        ENDIF
 *      ----- iteration start and check ---------------------------------       
 
@@ -2355,9 +2353,15 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
 *      CALL DBGAX(DQ(IGLMA/2+1),BLVEC,DQ(ICORV/2+1),NALG,NALC)  ! not done
 *
 *      the vector update is not done, because after local fit it is zero!
+*
+*      update cache status
+       MQ(IND5        +IPROC+1)=MQ(IND5        +IPROC+1)+1
+       MQ(IND5+MTHRD  +IPROC+1)=MQ(IND5+MTHRD  +IPROC+1)+NGG
+       MQ(IND5+MTHRD*2+IPROC+1)=MQ(IND5+MTHRD*2+IPROC+1)+NALG+2
+*      check free space
        NFRED=MQ(INDH-1)-MQ(IND5+MTHRD  +IPROC+1)-MQ(INDH-2)
        NFREI=MQ(IND5-1)-MQ(IND5+MTHRD*2+IPROC+1)-MQ(IND5-2)
-       IF (NFRED.LT.0.OR.NFREI.LT.0) THEN
+       IF (NFRED.LT.0.OR.NFREI.LT.0) THEN ! need to flush
         NB=MQ(IND5+IPROC+1)
 C        print *, ' flush ', IPROC, NRC, NB, NFRED, NFREI
         JOFFD=MQ(INDH-1)*IPROC           ! offset data
@@ -4138,10 +4142,18 @@ c      END IF
 
       CALL FEASMA    ! prepare constraint matrices
 
+      CALL MEGSPC(NUSE)             ! unused
+      IF (MATSIZ(1)+MATSIZ(2).GT.NUSE) THEN
+         DGBM=4.0D-9*DFLOAT(MATSIZ(1)+MATSIZ(2))   ! space requested in Gbytes 
+         DUBM=4.0D-9*DFLOAT(NUSE)                  ! space available in Gbytes 
+         WRITE(*,*)
+         WRITE(*,109) DGBM,DUBM
+         STOP '... use pede version with larger memory'
+      ENDIF
       CALL VMPREP(MATSIZ)    ! prepare matrix and gradient storage
 
       DGBM=4.0D-9*DFLOAT(MEGA)      ! total space of Gbytes 
-      CALL MEGSPC(NUSE)            ! unused
+      CALL MEGSPC(NUSE)             ! unused
       DUBM=4.0D-9*DFLOAT(MEGA-NUSE) ! used space in Gbytes 
       WRITE(*,*) ' '
       WRITE(*,104) DGBM,DUBM,DUBM/DGBM*100.0D0
@@ -4185,6 +4197,9 @@ c      END IF
  104  FORMAT(' Memory space: total',F13.6,' GB'/
      +       '                used',F13.6,' GB = ',F7.2,' %')
  106  FORMAT(I6,2(3X,F9.3,F12.1,3X))
+ 109  FORMAT(' Memory space for global matrix'/
+     +       '     requested ',F13.6, ' GB'/
+     +       '     available ',F13.6, ' GB')
       END 
 
 
@@ -4267,8 +4282,8 @@ C         CALL MEGARR('t D',2*NAGB,'auxiliary array')  ! double aux 8
       IF(METSOL.GE.3) THEN
          CALL MEGSPC(NWORDS)
          NMATS=NWORDS/(2*NAGB)
-         WRITE(*,*) 'Space: double words left ',NWORDS/2,NMATS  
          IF(NMATS.LT.6) THEN
+            WRITE(*,*) 'Space: double words left ',NWORDS/2,NMATS  
             WRITE(*,*) 'Insufficient space - stop'
             STOP 'recompile with larger memory'
          END IF 
