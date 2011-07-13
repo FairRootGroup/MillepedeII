@@ -5048,7 +5048,7 @@ C     + '-----------------------------------------------------------'
 C      WRITE(*,199) ' '
 
 
-      NRATI=NINT(FLOAT(10000*NREJ)/FLOAT(NRECAL))
+      NRATI=NINT(10000.0*FLOAT(NREJ)/FLOAT(NRECAL))
       DJRAT=0.01D0*DFLOAT(NRATI)
       NFACI=NINT(100.0*SQRT(CATIO))
 
