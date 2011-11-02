@@ -31,12 +31,13 @@
       INTEGER KFD(2,MFILES) ! KFD(1,.)=  number of records in file
       INTEGER IFD(MFILES)   ! IFD(.)=  integrated record numbers
       INTEGER JFD(MFILES)   ! JFD(.)=  accepted records
+      INTEGER DFD(MFILES)   ! ndf 
       REAL    CFD(MFILES)   ! chi2 
       REAL    OFD(MFILES)   ! option 
       REAL    WFD(MFILES)   ! weight 
       CHARACTER*500 TFD(MFILES)        ! file names
       COMMON/MPFILE/IFILE,NFILES,NFILB,NFILF,NFILC,NFILW,
-     +              MFD,LFD,TFD,NFD,KFD,IFD,OFD,WFD,JFD,CFD
+     +              MFD,LFD,TFD,NFD,KFD,IFD,OFD,WFD,JFD,CFD,DFD
 
       INTEGER NTGB,NVGB,NAGB,NCGB,NAGBN,NALCN,
      +        METSOL,MATSTO,MPRINT,MDEBUG,MDEBG2,MREQEN,INTRAC,

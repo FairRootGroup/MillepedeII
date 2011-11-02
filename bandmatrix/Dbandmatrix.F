@@ -388,9 +388,16 @@
       DO I=N,1,-1 
        RXW=W(1,I) 
        DO J=I,MAX(1,I-MP1+1),-1
-        DO K=J+1,MIN(N,J+MP1-1)
-         RXW=RXW-VS((MAX(I,K)*(MAX(I,K)-1))/2+MIN(I,K))*W(1+K-J,J)
+        KE=MIN(N,J+MP1-1)         ! split K loop to avoid MAX(I,K), MIN(I,K)
+        DO K=J+1,MIN(KE,I)
+         RXW=RXW-VS((I*(I-1))/2+K)*W(1+K-J,J)
         END DO 
+        DO K=MAX(J+1,I+1),KE
+         RXW=RXW-VS((K*(K-1))/2+I)*W(1+K-J,J)
+        END DO 
+C        DO K=J+1,MIN(N,J+MP1-1)
+C         RXW=RXW-VS((MAX(I,K)*(MAX(I,K)-1))/2+MIN(I,K))*W(1+K-J,J)
+C        END DO 
         VS((I*I-I)/2+J)=RXW
         RXW=0.0
        END DO
@@ -405,9 +412,16 @@ C       END DO
       DO I=N,1,-1 
        RXW=W(1,I) 
        DO J=I,1,-1
-        DO K=J+1,MIN(N,J+MP1-1)
-         RXW=RXW-VS((MAX(I,K)*(MAX(I,K)-1))/2+MIN(I,K))*W(1+K-J,J)
+        KE=MIN(N,J+MP1-1)         ! split K loop to avoid MAX(I,K), MIN(I,K)
+        DO K=J+1,MIN(KE,I)
+         RXW=RXW-VS((I*(I-1))/2+K)*W(1+K-J,J)
         END DO 
+        DO K=MAX(J+1,I+1),KE
+         RXW=RXW-VS((K*(K-1))/2+I)*W(1+K-J,J)
+        END DO 
+C        DO K=J+1,MIN(N,J+MP1-1)
+C         RXW=RXW-VS((MAX(I,K)*(MAX(I,K)-1))/2+MIN(I,K))*W(1+K-J,J)
+C        END DO 
         VS((I*I-I)/2+J)=RXW
         RXW=0.0
        END DO

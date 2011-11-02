@@ -239,17 +239,19 @@ CHK      SORT1K   sort 1-dim key-array
               END IF
               VJK  =V(JK)/VKK
               B(J) =B(J)-B(K)*VJK
-              DO L=1,J
-               IF (L.NE.K) THEN
-                  L8=INT8(L)
-                  LJL=JL+L8
-                  IF(L.LT.K) THEN
-                     LLK=KKMK+L8
-                  ELSE
-                     LLK=K8+L8*(L8-1)/2
-                  END IF
-                  V(LJL)=V(LJL)-V(LLK)*VJK
-               ENDIF
+              LJL=JL
+              LLK=KKMK
+              DO L=1,MIN(J,K-1)
+                 LJL=LJL+1
+                 LLK=LLK+1
+                 V(LJL)=V(LJL)-V(LLK)*VJK
+              END DO
+              LJL=LJL+1
+              LLK=KK
+              DO L=K+1,J
+                 LJL=LJL+1
+                 LLK=LLK+L-1
+                 V(LJL)=V(LJL)-V(LLK)*VJK
               END DO
            END IF
           END DO

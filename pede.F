@@ -167,6 +167,8 @@ c       END IF
          CALL GMPDEF(7,1,'final rejection fraction vs file number')
          CALL GMPDEF(8,1,
      +   'final <Chi^2/Ndf> from accepted local fits vs file number')
+         CALL GMPDEF(9,1,
+     +   '<Ndf> from accepted local fits vs file number')
 
          DO I=1,NFILB
             KFL=KFD(2,I)
@@ -179,16 +181,20 @@ c       END IF
             IF (JFD(KFL).GT.0) THEN
                C2NDF=CFD(KFL)/FLOAT(JFD(KFL))
                CALL GMPXY(8,FLOAT(KFL),C2NDF)  ! <Chi2/NDF> vs file
+               ANDF=FLOAT(DFD(KFL))/FLOAT(JFD(KFL))
+               CALL GMPXY(9,FLOAT(KFL),ANDF)  ! <NDF> vs file
             ENDIF
          ENDDO
          IF(NHISTP.NE.0) THEN
             CALL GMPRNT(6)
             CALL GMPRNT(7)
             CALL GMPRNT(8)
+            CALL GMPRNT(9)
          END IF
          CALL GMPWRT(6)             ! output of xy data
          CALL GMPWRT(7)             ! output of xy data
          CALL GMPWRT(8)             ! output of xy data
+         CALL GMPWRT(9)             ! output of xy data
       ENDIF
 * 
       IF(ICTEST.EQ.1) THEN
@@ -1194,6 +1200,7 @@ C     statistics per binary file
       DO I=1,NFILB
          JFD(I)=0
          CFD(I)=0.0
+         DFD(I)=0
       ENDDO
 *     ----- read next data ----------------------------------------------
  10   CALL PEREAD(NR)  ! read records
@@ -1204,7 +1211,7 @@ C     statistics per binary file
       CALL LOOPBF(NREJEC,
      &            NAGBN*NALCN,         DQ(IGLMA/2+1),      ! 'g'
      &            NAEQN,               QM(INDW+1),         ! 'w'
-     &            NDFS,SNDF,DCHI2S,JFD,CFD) 
+     &            NDFS,SNDF,DCHI2S,JFD,CFD,DFD) 
       NDFSUM=NDFSUM+NDFS
       SUMNDF=SUMNDF+SNDF
       CALL ADDSUM(DCHI2S)
@@ -1645,7 +1652,8 @@ c 103  FORMAT(I13,3X,A,G12.4)
 *
 *      loop over events in buffer, fits and sums
 *
-      SUBROUTINE LOOPBF(NREJ,NLG,VLG,NR,RV,NDFS,SNDF,DCHI2S,NACCF,CHI2F)
+      SUBROUTINE LOOPBF(NREJ,NLG,VLG,NR,RV,NDFS,SNDF,DCHI2S,
+     +                 NACCF,CHI2F,NDFF)
 *     contains  
 *     SUBROUTINE FITLOC(NALC,NALG) ! number of local, global parameters
 *
@@ -1665,7 +1673,8 @@ c 103  FORMAT(I13,3X,A,G12.4)
       DOUBLE PRECISION BLVEC(MLOCAL),CLMAT(MLMSYM),SCDIAG(MLOCAL),
      +                 CLXSD(MLMSYM),DCH2SD
       DOUBLE PRECISION DCHI2,DVAR,DCHI2S,SNDF,VLG(NLG),DW1,DW2,SUMM
-      DIMENSION RV(NR),NREJ(0:3),NACCF(MFILES),CHI2F(MFILES)
+      DIMENSION RV(NR),NREJ(0:3),
+     +NACCF(MFILES),CHI2F(MFILES),NDFF(MFILES)
       INTEGER SCFLAG(MLOCAL),IBANDH(MLOCAL)
 *      scratch arrays for local fit
       DOUBLE PRECISION VBND(MLOCAL*(MXBND+1)),VBDR(MLOCAL*MXBDR),
@@ -1698,7 +1707,7 @@ C      IF (ICALCM.EQ.1) print *, ' ICHUNK ', MQ(IDOT3),MTHRD,ICHUNK
 !$OMP&     NAGBN,ICALCM,ICHUNK,NLOOPN,NRECER,NPRDBG,IPRDBG,
 !$OMP&     NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,IND5,INDH,MTHRD,
 !$OMP&     DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB)  ! 'global' variables 
-!$OMP&  REDUCTION(+:NDFS,SNDF,DCHI2S,NREJ,NBNDR,NACCF,CHI2F) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
+!$OMP&  REDUCTION(+:NDFS,SNDF,DCHI2S,NREJ,NBNDR,NACCF,CHI2F,NDFF) ! private copy of NDFS,.. for each thread, combined at end, init with 0.
 !$OMP&  REDUCTION(MAX:NBNDX,NBDRX)
 !$OMP&  REDUCTION(MIN:NREC3)
 !$OMP&  SCHEDULE(DYNAMIC,ICHUNK)
@@ -2268,6 +2277,7 @@ c          WRITE(*,*) 'Downweight fraction cut ',RESING,DWCUT,SUMM
        END IF
 *      'track quality' per binary file: accepted records
        NACCF(KFL)=NACCF(KFL)+1
+       NDFF(KFL) =NDFF(KFL) +NDF
        CHI2F(KFL)=CHI2F(KFL)+CHNDF
 
 *      ----- fourth loop ------------------------------------------------
