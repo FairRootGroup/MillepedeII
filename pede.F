@@ -2164,7 +2164,7 @@ c          SUWT=SUWT+DCHI2/DCHIT
        END IF
        NDF=NEQ-NRANK
 *      external seed ?
-       DCHISD=0.0D0
+       DCH2SD=0.0D0
        IF (IXSD.GT.0) THEN
          CALL DBAVAT(CLXSD,BLVEC,DCH2SD,NALC,1)
          SUMM=SUMM+DCH2SD
