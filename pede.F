@@ -57,6 +57,7 @@ C     CALL MEGDEB  ! debug switched on
       CALL FILETC   ! command line and steering file analysis
       CALL FILETX   ! read text files
       LVLLOG=MPRINT ! export print level
+      IF (MEMDBG.GT.1) CALL MEGDEB ! debug memory management
 !$    WRITE(*,*)
 !$    NPROC=1
 !$    MXTHRD=1
@@ -3612,8 +3613,11 @@ c      WRITE(*,*) ' d   label groups'                     no no no no
             MXBITS=NBITS/NOFF8 ! max bit field size fitting into free memory
             IF (MCMPRS.NE.0) ISAVES=MAX(ISAVES,2) ! identify single entries for compression 
             IF (MXBITS.LE.0) THEN
-               WRITE(*,*)  'STOP: not enough memory '//
-     &            'for bit storage of off-diagonal elements'
+               WRITE(*,33) 
+     &           'STOP: not enough memory for bit storage of ',
+     &           NOFF8, ' off-diagonal elements'
+ 33            FORMAT(A,I12,A)
+               IF (MEMDBG.GT.0) CALL MEGPRN ! memory management overview
                STOP 'recompile with larger memory'
             ELSEIF (ISAVES.GT.MXBITS) THEN
                ISAVES=MXBITS
@@ -4158,6 +4162,7 @@ c      END IF
          DUBM=4.0D-9*DFLOAT(NUSE)                  ! space available in Gbytes 
          WRITE(*,*)
          WRITE(*,109) DGBM,DUBM
+         IF (MEMDBG.GT.0) CALL MEGPRN ! memory management overview
          STOP '... use pede version with larger memory'
       ENDIF
       CALL VMPREP(MATSIZ)    ! prepare matrix and gradient storage
@@ -4295,6 +4300,7 @@ C         CALL MEGARR('t D',2*NAGB,'auxiliary array')  ! double aux 8
          IF(NMATS.LT.6) THEN
             WRITE(*,*) 'Space: double words left ',NWORDS/2,NMATS  
             WRITE(*,*) 'Insufficient space - stop'
+            IF (MEMDBG.GT.0) CALL MEGPRN ! memory management overview
             STOP 'recompile with larger memory'
          END IF 
          IF(METSOL.EQ.3) THEN
@@ -5264,6 +5270,8 @@ c 103  FORMAT(1X,A,G12.4)
       MNRSIT=0  ! total number of MINRES internal iterations
       IFORCE=0  ! switch to SUBITO for (global) rank defects
       IGCORR=0  ! flag for output of global correlations for inversion, =0: none
+      MEMDBG=0  ! debug flag for memory management 
+                !    (1: MEGPRN for insufficient memory, >1: MEGDBG)
 
       DO I=1,8
        TIMES(I)=0.0
@@ -6042,6 +6050,15 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             IFORCE=1
+            RETURN
+         END IF
+
+         KEYSTX='memorydebug'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+            MEMDBG=1
+            IF (NUMS.GT.0.AND.DNUM(1).GT.0.0) MEMDBG=IDNINT(DNUM(1))
+            print *, ' MEMDBG = ', MEMDBG
             RETURN
          END IF
 
