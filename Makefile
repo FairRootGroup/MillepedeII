@@ -1,12 +1,14 @@
 # #################################################################
 # Makefile for MillePede II with possible input from C
-# (works on 64-bit SL5)
+# 
+# Works on 64-bit SL5 with gcc 434. See comments about different
+# gcc versions inline to get a hint about the necessary adjustments.
 # #################################################################
 # On 32-bit systems:
 #  LARGE_MEMORY_OPT = 
 #  LARGE_SIZE=4
 # #################################################################
-# If compiler doesn't understands INTEGER(KIND=) (FORTRAN95) use
+# If compiler doesn't understand INTEGER(KIND=) (FORTRAN95) use
 # LARGE_SIZE=4 and replace INTEGER(KIND=) by INTEGER*4 or
 # LARGE_SIZE=8 and replace INTEGER(KIND=) by INTEGER*8
 # e.g. change source files with sed:
@@ -16,7 +18,9 @@
 # compiler options
 #
 # To make it link with a BIG (>2 GB) static array in dynal.inc,
-# we need '-mcmodel=medium', but does not work on 32 bit machines,
+# we need '-mcmodel=medium', but does not work on 32 bit machines.
+# (Seems not to be needed for recent gcc like gcc461,
+#  but until at least gcc434 it is needed.)
 LARGE_MEMORY_OPT=-mcmodel=medium
 # All but 'yes' disables support of reading C-binaries:
 SUPPORT_READ_C = yes
@@ -43,11 +47,12 @@ CCOMP = $(OMPP) gcc
 C_FLAGS = -Wall -O3 -Df2cFortran ${LARGE_MEMORY_OPT}
 C_INCLUDEDIRS =  # e.g. -I .
 # gcc3: C_LIBS = -lg2c -lfrtbegin
-# gcc4: 
+# gcc4 till gcc44: 
 C_LIBS = -lgfortran -lgfortranbegin
+# gcc45, gcc46: C_LIBS = -lgfortran -lm
 DEBUG =          # e.g. -g
 #
-# Multithreading with OpenMP (TM)
+# Multithreading with OpenMP (TM) (needs gcc41 or above)
 C_LIBS  += -lgomp
 F_FLAGS += -fopenmp
 #
