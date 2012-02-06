@@ -211,8 +211,8 @@ FCALLSCSUB2(openC,OPENC,openc,STRING,PINT)
    }
 
    if (1 != nCheckR || ferror(files[fileIndex])) {
-     printf("readC: problem reading length of record %d, file %d\n",
- 	   nRec+1, fileIndex);
+     printf("readC: problem reading length of record, file %d\n",
+ 	   fileIndex);
      *errorFlag = -2;
      return;
    }

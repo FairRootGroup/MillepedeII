@@ -94,8 +94,8 @@ all:	$(EXECUTABLES)
 
 # The single special one:
 pede : 	${USER_OBJ_PEDE} Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE} 
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE} $(C_LIBS)
 #  
 #
 #
@@ -153,56 +153,56 @@ pede.o : pede.F dynal.inc largeint.inc mpinds.inc localfit.inc Makefile
 #
 #
 pede_1GB: ${USER_OBJ_PEDE_STATIC} pede_1GB.o dynal_1GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_1GB.o dynal_1GB.o readc.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_1GB.o dynal_1GB.o readc.o $(C_LIBS)
 #
 pede_2GB: ${USER_OBJ_PEDE_STATIC} pede_2GB.o dynal_2GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_2GB.o dynal_2GB.o readc.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_2GB.o dynal_2GB.o readc.o $(C_LIBS)
 #
 pede_1GB_rfio: ${USER_OBJ_PEDE_STATIC} pede_1GB.o dynal_1GB.o readc_rfio.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) -lshift \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_1GB.o dynal_1GB.o readc_rfio.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_1GB.o dynal_1GB.o readc_rfio.o $(C_LIBS) -lshift
 #
 pede_2GB_rfio: ${USER_OBJ_PEDE_STATIC} pede_2GB.o dynal_2GB.o readc_rfio.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) -lshift \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_2GB.o dynal_2GB.o readc_rfio.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_2GB.o dynal_2GB.o readc_rfio.o $(C_LIBS) -lshift
 #
 pede_4GB: ${USER_OBJ_PEDE_STATIC} pede_4GB.o dynal_4GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_4GB.o dynal_4GB.o readc.o
+	$(LOADER) $(L_FLAGS)  \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_4GB.o dynal_4GB.o readc.o $(C_LIBS)
 #
 pede_4GB_rfio: ${USER_OBJ_PEDE_STATIC} pede_4GB.o dynal_4GB.o readc_rfio.o  Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) -lshift \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_4GB.o dynal_4GB.o readc_rfio.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_4GB.o dynal_4GB.o readc_rfio.o $(C_LIBS) -lshift
 #
 pede_8GB: ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc.o $(C_LIBS)
 #
 pede_8GB_rfio: ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc_rfio.o  Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) -lshift \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc_rfio.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_8GB.o dynal_8GB.o readc_rfio.o $(C_LIBS) -lshift
 #
 pede_16GB: ${USER_OBJ_PEDE_STATIC} pede_16GB.o dynal_16GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_16GB.o dynal_16GB.o readc.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_16GB.o dynal_16GB.o readc.o $(C_LIBS)
 #
 pede_24GB: ${USER_OBJ_PEDE_STATIC} pede_24GB.o dynal_24GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_24GB.o dynal_24GB.o readc.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_24GB.o dynal_24GB.o readc.o $(C_LIBS)
 pede_32GB: ${USER_OBJ_PEDE_STATIC} pede_32GB.o dynal_32GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_32GB.o dynal_32GB.o readc.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_32GB.o dynal_32GB.o readc.o $(C_LIBS)
 pede_48GB: ${USER_OBJ_PEDE_STATIC} pede_48GB.o dynal_48GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_48GB.o dynal_48GB.o readc.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_48GB.o dynal_48GB.o readc.o $(C_LIBS)
 pede_64GB: ${USER_OBJ_PEDE_STATIC} pede_64GB.o dynal_64GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_64GB.o dynal_64GB.o readc.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_64GB.o dynal_64GB.o readc.o $(C_LIBS)
 pede_96GB: ${USER_OBJ_PEDE_STATIC} pede_96GB.o dynal_96GB.o readc.o Makefile
-	$(LOADER) $(L_FLAGS) $(C_LIBS) \
-		-o $@ ${USER_OBJ_PEDE_STATIC} pede_96GB.o dynal_96GB.o readc.o
+	$(LOADER) $(L_FLAGS) \
+		-o $@ ${USER_OBJ_PEDE_STATIC} pede_96GB.o dynal_96GB.o readc.o $(C_LIBS)
 #
 # End hack for the various executables...
 ####################################################################
