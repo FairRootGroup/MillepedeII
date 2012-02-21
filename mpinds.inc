@@ -73,7 +73,8 @@
      +              NMISS1,ISAVES,LCALCM,NBNDR,NBDRX,NBNDX,NRECER,NREC3,
      +              MREQPE,MHISPE,MSNGPE,MCMPRS,MTHRD,MXREC,MATMON,
      +              LFITNP,LFITBB,MNRSEL,LBMNRS(100),
-     +              NCACHE,FCACHE(3),MTHRDR,MNRSIT,IFORCE,IGCORR,MEMDBG
+     +              NCACHE,FCACHE(3),MTHRDR,MNRSIT,IFORCE,IGCORR,
+     +              MEMDBG,PRANGE
 *     MRESTL= tolerance criterion for MINRES (default 10^-8) (GF)
 *     NTGB  = total number of global parameters (incl. fixed)
 *     NVGB  = number of variable parameters
@@ -169,6 +170,7 @@ C removed*     ITEXIT = exit code
 *     IFORCE = 0 switch to SUBITO for (global) rank defects, <> 0: don't care
 *     IGCORR = flag for output of global correlations for inversion, =0: none
 *     MEMDBG = debug flag for memory management
+*     PRANGE = range (-PRANGE..PRANGE) for histograms of pulls, norm. residuals
 
       DOUBLE PRECISION FVALUE,FLINES,SUMNDF
       COMMON/MPDOUB/FVALUE,FLINES,SUMNDF

@@ -1147,13 +1147,13 @@ c     +                LABEL,ITGBI,IVGB
       END IF
 
 
-      CALL HMPDEF(3,0.0,0.0,          ! book  
+      CALL HMPDEF(3,-PRANGE,PRANGE,    ! book
      +   'Normalized residuals of single (global) measurement')
-      CALL HMPDEF(12,0.0,0.0,          ! book  
+      CALL HMPDEF(12,-PRANGE,PRANGE,    ! book
      +   'Normalized residuals of single (local) measurement')
-      CALL HMPDEF(13,0.0,0.0,          ! book  
+      CALL HMPDEF(13,-PRANGE,PRANGE,    ! book
      +   'Pulls of single (global) measurement')
-      CALL HMPDEF(14,0.0,0.0,          ! book  
+      CALL HMPDEF(14,-PRANGE,PRANGE,    ! book
      +   'Pulls of single (local) measurement')
       CALL HMPDEF(4,0.0,0.0,'Chi^2/Ndf after local fit')
       CALL GMPDEF(4,5,'location, dispersion (res.) vs record nr') 
@@ -5272,6 +5272,7 @@ c 103  FORMAT(1X,A,G12.4)
       IGCORR=0  ! flag for output of global correlations for inversion, =0: none
       MEMDBG=0  ! debug flag for memory management 
                 !    (1: MEGPRN for insufficient memory, >1: MEGDBG)
+      PRANGE=0.0! range (-PRANGE..PRANGE) for histograms of pulls, norm. residuals
 
       DO I=1,8
        TIMES(I)=0.0
@@ -6036,6 +6037,14 @@ c         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
          IF(MAT.GE.(NPAT-NPAT/5)) THEN
             DWCUT=SNGL(DNUM(1))
             IF(DWCUT.GT.0.5) DWCUT=0.5
+            RETURN
+         END IF
+
+         KEYSTX='pullrange'
+         MAT=MATINT(TEXT(KEYA:KEYB),KEYSTX,NPAT,NTEXT) ! comparison
+         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+            PRANGE=ABS(SNGL(DNUM(1)))
+            print *, ' PRANGE : ', PRANGE 
             RETURN
          END IF
 

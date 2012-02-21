@@ -485,8 +485,9 @@ c      WRITE(*,*) J,' resulting limits XA XB ',XA,XB
 *          = 4  X,Y, DX,DY symbols
       PARAMETER (NARR=1000)
       REAL ARRAY(2,NARR),ARRAY4(4,NARR/2),ARRAY1(NARR+NARR),FOUR(4)
-      EQUIVALENCE (ARRAY(1,1),ARRAY4(1,1),ARRAY1(1)) 
-      PARAMETER (NUMGXY=10) 
+      EQUIVALENCE (ARRAY(1,1),ARRAY4(1,1),ARRAY1(1))
+      PARAMETER (NUMGXY=10)  ! (max) number of XY plots
+      PARAMETER (NLIMIT=500) ! max number of data points per plot (else averaging)
       INTEGER NSTR(NUMGXY),IGTP(NUMGXY),LVERS(NUMGXY),NST(3,NUMGXY)
       REAL XYPLWS(10,NUMGXY)
       INTEGER JFLC(5,NUMGXY),KFLC(5,NUMGXY)
@@ -529,7 +530,7 @@ c      WRITE(*,*) J,' resulting limits XA XB ',XA,XB
       DO J=1,5
        JFLC(J,IG)=0
       END DO
-      JFLC(5,IG)=200
+      JFLC(5,IG)=NLIMIT
       IF(ITYP.EQ.5) THEN
          DO J=1,5
           KFLC(J,IG)=0
@@ -778,7 +779,7 @@ c     +                   ' -------------- --------------')
 
 
       SUBROUTINE STMARS                          ! init/reset  storage
-      PARAMETER (NDIM=3000)   ! storage dimension
+      PARAMETER (NDIM=5000)   ! storage dimension, should be NUMGXY*NLIMIT
       REAL      TK(2,NDIM)    ! pair storage for data pairs
       INTEGER   NEXT(NDIM)    ! pointer 
       INTEGER IFLC1,IFLC2     ! first and last index of free pairs
