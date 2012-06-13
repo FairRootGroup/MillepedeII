@@ -3910,7 +3910,8 @@ c         GOTO 15
           LABELJ=MQ(IND9+J+1)
           FACTRJ=QM(IND9+J+2)
           ITGBIJ=INONE(LABELJ)
-          MQ(IND9+J+1)=ITGBIJ  !!! label -> total parameter index
+Cno          MQ(IND9+J+1)=ITGBIJ  !!! label -> total parameter index
+Cno          don't replace label by index, label still used in LOOPN
 *         first index
           IVGBIJ=0
           IF(ITGBIJ.NE.0) IVGBIJ=JVGBI(ITGBIJ) ! variable-parameter index
@@ -3918,9 +3919,7 @@ c         GOTO 15
           DO K=IA,J,2
            LABELK=MQ(IND9+K+1)  ! already translated
            FACTRK=QM(IND9+K+2)
-           ITGBIK=INONE(LABELK) ! already tramslated
-           ITGBIK=MQ(IND9+K+1)  ! take total parameter index
-
+           ITGBIK=INONE(LABELK) 
            IVGBIK=0
            IF(ITGBIK.NE.0) IVGBIK=JVGBI(ITGBIK) ! variable-parameter index
            IF(IVGBIJ.GT.0.AND.IVGBIK.GT.0) THEN 
@@ -4953,10 +4952,10 @@ C                  CALL PLOOPA(LUNLOG)
 
  30   CONTINUE
       IF(ICALCM+2.EQ.0) GOTO 91 
-      CALL PTLINE(NAGB,DQ(IDUX2/2+1),    ! current parameter values
+      CALL PTLINE(NVGB,DQ(IDUX2/2+1),    ! current parameter values
      +            FLINES,           ! chi^2 dunction value
      +            DQ(IGVEC/2+1),    ! gradient
-     +            DQ(ISOLV/2+1),    ! step vector
+     +            DQ(ISOLV/2+1),    ! step vector (of size NVGB)
      +            STP,              ! returned step factor
      +            INFO)             ! returned information
 C      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
