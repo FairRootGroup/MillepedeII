@@ -418,6 +418,8 @@ PROGRAM mptwo
     WRITE(*,111)  __GNUC__ , __GNUC_MINOR__ , __GNUC_PATCHLEVEL__
 111 FORMAT(' compiled with gcc ',i0,'.',i0,'.',i0)
 #endif
+    WRITE(*,113) LARGE
+113 FORMAT(' Large integers are INTEGER*',I1)
     WRITE(*,*) ' '
     WRITE(*,*) '  <  Millepede II-P starting ... ',chdate
     WRITE(*,*) '                                 ',chost
@@ -1360,7 +1362,7 @@ SUBROUTINE peread(more)
         END DO records
 
         readBufferInfo(1,ithr)=-jfile   ! flag eof
-        IF (kfd(1,jfile) == 0) THEN
+        IF (kfd(1,jfile) == 1) THEN
             PRINT *, 'PEREAD: file ', kfile, 'read the first time, found',jrec,' records'
             kfd(1,jfile)=-jrec
         END IF
@@ -1410,7 +1412,7 @@ SUBROUTINE peread(more)
             jfile=readBufferInfo(1,k)
             IF (jfile > 0) THEN   ! rewind files
                 nrc=readBufferInfo(3,k)
-                IF (kfd(1,jfile) == 0) kfd(1,jfile)=-nrc
+                IF (kfd(1,jfile) == 1) kfd(1,jfile)=-nrc
                 IF (kfile <= nfilf) THEN
                     lun=kfile+10
                     REWIND lun
@@ -5983,7 +5985,7 @@ SUBROUTINE filetc
     DO i=1,nfiles
         FORALL (k=1:lfd(i)) fname(k:k)=tfd(ioff+k)
         !        fname=tfd(i)(1:lfd(i))
-        IF (mprint > -1) WRITE(*,103) i,bite(mfd(i)),fname(1:lfd(i))
+        IF (mprint > 1) WRITE(*,103) i,bite(mfd(i)),fname(1:lfd(i))
         WRITE(8,103) i,bite(mfd(i)),fname(1:lfd(i))
         ioff=ioff+lfd(i)
     END DO
@@ -6049,7 +6051,7 @@ SUBROUTINE filetc
     END DO
 
     DO k=1,nfilb
-        kfd(1,k)=0   ! reset record counters
+        kfd(1,k)=1   ! reset (negated) record counters
         kfd(2,k)=k   ! set file number
         ifd(k)=0     ! reset integrated record numbers
         xfd(k)=0     ! reset max record size

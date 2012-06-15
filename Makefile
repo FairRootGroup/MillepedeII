@@ -1,9 +1,21 @@
 # #################################################################
 # Makefile for MillePede II (Fortran90) with possible input from C
 # 
-# Works on 64-bit SL5 with gcc version 4.4.4 (or higher).
+# Tested on - 64-bit SL5          with gcc version 4.4.4.
+#           - 64 bit Ubuntu 11.10 with gcc version 4.6.1.
+#
 # See comments about different gcc versions inline to get a
 # hint about the necessary adjustments.
+# #################################################################
+# Define gcc to be used
+GCC=gcc
+GCCVERS=$(shell $(GCC) -dumpversion)
+# On SL5 replace default (gcc41) by gcc44
+ifeq ($(findstring 4.1., $(GCCVERS)), 4.1.)
+  GCC=gcc44
+  GCCVERS=$(shell $(GCC) -dumpversion)  
+endif
+$(info Using gcc version $(GCCVERS))
 # #################################################################
 # On 32-bit systems:
 #  LARGE_SIZE=4
@@ -20,25 +32,30 @@ SUPPORT_ZLIB = yes
 # Define the size of LARGE integers (4: INTERGER*4, 8: INTEGER*8)
 LARGE_SIZE=8
 # ompP profiler (http://www.ompp-tool.com)
-OMPP = 
+OMPP =
 # kinst-ompp
 #
-FCOMP = $(OMPP) gcc44
+FCOMP = $(OMPP) $(GCC)
 F_FLAGS = -Wall -fautomatic -fno-backslash -O3 -cpp -DLARGE_SIZE=${LARGE_SIZE}
 #
-CCOMP = $(OMPP) gcc44 
+CCOMP = $(OMPP) $(GCC) 
 C_FLAGS = -Wall -O3 -Df2cFortran
 C_INCLUDEDIRS =  # e.g. -I .
-# gcc4 till gcc44: 
-C_LIBS = -lgfortran -lgfortranbegin
-# gcc45, gcc46: C_LIBS = -lgfortran -lm
+ifeq ($(findstring 4.4., $(GCCVERS)), 4.4.)
+# gcc44: 
+  C_LIBS = -lgfortran -lgfortranbegin
+else  
+# gcc45, gcc46:
+  C_LIBS = -lgfortran
+# math library -lm or -lquadmath may be required  
+endif
 DEBUG =          # e.g. -g
 #
 # Multithreading with OpenMP (TM)
 C_LIBS  += -lgomp
 F_FLAGS += -fopenmp
 #
-LOADER = $(OMPP) gcc44
+LOADER = $(OMPP) $(GCC)
 L_FLAGS = -Wall -O3
 #
 # objects for this project
