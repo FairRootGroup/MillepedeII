@@ -66,19 +66,19 @@
 !!    Adcanced Statistical Techniques in Particle Physics, Durham, 18 - 22 March 2002,
 !!    Report DESY 02-077 (June 2002) and
 !!    [hep-ex/0208021](http://arxiv.org/abs/hep-ex/0208021)
-!! 1. Alignment Algorithms, V. Blobel,
+!! 2.  Alignment Algorithms, V. Blobel,
 !!    [Proceedings](http://cdsweb.cern.ch/search?p=reportnumber%3ACERN-2007-004)
 !!    of the LHC Detector Alignment Workshop, September 4 - 6 2006, CERN
-!! 1. Software alignment for Tracking Detectors, V. Blobel,
+!! 3. Software alignment for Tracking Detectors, V. Blobel,
 !!    NIM A, 566 (2006), pp. 5-13,
 !!    [doi:10.1016/j.nima.2006.05.157](http://dx.doi.org/10.1016/j.nima.2006.05.157)
-!! 1. A new fast track-fit algorithm based on broken lines, V. Blobel,
+!! 4. A new fast track-fit algorithm based on broken lines, V. Blobel,
 !!    NIM A, 566 (2006), pp. 14-17,
 !!    [doi:10.1016/j.nima.2006.05.156](http://dx.doi.org/10.1016/j.nima.2006.05.156)
-!! 1. Millepede 2009, V. Blobel, [Contribution]
+!! 5. Millepede 2009, V. Blobel, [Contribution]
 !!    (https://indico.cern.ch/conferenceOtherViews.py?view=standard&confId=50502)
 !!    to the 3rd LHC Detector Alignment Workshop, June 15 - 16 2009, CERN
-!! 1. General Broken Lines as advanced track fitting method, C. Kleinwort,
+!! 6. General Broken Lines as advanced track fitting method, C. Kleinwort,
 !!    NIM A, 673 (2012), pp. 107-110,
 !!    [doi:10.1016/j.nima.2012.01.024](http://dx.doi.org/10.1016/j.nima.2012.01.024)
 !!
