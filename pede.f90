@@ -81,6 +81,9 @@
 !! 6. General Broken Lines as advanced track fitting method, C. Kleinwort,
 !!    NIM A, 673 (2012), pp. 107-110,
 !!    [doi:10.1016/j.nima.2012.01.024](http://dx.doi.org/10.1016/j.nima.2012.01.024)
+!! 7. Volker Blobel und Erich Lohrmann, Statistische und numerische Methoden der
+!!    Datenanalyse, Teubner Studienb&uuml;cher, B.G. Teubner, Stuttgart, 1998.
+!!    [Online-Ausgabe](http://www.desy.de/~blobel/eBuch.pdf).
 !!
 !! \file
 !! Millepede II program, subroutines.
@@ -2037,7 +2040,7 @@ SUBROUTINE ploopa(lunp)
 101 FORMAT(' it fc','   fcn_value dfcn_exp  slpr costh  iit st',  &
     ' ls  step cutf',1X,'rejects hmmsec FMS')
 102 FORMAT(' -- --',' ----------- --------  ---- -----  --- --',  &
-    ' --  ---- ----',1X,'------- ------ ---')
+    ' -- ----- ----',1X,'------- ------ ---')
     RETURN
 END SUBROUTINE ploopa   ! title for iteration
 
@@ -2085,7 +2088,7 @@ SUBROUTINE ploopb(lunp)
         iitera,istopa,lsinfo,stepl, chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
     END IF
 103 FORMAT(i3,i3,e12.5,38X,f5.1, 1X,i7,  i2,i2,i3,a4)
-104 FORMAT(i3,i3,e12.5,1X,e8.2,f6.3,f6.3,i5,2I3,f6.2,f5.1,  &
+104 FORMAT(i3,i3,e12.5,1X,e8.2,f6.3,f6.3,i5,2I3,f6.3,f5.1,  &
     1X,i7,  i2,i2,i3,a4)
     RETURN
 END SUBROUTINE ploopb ! iteration line
@@ -2127,7 +2130,7 @@ SUBROUTINE ploopc(lunp)
     stepl=steps(2)
     WRITE(lunp,105) nloopn,fvalue, ratae,lsinfo,  &
     stepl,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
-105 FORMAT(3X,i3,e12.5,9X,     f6.3,14X,i3,f6.2,6X, i7,  i2,i2,i3,a4)
+105 FORMAT(3X,i3,e12.5,9X,     f6.3,14X,i3,f6.3,6X, i7,  i2,i2,i3,a4)
     RETURN
 
 END SUBROUTINE ploopc                   ! sub-iteration line
