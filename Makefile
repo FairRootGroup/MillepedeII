@@ -7,7 +7,9 @@
 # See comments about different gcc versions inline to get a
 # hint about the necessary adjustments.
 # #################################################################
-# Define gcc to be used
+#
+# ### Define gcc to be used ###
+#
 GCC=gcc
 GCCVERS=$(shell $(GCC) -dumpversion)
 # On SL5 replace default (gcc41) by gcc44
@@ -16,10 +18,10 @@ ifeq ($(findstring 4.1., $(GCCVERS)), 4.1.)
   GCCVERS=$(shell $(GCC) -dumpversion)  
 endif
 $(info Using gcc version $(GCCVERS))
+#
 # #################################################################
-# On 32-bit systems:
-#  LARGE_SIZE=4
-# #################################################################
+#
+# ### Options ###
 #
 # All but 'yes' disables support of reading C-binaries:
 SUPPORT_READ_C = yes
@@ -29,31 +31,38 @@ SUPPORT_C_RFIO =
 # yes
 # If yes (and if SUPPORT_READ_C is yes), use zlib to read gzipped binary files
 SUPPORT_ZLIB = yes
-# Define the size of LARGE integers (4: INTERGER*4, 8: INTEGER*8)
+# Define the size of LARGE integers (4: INTEGER*4 (on 32 bit systems), 8: INTEGER*8)
 LARGE_SIZE=8
-# ompP profiler (http://www.ompp-tool.com)
+# If yes use multithreading with OpenMP (TM)
+SUPPORT_OPENMP = yes
+# ompP profiler (http://www.ompp-tool.com, needs Opari for source-to-source instrumentation)
 OMPP =
 # kinst-ompp
+#
+# #################################################################
 #
 FCOMP = $(OMPP) $(GCC)
 F_FLAGS = -Wall -fautomatic -fno-backslash -O3 -cpp -DLARGE_SIZE=${LARGE_SIZE}
 #
 CCOMP = $(OMPP) $(GCC) 
 C_FLAGS = -Wall -O3 -Df2cFortran
-C_INCLUDEDIRS =  # e.g. -I .
+C_INCLUDEDIRS =  # e.g. -I
+#.
 ifeq ($(findstring 4.4., $(GCCVERS)), 4.4.)
 # gcc44: 
   C_LIBS = -lgfortran -lgfortranbegin
 else  
 # gcc45, gcc46:
-  C_LIBS = -lgfortran
+  C_LIBS = -lgfortran -lm
 # math library -lm or -lquadmath may be required  
 endif
 DEBUG =          # e.g. -g
 #
+ifeq ($(SUPPORT_OPENMP),yes)
 # Multithreading with OpenMP (TM)
-C_LIBS  += -lgomp
-F_FLAGS += -fopenmp
+  C_LIBS  += -lgomp
+  F_FLAGS += -fopenmp
+endif
 #
 LOADER = $(OMPP) $(GCC)
 L_FLAGS = -Wall -O3
