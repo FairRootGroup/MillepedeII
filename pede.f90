@@ -276,6 +276,9 @@
 !! \subsection cmd-hugecut hugecut
 !! For local fit set Chi^2 cut \ref mpmod::chhuge "chhuge"
 !! for \ref sssec-outlierdeb "unreasonable data" to \a number1 [1.].
+!! \subsection cmd-linesearch linesearch
+!! The mode \ref mpmod::lsearch "lsearch" of the \ref par-linesearch "line search"
+!! to improve the solution is set to \a number1.
 !! \subsection cmd-localfit localfit
 !! For local fit set number of iterations \ref mpmod::lfitnp "lfitnp"
 !! with calculation of pulls to \a number1, flag \ref mpmod::lfitbb "lfitbb"
@@ -350,7 +353,7 @@
 !! \subsection cmd-wconstraint wconstraint
 !! Define \ref sssec_consinf "weighted constraints" for global parameters.
 !! \subsection cmd-wolfe wolfe
-!! For strong Wolfe condition in \ref par-linesearch "linesearch"
+!! For strong Wolfe condition in \ref par-linesearch "line search"
 !! set parameter \ref mpmod::wolfc1 "wolfc1" to \a number1, \ref mpmod::wolfc2
 !! "wolfc2" to \a number2.
 
@@ -1053,7 +1056,7 @@ END SUBROUTINE feasma ! matrix for feasible solution
 !! \ref sssec-feas "Correct" for constraint equation discrepancies.
 !!
 !! \param [in]  concut   cut for discrepancies
-!! \param [out] iact     =1 if no correction needed, else =0
+!! \param [out] iact     =1 if correction needed, else =0
 !!
 SUBROUTINE feasib(concut,iact)
     USE mpmod
@@ -1773,7 +1776,7 @@ SUBROUTINE loopn
             ELSE IF(iterat >= 1) THEN
                 chicut=SQRT(chicut)
                 IF(chicut /= 0.0.AND.chicut < 1.5) chicut=1.0
-                IF(chicut /= 0.0.AND.nrej == 0)     chicut=1.0
+                IF(chicut /= 0.0.AND.nrej == 0)    chicut=1.0
             END IF
         END IF
     !         WRITE(*,111) ! header line
@@ -2081,14 +2084,21 @@ SUBROUTINE ploopb(lunp)
         WRITE(lunp,103) iterat,nloopn,fvalue,  &
         chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
     ELSE
-        CALL ptlopt(nfa,ma,slopes,steps)  ! slopes steps
-        ratae=ABS(slopes(2)/slopes(1))
-        stepl=steps(2)
-        WRITE(lunp,104) iterat,nloopn,fvalue,delfun,ratae,angras,  &
-        iitera,istopa,lsinfo,stepl, chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+        IF (lsinfo == 10) THEN ! line search skipped
+            WRITE(lunp,105) iterat,nloopn,fvalue,delfun,  &
+            iitera,istopa,chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+        ELSE
+            CALL ptlopt(nfa,ma,slopes,steps)  ! slopes steps
+            ratae=ABS(slopes(2)/slopes(1))
+            stepl=steps(2)
+            WRITE(lunp,104) iterat,nloopn,fvalue,delfun,ratae,angras,  &
+            iitera,istopa,lsinfo,stepl, chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+        ENDIF
     END IF
 103 FORMAT(i3,i3,e12.5,38X,f5.1, 1X,i7,  i2,i2,i3,a4)
 104 FORMAT(i3,i3,e12.5,1X,e8.2,f6.3,f6.3,i5,2I3,f6.3,f5.1,  &
+    1X,i7,  i2,i2,i3,a4)
+105 FORMAT(i3,i3,e12.5,1X,e8.2,12X,i5,I3,9X,f5.1,  &
     1X,i7,  i2,i2,i3,a4)
     RETURN
 END SUBROUTINE ploopb ! iteration line
@@ -5180,7 +5190,7 @@ SUBROUTINE xloopn                !
     INTEGER :: mrati
     INTEGER :: nan
     INTEGER :: nfaci
-    INTEGER :: nloop
+    INTEGER :: nloopsol
     INTEGER :: nrati
     INTEGER :: nrej
     INTEGER :: nsol
@@ -5196,6 +5206,7 @@ SUBROUTINE xloopn                !
     DOUBLE PRECISION :: db2
     DOUBLE PRECISION :: dbdot
     LOGICAL :: warner
+    LOGICAL :: lsflag
     SAVE
     !     ...
 
@@ -5279,7 +5290,6 @@ SUBROUTINE xloopn                !
     !     initialization of iterations -------------------------------------
 
     iitera=0
-    nloop =0
     nsol  =0                  ! counter for solutions
     info  =0
     lsinfo=0
@@ -5291,6 +5301,7 @@ SUBROUTINE xloopn                !
     iterat=0                  ! iteration counter
     iterat=-1
     litera=-2
+    nloopsol=0                ! (new) solution from this nloopn
     nrej=0                    ! reset number of rejects
     IF(metsol == 1) THEN
         wolfc2=0.5             ! not accurate
@@ -5418,6 +5429,7 @@ SUBROUTINE xloopn                !
                 WRITE(*,*) '... reserved for GMRES (not yet!)'
                 CALL mminrs                   ! GMRES not yet
             END IF
+            nloopsol=nloopn                   ! (new) solution for this nloopn
 
             !     check feasibility and evtl. make step vector feasible
 
@@ -5434,27 +5446,33 @@ SUBROUTINE xloopn                !
                 globalParameter(itgbi)=globalParCopy(itgbi)               ! restore
             END DO
 
-            !     initialize line search based on slopes and prepare next
-
-            CALL ptldef(wolfc2, 10.0, minf,10)
-            IF(metsol == 1) THEN
-                wolfc2=0.5            ! not accurate
-                minf=3
-            ELSE IF(metsol == 2) THEN
-                wolfc2=0.5            ! not acurate
-                minf=3
-            ELSE IF(metsol == 3) THEN
-                wolfc2=0.1            ! accurate
-                minf=4
-            ELSE IF(metsol == 4) THEN
-                wolfc2=0.1            ! accurate
-                minf=4
-            END IF
             db=dbdot(nvgb,globalCorrections,globalVector)
             db1=dbdot(nvgb,globalCorrections,globalCorrections)
             db2=dbdot(nvgb,globalVector,globalVector)
             delfun=SNGL(db)
             angras=SNGL(db/DSQRT(db1*db2))
+
+            ! do line search for this iteration/solution ?
+            ! lsearch >2: all, =2: all with (next) chicut =1., =1: last, <1: none
+            lsflag=(lsearch > 2 .OR. (lsearch == 2 .AND. chicut < 2.25) .OR. &
+            (lsearch == 1 .AND. chicut < 2.25 .AND. (delfun <= dflim .OR. iterat >= mitera)))
+            IF (lsflag) THEN
+                ! initialize line search based on slopes and prepare next
+                CALL ptldef(wolfc2, 10.0, minf,10)
+                IF(metsol == 1) THEN
+                    wolfc2=0.5            ! not accurate
+                    minf=3
+                ELSE IF(metsol == 2) THEN
+                    wolfc2=0.5            ! not acurate
+                    minf=3
+                ELSE IF(metsol == 3) THEN
+                    wolfc2=0.1            ! accurate
+                    minf=4
+                ELSE IF(metsol == 4) THEN
+                    wolfc2=0.1            ! accurate
+                    minf=4
+                END IF
+            ENDIF
 
             IF(db <= 0.0D0) THEN
                 WRITE(*,*) 'Function not decreasing:',db
@@ -5481,13 +5499,21 @@ SUBROUTINE xloopn                !
         !     Block 3: line searching ------------------------------------------
 
         IF(icalcm+2 == 0) EXIT
-        CALL ptline(nvgb,workspaceLinesearch, &   ! current parameter values
-        flines, &          ! chi^2 function value
-        globalVector, &    ! gradient
-        globalCorrections, &   ! step vector stp
-        stp, &             ! returned step factor
-        info)              ! returned information
+        IF (lsflag) THEN
+            CALL ptline(nvgb,workspaceLinesearch, &   ! current parameter values
+            flines, &          ! chi^2 function value
+            globalVector, &    ! gradient
+            globalCorrections, &   ! step vector stp
+            stp, &             ! returned step factor
+            info)              ! returned information
         !      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
+        ELSE ! skip line search
+            info=10
+            stepl=1.0
+            IF (nloopn == nloopsol) THEN  ! new solution: update corrections
+                workspaceLinesearch=workspaceLinesearch+globalCorrections
+            ENDIF
+        ENDIF
         lsinfo=info
 
         stepl=SNGL(stp)
@@ -5518,7 +5544,7 @@ SUBROUTINE xloopn                !
                 CYCLE
             ENDIF
         END IF
-        IF(info < 0) CYCLE
+        IF(info < 0 .OR. nloopn == nloopsol) CYCLE
         !     Block 4: line search convergence ---------------------------------
 
         CALL ptlprt(lunlog)
@@ -6303,8 +6329,6 @@ SUBROUTINE filetx ! ---------------------------------------------------
         WRITE(*,*) '                  and band matrix, width',mbandw
     END IF
 
-
-
     IF(chicut /= 0.0) THEN
         WRITE(*,*) 'Chi square cut equiv 3 st.dev applied ...'
         WRITE(*,*) ' in  first iteration with factor',chicut
@@ -6316,6 +6340,21 @@ SUBROUTINE filetx ! ---------------------------------------------------
         WRITE(*,*) '   Down-weighting of outliers in', lhuber,' iterations'
         WRITE(*,*) '   Cut on downweight fraction',dwcut
     END IF
+
+    WRITE(*,*) 'Iterations (solutions) with line search:'
+    IF(lsearch > 2) THEN
+        WRITE(*,*) ' All'
+    ELSEIF (lsearch == 1) THEN
+        WRITE(*,*) ' Last'
+    ELSEIF (lsearch < 1) THEN
+        WRITE(*,*) ' None'
+    ELSE
+        IF (chicut /= 0.0) THEN
+            WRITE(*,*) ' All with Chi square cut scaling factor <= 1.'
+        ELSE
+            WRITE(*,*) ' All'
+        ENDIF
+    ENDIF
 
     CALL mend
 
@@ -6561,6 +6600,13 @@ SUBROUTINE intext(text,nline)
         END IF
         ! GF added end
   
+        keystx='linesearch'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            IF(nums > 0) lsearch=IDNINT(dnum(1))
+            RETURN
+        END IF
+
         keystx='localfit'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
@@ -6568,7 +6614,7 @@ SUBROUTINE intext(text,nline)
             IF(nums > 1) lfitbb=IDNINT(dnum(2))
             RETURN
         END IF
-  
+
         keystx='regularization'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN

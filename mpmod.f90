@@ -72,6 +72,8 @@ MODULE mpmod
     INTEGER :: igcorr=0  !< flag for output of global correlations for inversion, =0: none
     INTEGER :: memdbg=0  !< debug flag for memory management
     REAL    :: prange=0.0!< range (-PRANGE..PRANGE) for histograms of pulls, norm. residuals
+    INTEGER :: lsearch=2 !< iterations (solutions) with line search:
+                         !! >2: all, =2: all with (next) Chi2 cut scaling factor =1., =1: last, <1: none
     ! variables
     INTEGER :: lunlog !< unit for logfile
     INTEGER :: lvllog !< log level
@@ -92,7 +94,7 @@ MODULE mpmod
     INTEGER :: ndfsum !< sum(ndf)
     INTEGER :: iitera !< MINRES iterations
     INTEGER :: istopa !< MINRES istop (convergence)
-    INTEGER :: lsinfo !< linesearch: returned information
+    INTEGER :: lsinfo !< line search: returned information
     REAL    :: rstart !< cpu start time for solution iterations
     REAL    :: deltim !< cpu time difference
     INTEGER :: npresg !< number of pre-sigmas
