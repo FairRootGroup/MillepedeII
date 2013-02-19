@@ -287,7 +287,7 @@ SUBROUTINE ptlprt(lunp)
     IF(nsfd <= 0) RETURN
     WRITE(lun,*) ' '
     WRITE(lun,*) 'PTLINE: line-search method based on slopes',  &
-    ' with sufficient slope-decrease'
+        ' with sufficient slope-decrease'
     WRITE(lun,*) 'PTLDEF: slope ratio limit=',gtol
     WRITE(lun,*) 'PTLDEF: maximum step =',stmx
     WRITE(lun,*) 'PTLDEF:',minf,' <= nr of calls <=',maxf
@@ -310,7 +310,7 @@ SUBROUTINE ptlprt(lunp)
 
     END DO
     IF(lsinfo == 0) WRITE(lun,*)  &
-    'PTLINE: INFO=0  input error (e.g. gradient not negative)'
+        'PTLINE: INFO=0  input error (e.g. gradient not negative)'
     IF(lsinfo == 1) WRITE(lun,*) 'PTLINE: INFO=1  convergence reached'
     IF(lsinfo == 2) WRITE(lun,*) 'PTLINE: INFO=2  too many function calls'
     IF(lsinfo == 3) WRITE(lun,*) 'PTLINE: INFO=3  maximum step reached'
@@ -318,7 +318,7 @@ SUBROUTINE ptlprt(lunp)
     WRITE(lun,*) ' '
 
 101 FORMAT('  i      x              F(x)         F''(X)',  &
-    '          minimum     F''(X)')
+        '          minimum     F''(X)')
 102 FORMAT(i3,f12.6,1X,a2,g15.6,g14.6,f12.6,'     ratio')
 103 FORMAT(i3,f12.6,1X,a2,g15.6,g14.6,f12.6,f10.3)
 

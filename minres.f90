@@ -287,15 +287,15 @@
 !! \endverbatim
 
 SUBROUTINE minres( n, b, r1, r2, v, w, w1, w2, x, y,  &
-aprod, msolve, checka, precon, shift, nout , itnlim, rtol,  &
-istop, itn, anorm, acond, rnorm, ynorm )
+    aprod, msolve, checka, precon, shift, nout , itnlim, rtol,  &
+    istop, itn, anorm, acond, rnorm, ynorm )
 
     IMPLICIT NONE
     EXTERNAL aprod, msolve
     INTEGER :: n, nout, itnlim, istop, itn
     LOGICAL :: checka, precon
     DOUBLE PRECISION :: shift, rtol, anorm, acond, rnorm, ynorm,  &
-    b(n), r1(n), r2(n), v(n), w(n), w1(n), w2(n), x(n), y(n)
+        b(n), r1(n), r2(n), v(n), w(n), w1(n), w2(n), x(n), y(n)
 
     EXTERNAL ddot  , dnrm2
     DOUBLE PRECISION :: ddot  , dnrm2
@@ -303,15 +303,15 @@ istop, itn, anorm, acond, rnorm, ynorm )
     !     Local variables
 
     DOUBLE PRECISION :: alfa  , beta  , beta1 , cs    ,  &
-    dbar  , delta , denom , diag  , eps   , epsa  , epsln , epsr  , epsx  ,  &
-    agamma, gbar  , gmax  , gmin  , oldb  , oldeps, qrnorm, phi   , phibar,  &
-    rhs1  , rhs2  , s     , sn    , t     , tnorm2, ynorm2, z
+        dbar  , delta , denom , diag  , eps   , epsa  , epsln , epsr  , epsx  ,  &
+        agamma, gbar  , gmax  , gmin  , oldb  , oldeps, qrnorm, phi   , phibar,  &
+        rhs1  , rhs2  , s     , sn    , t     , tnorm2, ynorm2, z
     INTEGER :: i
     LOGICAL :: debug, prnt
 
     DOUBLE PRECISION :: zero, one, two, ten
     PARAMETER        ( zero = 0.0D+0,  one =  1.0D+0,  &
-    two  = 2.0D+0,  ten = 10.0D+0 )
+        two  = 2.0D+0,  ten = 10.0D+0 )
 
     CHARACTER (LEN=16) :: enter, EXIT
     CHARACTER (LEN=52) :: msg(-1:8)
@@ -319,15 +319,15 @@ istop, itn, anorm, acond, rnorm, ynorm )
     DATA               enter /' Enter MINRES.  '/, EXIT  /' Exit  MINRES.  '/
 
     DATA               msg  &
-    / 'beta2 = 0.  If M = I, b and x are eigenvectors of A',  &
-    'beta1 = 0.  The exact solution is  x = 0',  &
-    'Requested accuracy achieved, as determined by rtol',  &
-    'Reasonable accuracy achieved, given eps',  &
-    'x has converged to an eigenvector', 'Acond has exceeded 0.1/eps',  &
-    'The iteration limit was reached',  &
-    'Aprod  does not define a symmetric matrix',  &
-    'Msolve does not define a symmetric matrix',  &
-    'Msolve does not define a pos-def preconditioner' /
+        / 'beta2 = 0.  If M = I, b and x are eigenvectors of A',  &
+        'beta1 = 0.  The exact solution is  x = 0',  &
+        'Requested accuracy achieved, as determined by rtol',  &
+        'Reasonable accuracy achieved, given eps',  &
+        'x has converged to an eigenvector', 'Acond has exceeded 0.1/eps',  &
+        'The iteration limit was reached',  &
+        'Aprod  does not define a symmetric matrix',  &
+        'Msolve does not define a symmetric matrix',  &
+        'Msolve does not define a pos-def preconditioner' /
     !     ------------------------------------------------------------------
 
     debug = .false.
@@ -620,7 +620,7 @@ istop, itn, anorm, acond, rnorm, ynorm )
 
 900 IF (nout  > 0) THEN
         WRITE(nout, 2000) EXIT, istop, itn, EXIT, anorm, acond,  &
-        EXIT, rnorm, ynorm
+            EXIT, rnorm, ynorm
         WRITE(nout, 3000) EXIT, msg(istop)
     END IF
 
@@ -628,15 +628,15 @@ istop, itn, anorm, acond, rnorm, ynorm )
 
 
 1000 FORMAT(// 1P,    a, 5X, 'Solution of symmetric   Ax = b'  &
-    / ' n      =', i7, 5X, 'checkA =', l4, 12X, 'precon =', l4  &
-    / ' itnlim =', i7, 5X, 'rtol   =', e11.2, 5X, 'shift  =', e23.14)
+        / ' n      =', i7, 5X, 'checkA =', l4, 12X, 'precon =', l4  &
+        / ' itnlim =', i7, 5X, 'rtol   =', e11.2, 5X, 'shift  =', e23.14)
 1200 FORMAT(// 5X, 'itn', 8X, 'x(1)', 10X,  &
-    'norm(r)', 3X, 'norm(A)', 3X, 'cond(A)')
+        'norm(r)', 3X, 'norm(A)', 3X, 'cond(A)')
 1300 FORMAT(1P, i8, e19.10, 3E10.2)
 1500 FORMAT(1X)
 2000 FORMAT(/ 1P, a, 5X, 'istop =', i3,   14X, 'itn   =', i8  &
-    /     a, 5X, 'Anorm =', e12.4, 5X, 'Acond =', e12.4  &
-    /     a, 5X, 'rnorm =', e12.4, 5X, 'ynorm =', e12.4)
+        /     a, 5X, 'Anorm =', e12.4, 5X, 'Acond =', e12.4  &
+        /     a, 5X, 'rnorm =', e12.4, 5X, 'ynorm =', e12.4)
 3000 FORMAT(      a, 5X, a )
 
 END SUBROUTINE minres

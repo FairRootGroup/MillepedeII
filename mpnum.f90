@@ -940,7 +940,7 @@ SUBROUTINE vabdec(n,val,ilptr)
     
             DO i=MAX(mj,mk),j-1
                 val(kj)=val(kj) &     ! L_kj := L_kj - L_ki D_ii L_ji
-                -val(ilptr(k)-k+i)*val(ilptr(i))*val(ilptr(j)-j+i)
+                    -val(ilptr(k)-k+i)*val(ilptr(i))*val(ilptr(j)-j+i)
       
             END DO !
     
@@ -1070,7 +1070,7 @@ DOUBLE PRECISION FUNCTION dbdot(n,dx,dy)
     END DO
     DO i =MOD(n,5)+1,n,5
         dtemp=dtemp+dx(i)*dy(i)+dx(i+1)*dy(i+1)+dx(i+2)*dy(i+2)  &
-        +dx(i+3)*dy(i+3)+dx(i+4)*dy(i+4)
+            +dx(i+3)*dy(i+3)+dx(i+4)*dy(i+4)
     END DO
     dbdot=dtemp
 END FUNCTION dbdot
@@ -1650,17 +1650,17 @@ REAL FUNCTION chindl(n,nd)
     !     DATA PN/0.31731,0.0455002785,2.69985E-3/         ! probabilities
     DATA sn/0.47523,1.690140,2.782170/
     DATA table/ 1.0000, 1.1479, 1.1753, 1.1798, 1.1775, 1.1730, 1.1680, 1.1630,  &
-    1.1581, 1.1536, 1.1493, 1.1454, 1.1417, 1.1383, 1.1351, 1.1321,  &
-    1.1293, 1.1266, 1.1242, 1.1218, 1.1196, 1.1175, 1.1155, 1.1136,  &
-    1.1119, 1.1101, 1.1085, 1.1070, 1.1055, 1.1040,  &
-    4.0000, 3.0900, 2.6750, 2.4290, 2.2628, 2.1415, 2.0481, 1.9736,  &
-    1.9124, 1.8610, 1.8171, 1.7791, 1.7457, 1.7161, 1.6897, 1.6658,  &
-    1.6442, 1.6246, 1.6065, 1.5899, 1.5745, 1.5603, 1.5470, 1.5346,  &
-    1.5230, 1.5120, 1.5017, 1.4920, 1.4829, 1.4742,  &
-    9.0000, 5.9146, 4.7184, 4.0628, 3.6410, 3.3436, 3.1209, 2.9468,  &
-    2.8063, 2.6902, 2.5922, 2.5082, 2.4352, 2.3711, 2.3143, 2.2635,  &
-    2.2178, 2.1764, 2.1386, 2.1040, 2.0722, 2.0428, 2.0155, 1.9901,  &
-    1.9665, 1.9443, 1.9235, 1.9040, 1.8855, 1.8681/
+        1.1581, 1.1536, 1.1493, 1.1454, 1.1417, 1.1383, 1.1351, 1.1321,  &
+        1.1293, 1.1266, 1.1242, 1.1218, 1.1196, 1.1175, 1.1155, 1.1136,  &
+        1.1119, 1.1101, 1.1085, 1.1070, 1.1055, 1.1040,  &
+        4.0000, 3.0900, 2.6750, 2.4290, 2.2628, 2.1415, 2.0481, 1.9736,  &
+        1.9124, 1.8610, 1.8171, 1.7791, 1.7457, 1.7161, 1.6897, 1.6658,  &
+        1.6442, 1.6246, 1.6065, 1.5899, 1.5745, 1.5603, 1.5470, 1.5346,  &
+        1.5230, 1.5120, 1.5017, 1.4920, 1.4829, 1.4742,  &
+        9.0000, 5.9146, 4.7184, 4.0628, 3.6410, 3.3436, 3.1209, 2.9468,  &
+        2.8063, 2.6902, 2.5922, 2.5082, 2.4352, 2.3711, 2.3143, 2.2635,  &
+        2.2178, 2.1764, 2.1386, 2.1040, 2.0722, 2.0428, 2.0155, 1.9901,  &
+        1.9665, 1.9443, 1.9235, 1.9040, 1.8855, 1.8681/
     SAVE sn,table
     !     ...
     IF(nd < 1) THEN
@@ -1895,7 +1895,7 @@ SUBROUTINE equdec(n,m,c,india,nrkd,nrkd2)
     ntotal=n+n*m+(m*m+m)/2
 
     RETURN
-    END SUBROUTINE equdec
+END SUBROUTINE equdec
 
 !> Solution of equilibrium systems (after decomposition).
 !!
@@ -1912,7 +1912,7 @@ SUBROUTINE equdec(n,m,c,india,nrkd,nrkd2)
 !! \param [in]      india  pointer array
 !! \param [in,out]  x      r.h.s vector B, replaced by solution vector X
 !!
-    SUBROUTINE equslv(n,m,c,india,x)                   ! solution vector
+SUBROUTINE equslv(n,m,c,india,x)                   ! solution vector
     IMPLICIT NONE
     INTEGER :: i
     INTEGER :: j
@@ -2031,7 +2031,7 @@ SUBROUTINE precon(p,n,c,cu,a,s)
         END DO ! J
     END DO ! I
     RETURN
-    END SUBROUTINE precon
+END SUBROUTINE precon
 
 !> Constrained preconditioner, solution.
 !!
@@ -2043,7 +2043,7 @@ SUBROUTINE precon(p,n,c,cu,a,s)
 !! \param [out]    x     result vector
 !! \param [in]     y     rhs vector (changed if x=y as actual parameters)
 
-    SUBROUTINE presol(p,n,cu,a,s,x,y) ! solution
+SUBROUTINE presol(p,n,cu,a,s,x,y) ! solution
     IMPLICIT NONE
     INTEGER :: i
     INTEGER :: j

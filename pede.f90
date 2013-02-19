@@ -537,7 +537,7 @@ PROGRAM mptwo
         CALL gmpdef(6,1,'log10(#records) vs file number')
         CALL gmpdef(7,1,'final rejection fraction vs file number')
         CALL gmpdef(8,1,  &
-        'final <Chi^2/Ndf> from accepted local fits vs file number')
+            'final <Chi^2/Ndf> from accepted local fits vs file number')
         CALL gmpdef(9,1, '<Ndf> from accepted local fits vs file number')
   
         DO i=1,nfilb
@@ -598,7 +598,7 @@ PROGRAM mptwo
         WRITE(*,*) '   --- '
         DO i=1,100
             WRITE(*,102) i,-del(i),globalParameter(i),-del(i)-globalParameter(i),  &
-            -dvd(i),globalParameter(100+i),-dvd(i)-globalParameter(100+i)
+                -dvd(i),globalParameter(100+i),-dvd(i)-globalParameter(100+i)
             diff=SNGL(-del(i)-globalParameter(i))
             CALL hmpent( 9,diff)
             diff=SNGL(-dvd(i)-globalParameter(100+i))
@@ -725,14 +725,14 @@ PROGRAM mptwo
     END IF
 
     WRITE(8,103) times(0),times(1),times(2),times(4),times(7),  &
-    times(5),times(8),times(3),times(6)
+        times(5),times(8),times(3),times(6)
     CALL etime(ta,rst)
     deltat=rst-rstp
     ntsec=nint(deltat)
     CALL sechms(deltat,nhour,minut,secnd)
     nsecnd=nint(secnd)  ! round
     WRITE(8,*) 'Total time =',ntsec,' seconds =',nhour,' h',minut,  &
-    ' m',nsecnd,' seconds'
+        ' m',nsecnd,' seconds'
     CALL fdate(chdate)
     WRITE(8,*) 'end                                            ', chdate
     gbu=4.02E-9*FLOAT(maxwordsalloc)             ! GB used
@@ -745,8 +745,8 @@ PROGRAM mptwo
         WRITE(8,*) ' '
         WRITE(8,*) 'Data rejected in last iteration:   '
         WRITE(8,*) '   ',  &
-        nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
-        nrejec(2), ' (huge)   ',nrejec(3),' (large)'
+            nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
+            nrejec(2), ' (huge)   ',nrejec(3),' (large)'
         WRITE(8,*) ' '
     END IF
     CALL explfc(8)
@@ -760,11 +760,11 @@ PROGRAM mptwo
 
 102 FORMAT(2X,i4,2X,3F10.5,2X,3F10.5)
 103 FORMAT(' Times [in sec] for     text processing',f12.3/  &
-    '                                  LOOP1',f12.3/  &
-    '                                  LOOP2',f12.3/  &
-    '   func. value                         ',f12.3,' *',f4.0/  &
-    '   func. value, global matrix, solution',f12.3,' *',f4.0/  &
-    '                           new solution',f12.3,' *',f4.0/)
+        '                                  LOOP1',f12.3/  &
+        '                                  LOOP2',f12.3/  &
+        '   func. value                         ',f12.3,' *',f4.0/  &
+        '   func. value, global matrix, solution',f12.3,' *',f4.0/  &
+        '                           new solution',f12.3,' *',f4.0/)
 105 FORMAT('      Peak dynamic memory allocation: ',f11.6,' GB')
 END PROGRAM mptwo                              ! Mille
 
@@ -829,22 +829,22 @@ SUBROUTINE solglo(ivgbi)
 
     IF(mbandw == 0) THEN           ! default preconditioner
         CALL minres(nagb,globalVector,  &
-        workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-        workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-        globalCorrections,workspaceMinres, avprod, mcsolv, checka ,.TRUE. , shift,  &
-        nout , itnlim, rtol, istop, itn, anorm, acond, rnorm, ynorm)
+            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
+            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
+            globalCorrections,workspaceMinres, avprod, mcsolv, checka ,.TRUE. , shift,  &
+            nout , itnlim, rtol, istop, itn, anorm, acond, rnorm, ynorm)
     ELSE IF(mbandw > 0) THEN                          ! band matrix preconditioner
         CALL minres(nagb,globalVector,  &
-        workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-        workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-        globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.TRUE. , shift,  &
-        nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
+            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
+            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
+            globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.TRUE. , shift,  &
+            nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
     ELSE
         CALL minres(nagb,globalVector,  &
-        workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-        workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-        globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.FALSE., shift,  &
-        nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
+            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
+            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
+            globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.FALSE., shift,  &
+            nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
     END IF
 
     !      subroutine MINRES( n, b, r1, r2, v, w, w1, w2, x, y,
@@ -871,7 +871,7 @@ SUBROUTINE solglo(ivgbi)
     gcor2=SNGL(1.0D0-1.0D0/(gmati*diag)) ! global correlation (squared)
     WRITE(*,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR,gcor2,itn
 101 FORMAT(1X,'    label     parameter    presigma      differ',  &
-    '       Error gcor^2   iit'/ 1X,'---------',2X,5('-----------'),2X,'----')
+        '       Error gcor^2   iit'/ 1X,'---------',2X,5('-----------'),2X,'----')
 102 FORMAT(i10,2X,4G12.4,f7.4,i6,i4)
 END SUBROUTINE solglo
 
@@ -1030,9 +1030,9 @@ SUBROUTINE feasma
 
     WRITE(*,*) ' '
     WRITE(*,*) 'Rank of product matrix of constraints is',nrank,  &
-    ' for',ncgb,' constraint equations'
+        ' for',ncgb,' constraint equations'
     WRITE(8,*) 'Rank of product matrix of constraints is',nrank,  &
-    ' for',ncgb,' constraint equations'
+        ' for',ncgb,' constraint equations'
     IF(nrank < ncgb) THEN
         WRITE(*,*) 'Warning: insufficient constraint equations!'
         WRITE(8,*) 'Warning: insufficient constraint equations!'
@@ -1322,7 +1322,7 @@ SUBROUTINE peread(more)
             IF(kfile <= nfilf) THEN ! Fortran file
                 lun=kfile+10
                 READ(lun,IOSTAT=ierrf) n,(readBufferDataF(noff+i),i=1,min(n/2,nr)),&
-                (readBufferDataI(noff+i),i=1,min(n/2,nr))
+                    (readBufferDataI(noff+i),i=1,min(n/2,nr))
                 nr=n/2
                 IF (ierrf < 0) REWIND lun ! end-of-file
                 eof=(ierrf /= 0)
@@ -1454,7 +1454,7 @@ SUBROUTINE peread(more)
         IF (npri == 1) WRITE(*,100)
         WRITE(*,101) nrec, nrd, more ,ifile
 100     FORMAT(/' PeRead        records         active      file'  &
-        /'            total     block   threads    number')
+            /'            total     block   threads    number')
 101     FORMAT(' PeRead',4I10)
     END IF
 
@@ -1485,7 +1485,7 @@ SUBROUTINE peread(more)
                 DO lun=6,lunlog,2
                     WRITE(lun,177) nfilw,SNGL(ds1),SNGL(ds2)
 177                 FORMAT(/' !!!!!',i4,' weighted binary files',  &
-                    /' !!!!! mean, variance of weights =',2G12.4)
+                        /' !!!!! mean, variance of weights =',2G12.4)
                 END DO
             END IF
             !           integrate record numbers
@@ -1502,9 +1502,9 @@ SUBROUTINE peread(more)
         lprint=.FALSE.
         floop=.FALSE.
         IF (ncache > 0.AND.nloopn <= 1.AND.mprint > 0)  &
-        WRITE(*,179) numBlocks, sumRecords, minRecordsInBlock, maxRecordsInBlock
+            WRITE(*,179) numBlocks, sumRecords, minRecordsInBlock, maxRecordsInBlock
 179     FORMAT(/' Read  cache usage (#blocks, #records, ',  &
-        'min,max records/block'/17X,4I10)
+            'min,max records/block'/17X,4I10)
     END IF
     RETURN
 
@@ -1740,13 +1740,13 @@ SUBROUTINE loopn
 
 
     CALL hmpdef(3,-prange,prange, &   ! book
-    'Normalized residuals of single (global) measurement')
+        'Normalized residuals of single (global) measurement')
     CALL hmpdef(12,-prange,prange, &   ! book
-    'Normalized residuals of single (local) measurement')
+        'Normalized residuals of single (local) measurement')
     CALL hmpdef(13,-prange,prange, &   ! book
-    'Pulls of single (global) measurement')
+        'Pulls of single (global) measurement')
     CALL hmpdef(14,-prange,prange, &   ! book
-    'Pulls of single (local) measurement')
+        'Pulls of single (local) measurement')
     CALL hmpdef(4,0.0,0.0,'Chi^2/Ndf after local fit')
     CALL gmpdef(4,5,'location, dispersion (res.) vs record nr')
     CALL gmpdef(5,5,'location, dispersion (pull) vs record nr')
@@ -1827,7 +1827,7 @@ SUBROUTINE loopn
         peaki=FLOAT(writeBufferHeader(6))*0.1
         WRITE(*,111) nparl,ncrit,usei,used,peaki,peakd
 111     FORMAT(' Write cache usage (#flush,#overrun,<levels>,',  &
-        'peak(levels))'/2I7,',',4(f6.1,'%'))
+            'peak(levels))'/2I7,',',4(f6.1,'%'))
     END IF
 
     !     ----- after end-of-data add contributions from pre-sigma ---------
@@ -1962,8 +1962,8 @@ SUBROUTINE loopn
             WRITE(*,*) ' '
             WRITE(*,*) 'Data rejected in initial loop:'
             WRITE(*,*) '   ',  &
-            nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
-            nrejec(2), ' (huge)   ',nrejec(3),' (large)'
+                nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
+                nrejec(2), ' (huge)   ',nrejec(3),' (large)'
         END IF
     END IF
     !      IF(NREJEC(1)+NREJEC(2)+NREJEC(3).NE.0) THEN
@@ -2041,9 +2041,9 @@ SUBROUTINE ploopa(lunp)
     WRITE(lunp,101) ! header line
     WRITE(lunp,102) ! header line
 101 FORMAT(' it fc','   fcn_value dfcn_exp  slpr costh  iit st',  &
-    ' ls  step cutf',1X,'rejects hmmsec FMS')
+        ' ls  step cutf',1X,'rejects hmmsec FMS')
 102 FORMAT(' -- --',' ----------- --------  ---- -----  --- --',  &
-    ' -- ----- ----',1X,'------- ------ ---')
+        ' -- ----- ----',1X,'------- ------ ---')
     RETURN
 END SUBROUTINE ploopa   ! title for iteration
 
@@ -2082,24 +2082,24 @@ SUBROUTINE ploopb(lunp)
     nsecnd=nint(secnd)
     IF(iterat == 0) THEN
         WRITE(lunp,103) iterat,nloopn,fvalue,  &
-        chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+            chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
     ELSE
         IF (lsinfo == 10) THEN ! line search skipped
             WRITE(lunp,105) iterat,nloopn,fvalue,delfun,  &
-            iitera,istopa,chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+                iitera,istopa,chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
         ELSE
             CALL ptlopt(nfa,ma,slopes,steps)  ! slopes steps
             ratae=ABS(slopes(2)/slopes(1))
             stepl=steps(2)
             WRITE(lunp,104) iterat,nloopn,fvalue,delfun,ratae,angras,  &
-            iitera,istopa,lsinfo,stepl, chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+                iitera,istopa,lsinfo,stepl, chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
         ENDIF
     END IF
 103 FORMAT(i3,i3,e12.5,38X,f5.1, 1X,i7,  i2,i2,i3,a4)
 104 FORMAT(i3,i3,e12.5,1X,e8.2,f6.3,f6.3,i5,2I3,f6.3,f5.1,  &
-    1X,i7,  i2,i2,i3,a4)
+        1X,i7,  i2,i2,i3,a4)
 105 FORMAT(i3,i3,e12.5,1X,e8.2,12X,i5,I3,9X,f5.1,  &
-    1X,i7,  i2,i2,i3,a4)
+        1X,i7,  i2,i2,i3,a4)
     RETURN
 END SUBROUTINE ploopb ! iteration line
 
@@ -2139,7 +2139,7 @@ SUBROUTINE ploopc(lunp)
     ratae=ABS(slopes(2)/slopes(1))
     stepl=steps(2)
     WRITE(lunp,105) nloopn,fvalue, ratae,lsinfo,  &
-    stepl,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+        stepl,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
 105 FORMAT(3X,i3,e12.5,9X,     f6.3,14X,i3,f6.3,6X, i7,  i2,i2,i3,a4)
     RETURN
 
@@ -2181,19 +2181,19 @@ SUBROUTINE explfc(lunit)
     WRITE(lunit,102) 'Explanation of iteration table'
     WRITE(lunit,102) '=============================='
     WRITE(lunit,101) 'it',  &
-    'iteration number. Global parameters are improved for it > 0.'
+        'iteration number. Global parameters are improved for it > 0.'
     WRITE(lunit,102) 'First function evaluation is called iteraton 0.'
     WRITE(lunit,101) 'fc', 'number of function evaluations.'
     WRITE(lunit,101) 'fcn_value', 'value of 2 x Likelihood function (LF).'
     WRITE(lunit,102) 'The final value is the chi^2 value of the fit and should'
     WRITE(lunit,102) 'be about equal to the NDF (see below).'
     WRITE(lunit,101) 'dfcn_exp',  &
-    'expected reduction of the value of the Likelihood function (LF)'
+        'expected reduction of the value of the Likelihood function (LF)'
     WRITE(lunit,101) 'slpr', 'ratio of the actual slope to inital slope.'
     WRITE(lunit,101) 'costh',  &
-    'cosine of angle between search direction and -gradient'
+        'cosine of angle between search direction and -gradient'
     WRITE(lunit,101) 'iit',  &
-    'number of internal iterations in GMRES/MINRES algorithmus'
+        'number of internal iterations in GMRES/MINRES algorithmus'
     WRITE(lunit,101) 'st', 'stop code of GMRES/MINRES algorithmus'
     WRITE(lunit,102) '< 0:   rhs is very special, with beta2 = 0'
     WRITE(lunit,102) '= 0:   rhs b = 0, i.e. the exact solution is  x = 0'
@@ -2214,14 +2214,14 @@ SUBROUTINE explfc(lunit)
     WRITE(lunit,102) '= 5:   step at the upper bound'
     WRITE(lunit,102) '= 6:   rounding error limitation'
     WRITE(lunit,101) 'step',  &
-    'the factor for the Newton step during the line search. Usually'
+        'the factor for the Newton step during the line search. Usually'
     WRITE(lunit,102)  &
-    'a value of 1 gives a sufficient reduction of the LF. Oherwise'
+        'a value of 1 gives a sufficient reduction of the LF. Oherwise'
     WRITE(lunit,102) 'other step values are tried.'
     WRITE(lunit,101) 'cutf',  &
-    'cut factor. Local fits are rejected, if their chi^2 value'
+        'cut factor. Local fits are rejected, if their chi^2 value'
     WRITE(lunit,102)  &
-    'is larger than the 3-sigma chi^2 value times the cut factor.'
+        'is larger than the 3-sigma chi^2 value times the cut factor.'
     WRITE(lunit,102) 'A cut factor of 1 is used finally, but initially a larger'
     WRITE(lunit,102) 'factor may be used. A value of 0.0 means no cut.'
     WRITE(lunit,101) 'rejects', 'total number of rejected local fits.'
@@ -2519,7 +2519,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
         IF(lprnt) THEN
             WRITE(1,*) ' '
             WRITE(1,*) '------------------ Loop',nloopn,  &
-            ': Printout for record',nrc,iproc
+                ': Printout for record',nrc,iproc
             WRITE(1,*) ' '
         END IF
   
@@ -2535,10 +2535,10 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                 IF(imeas == 0) WRITE(1,1121)
                 imeas=imeas+1
                 WRITE(1,1122) imeas,glder(ja),glder(jb),  &
-                (inder(ja+j),glder(ja+j),j=1,jb-ja-1)
+                    (inder(ja+j),glder(ja+j),j=1,jb-ja-1)
             END DO
 1121        FORMAT(/'Measured value and local derivatives'/  &
-            '  i measured std_dev  index...derivative ...')
+                '  i measured std_dev  index...derivative ...')
 1122        FORMAT(i3,2G12.4,3(i3,g12.4)/(27X,3(i3,g12.4)))
     
             imeas=0              ! global derivatives
@@ -2552,15 +2552,15 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                 IF (jb < ist) THEN
                     IF(ist-jb > 2) THEN
                         WRITE(1,1124) imeas,(globalParLabelIndex(1,inder(jb+j)),inder(jb+j),  &
-                        globalParLabelIndex(2,inder(jb+j)),glder(jb+j),j=1,ist-jb)
+                            globalParLabelIndex(2,inder(jb+j)),glder(jb+j),j=1,ist-jb)
                     ELSE
                         WRITE(1,1125) imeas,(globalParLabelIndex(1,inder(jb+j)),inder(jb+j),  &
-                        globalParLabelIndex(2,inder(jb+j)),glder(jb+j),j=1,ist-jb)
+                            globalParLabelIndex(2,inder(jb+j)),glder(jb+j),j=1,ist-jb)
                     END IF
                 END IF
             END DO
 1123        FORMAT(/'Global derivatives'/  &
-            '  i  label gindex vindex derivative ...')
+                '  i  label gindex vindex derivative ...')
 1124        FORMAT(i3,2(i9,i7,i7,g12.4)/(3X,2(i9,i7,i7,g12.4)))
 1125        FORMAT(i3,2(i9,i7,i7,g12.4))
         END IF
@@ -2708,7 +2708,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                     WRITE(1,104) imeas,rmeas,resid,rerr,r1,chast,r2
                 END IF
 103             FORMAT(' index corrvalue    residuum          sigma',  &
-                '     nresid     cnresid')
+                    '     nresid     cnresid')
 104             FORMAT(i6,2X,2G12.4,' +-',g12.4,f7.2,1X,a3,f8.2)
     
                 DO j=1,jb-ja-1 ! normal equations, local parameter loop
@@ -2718,7 +2718,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                         ik=inder(ja+k)         ! local parameter index K
                         jk=ijsym(ij,ik)        ! index in symmetric matrix
                         clmat(jk)=clmat(jk) &  ! force double precision
-                        +DBLE(wght)*DBLE(glder(ja+j))*DBLE(glder(ja+k))
+                            +DBLE(wght)*DBLE(glder(ja+j))*DBLE(glder(ja+k))
                         !           check for band matrix substructure
                         IF (iter == 1) THEN
                             id=IABS(ij-ik)+1
@@ -2762,7 +2762,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                 IF (nloopn <= lfitnp.AND.iter == 1) inv=1 ! band part of inverse (for pulls)
                 IF (icalcm == 1.OR.lprnt) inv=2     ! complete inverse
                 CALL sqmibb(clmat,blvec,nalc,mbdr,mbnd,inv,nrank,  &
-                vbnd,vbdr,aux,vbk,vzru,scdiag,scflag)
+                    vbnd,vbdr,aux,vbk,vzru,scdiag,scflag)
             ELSE
                 !      full inversion and solution
                 inv=2
@@ -2832,7 +2832,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                 END IF
     
                 IF(iter == 1.AND.jb < ist.AND.lhist)  &
-                CALL gmpms(4,REC,rmeas/rerr) ! residual (with global deriv.)
+                    CALL gmpms(4,REC,rmeas/rerr) ! residual (with global deriv.)
     
                 dchi2=wght*rmeas*rmeas
                 !          DCHIT=DCHI2
@@ -2868,7 +2868,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                     WRITE(1,106) imeas,glder(ja),rmeas,rerr,r1,chast,r2
                 END IF
 105             FORMAT(' index corrvalue    residuum          sigma',  &
-                '     nresid     cnresid')
+                    '     nresid     cnresid')
 106             FORMAT(i6,2X,2G12.4,' +-',g12.4,f7.2,1X,a3,f8.2)
 
                 IF(iter == nter) THEN
@@ -2897,9 +2897,9 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
             IF(lprnt) THEN
                 WRITE(1,*) ' '
                 WRITE(1,*) 'Chi^2=',summ,' at',ndf,' degrees of freedom: ',  &
-                '3-sigma limit is',chindl(3,ndf)*FLOAT(ndf)
+                    '3-sigma limit is',chindl(3,ndf)*FLOAT(ndf)
                 WRITE(1,*) suwt,' is sum of factors, compared to',nweig,  &
-                ' Downweight fraction:',resing
+                    ' Downweight fraction:',resing
             END IF
             IF(nrank /= nalc.OR.nan > 0) THEN
                 nrej(0)=nrej(0)+1         ! count cases
@@ -3018,7 +3018,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                 ivgbj=globalParLabelIndex(2,inder(jb+j))     ! variable-parameter index
                 IF(ivgbj > 0) THEN
                     globalVector(ioffb+ivgbj)=globalVector(ioffb+ivgbj)  &
-                    +dw1*wght*rmeas*glder(jb+j) ! vector  !!! reverse
+                        +dw1*wght*rmeas*glder(jb+j) ! vector  !!! reverse
                     IF(icalcm == 1) THEN
                         ije=backIndexUsage(ioffe+ivgbj)        ! get index of index, non-zero
                         DO k=1,j
@@ -3029,7 +3029,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                                 ib=MIN(ije,ike)          ! smaller
                                 ij=ib+(ia*ia-ia)/2
                                 writeBufferUpdates(ioffd+ij)=writeBufferUpdates(ioffd+ij)  &
-                                -dw1*wght*glder(jb+j)*glder(jb+k)
+                                    -dw1*wght*glder(jb+j)*glder(jb+k)
                             END IF
                         END DO
                     END IF
@@ -3249,7 +3249,7 @@ SUBROUTINE prtglo
     WRITE(*,101)
 
     WRITE(lup,*) 'Parameter   ! first 3 elements per line are',  &
-    ' significant (if used as input)'
+        ' significant (if used as input)'
     iprlim=10
     DO itgbi=1,ntgb  ! all parameter variables
         itgbl=globalParLabelIndex(1,itgbi)
@@ -3352,7 +3352,7 @@ SUBROUTINE prtglo
     END IF
 
 101 FORMAT(1X,'    label       parameter      presigma        differ',  &
-    '         error'/ 1X,'-----------',4X,4('-------------'))
+        '         error'/ 1X,'-----------',4X,4('-------------'))
 102 FORMAT(i10,2X,4G14.5,f8.3)
 103 FORMAT(3(i11,f11.7,2X))
 END SUBROUTINE prtglo    ! print final log file
@@ -3715,7 +3715,7 @@ INTEGER FUNCTION inone(item)             ! translate 1-D identifier to nrs
         globalParHeader(-3)=globalParHeader(-3)*2
         CALL upone
         IF (lvllog > 1) WRITE(lunlog,*) 'INONE: array increased to',  &
-        globalParHeader(-3),' words'
+            globalParHeader(-3),' words'
     END DO outer
 
     IF(globalParHeader(-2) == 0) THEN
@@ -3917,7 +3917,7 @@ SUBROUTINE loop1
     CALL upone ! finalize the global label table
     ntgb = globalParHeader(-1)     ! total number of labels/parameters
     WRITE(lunlog,*) 'LOOP1:',ntgb,  &
-    ' is total number NTGB of labels/parameters'
+        ' is total number NTGB of labels/parameters'
     !     histogram number of entries per label ----------------------------
     CALL hmpldf(2,'Number of entries per label')
     DO j=1,ntgb
@@ -3987,7 +3987,7 @@ SUBROUTINE loop1
     !     regularization ---------------------------------------------------
     CALL mpalloc(globalParPreWeight,length,'pre-sigmas weights') ! presigma weights
     WRITE(*,112) ' Default pre-sigma =',regpre,  &
-    ' (if no individual pre-sigma defined)'
+        ' (if no individual pre-sigma defined)'
     WRITE(*,*)   'Pre-sigma factor is',regula
 
     IF(nregul == 0) THEN
@@ -4032,9 +4032,9 @@ SUBROUTINE loop1
         WRITE(*,101) '  NREC',nrec,'number of records'
         WRITE(*,101) 'MREQEN',mreqen,'required number of entries'
         IF (mreqpe > 1) WRITE(*,101)  &
-        'MREQPE',mreqpe,'required number of pair entries'
+            'MREQPE',mreqpe,'required number of pair entries'
         IF (msngpe >= 1) WRITE(*,101)  &
-        'MSNGPE',msngpe,'max pair entries single prec. storage'
+            'MSNGPE',msngpe,'max pair entries single prec. storage'
         WRITE(*,101) 'NTGB',ntgb,'total number of parameters'
         WRITE(*,101) 'NVGB',nvgb,'number of variable parameters'
         IF(mprint > 1) THEN
@@ -4284,7 +4284,7 @@ SUBROUTINE loop2
                     IF (jb < ist) THEN
                         WRITE(*,*) 'Global derivatives:'
                         WRITE(*,108) (globalParLabelIndex(1,inder(jb+j)),inder(jb+j),  &
-                        globalParLabelIndex(2,inder(jb+j)),glder(jb+j),j=1,ist-jb)
+                            globalParLabelIndex(2,inder(jb+j)),glder(jb+j),j=1,ist-jb)
 108                     FORMAT(3I11,g12.4)
                     END IF
                     IF(nda == 1) THEN
@@ -4385,14 +4385,14 @@ SUBROUTINE loop2
             !$OMP END PARALLEL
             ! monitoring
             IF (matmon /= 0.AND.  &
-            (irecmm >= nrecmm.OR.irecmm == mxrec)) THEN
+                (irecmm >= nrecmm.OR.irecmm == mxrec)) THEN
                 IF (nmatmo == 0) THEN
                     WRITE(*,*)
                     WRITE(*,*) 'Monitoring of sparse matrix construction'
                     WRITE(*,*) ' records ........ off-diagonal elements ',  &
-                    '....... compression   memory'
+                        '....... compression   memory'
                     WRITE(*,*) '             non-zero used(double)  used',  &
-                    '(float)       [%]       [GB]'
+                        '(float)       [%]       [GB]'
                 END IF
                 nmatmo=nmatmo+1
                 jcmprs=MAX(mcmprs,msngpe)
@@ -4512,7 +4512,7 @@ SUBROUTINE loop2
         length=(nagb+1)*nspc
         CALL mpalloc(sparseMatrixOffsets,two,length, 'sparse matrix row offsets')
         CALL ndbits(ndimsa,sparseMatrixCompression,sparseMatrixOffsets,  &
-        mreqpe,ihis,jcmprs)
+            mreqpe,ihis,jcmprs)
         ndgn=ndimsa(3)+ndimsa(4) ! actual number of off-diagonal elements
         matwords=ndimsa(2)+length ! size of sparsity structure
     
@@ -4592,7 +4592,7 @@ SUBROUTINE loop2
             WRITE(lu,101) 'NOFF',noff,'max number of off-diagonal elements'
         END IF
         IF(ndgn /= 0)  &
-        WRITE(lu,101) 'NDGN',ndgn,'actual number of off-diagonal elements'
+            WRITE(lu,101) 'NDGN',ndgn,'actual number of off-diagonal elements'
         WRITE(lu,101) 'NCGB',ncgb,'number of constraints'
         WRITE(lu,101) 'NAGBN',nagbn,'max number of global parameters in an event'
         WRITE(lu,101) 'NALCN',nalcn,'max number of local parameters in an event'
@@ -4600,11 +4600,11 @@ SUBROUTINE loop2
         IF (mprint > 1) THEN
             WRITE(lu,101) 'NAEQNA',naeqna,'number of equations'
             WRITE(lu,101) 'NAEQNG',naeqng,  &
-            'number of equations with       global derivatives'
+                'number of equations with       global derivatives'
             WRITE(lu,101) 'NAEQNF',naeqnf,  &
-            'number of equations with fixed global derivatives'
+                'number of equations with fixed global derivatives'
             WRITE(lu,101) 'NRECF',nrecf,  &
-            'number of records   with fixed global derivatives'
+                'number of records   with fixed global derivatives'
         END IF
         IF (ncache > 0) THEN
             WRITE(lu,101) 'NCACHE',ncache,'number of words for caching'
@@ -4694,7 +4694,7 @@ SUBROUTINE loop2
     WRITE(lunlog,*) '   Cut values of Chi^2/Ndf and Chi2,'
     WRITE(lunlog,*) '   corresponding to 2 and 3 standard deviations'
     WRITE(lunlog,*) '   Ndf  Chi^2/Ndf(2)  Chi^2(2)   ',  &
-    '  Chi^2/Ndf(3)  Chi^2(3)'
+        '  Chi^2/Ndf(3)  Chi^2(3)'
     ndf=0
     DO
         IF(ndf > naeqn) EXIT
@@ -4837,13 +4837,13 @@ SUBROUTINE minver
     !      WRITE(*,*) 'MINVER ICALCM=',ICALCM
     IF(icalcm == 1) THEN
         CALL sqminl(globalMatD, globalCorrections,nagb,nrank,  &
-        workspaceD,workspaceI)
+            workspaceD,workspaceI)
         ndefec=nagb-nrank   ! rank defect
         IF(ndefec /= 0) THEN
             WRITE(*,*)   'The rank defect of the symmetric',nagb,  &
-            '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
+                '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
             WRITE(lun,*) 'The rank defect of the symmetric',nagb,  &
-            '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
+                '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
             IF (iforce == 0) THEN
                 isubit=1
                 WRITE(*,*)   '         --> enforcing SUBITO mode'
@@ -4890,7 +4890,7 @@ SUBROUTINE mdiags
   
         !                         eigenvalues   eigenvectors   symm_input
         CALL devrot(nvar,workspaceEigenValues,workspaceEigenVectors,globalMatD,  &
-        workspaceDiagonalization,workspaceI)
+            workspaceDiagonalization,workspaceI)
   
         !        histogram of positive eigenvalues
   
@@ -4948,11 +4948,11 @@ SUBROUTINE mdiags
         WRITE(lun,*) '(for Eigenvalue < 0.001 the value 0.0 is shown)'
         WRITE(lun,101) (workspaceDiagonalization(i),i=1,nagb)
         IF(workspaceDiagonalization(nvar) < 0) WRITE(lun,*) 'Negative values are ',  &
-        'printed for negative eigenvalues'
+            'printed for negative eigenvalues'
         CALL devsig(nagb,workspaceEigenValues,workspaceEigenVectors,globalVector,workspaceDiagonalization)
         WRITE(lun,*) ' '
         WRITE(lun,*) nvgb,' significances: insignificant if ',  &
-        'compatible with  N(0,1)'
+            'compatible with  N(0,1)'
         WRITE(lun,101) (workspaceDiagonalization(i),i=1,nvgb)
   
   
@@ -5024,7 +5024,7 @@ SUBROUTINE mminrs
         IF(icalcm == 1) THEN
             !            WRITE(LUN,*) 'MMINRS: PRECON started'
             CALL precon(ncgb,nvgb,matPreCond,matPreCond, matPreCond(1+nvgb),  &
-            matPreCond(1+nvgb+ncgb*nvgb))
+                matPreCond(1+nvgb+ncgb*nvgb))
         !            WRITE(LUN,*) 'MMINRS: PRECON ended'
         END IF
   
@@ -5032,10 +5032,10 @@ SUBROUTINE mminrs
         !         WRITE(*,*) IGVEC,IDUX1,ISOLV,IDUX7
   
         CALL minres(nagb,globalVector,  &
-        workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-        workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-        globalCorrections,workspaceMinres, avprod, mcsolv, checka ,.TRUE. , shift,  &
-        nout , itnlim, rtol, istop, itn, anorm, acond, rnorm, ynorm)
+            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
+            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
+            globalCorrections,workspaceMinres, avprod, mcsolv, checka ,.TRUE. , shift,  &
+            nout , itnlim, rtol, istop, itn, anorm, acond, rnorm, ynorm)
     !         WRITE(*,*) 'MINRES ended'
     !    +                 DQ(IDUX1/2+1),DQ(IDUX8/2+1),DQ(IDUX3/2+1),
     !    +                 DQ(IDUX4/2+1),DQ(IDUX5/2+1),DQ(IDUX6/2+1),
@@ -5046,17 +5046,17 @@ SUBROUTINE mminrs
             WRITE(lun,*) 'MMINRS: EQUDEC ended'
         END IF
         CALL minres(nagb,globalVector,  &
-        workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-        workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-        globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.TRUE. , shift,  &
-        nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
+            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
+            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
+            globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.TRUE. , shift,  &
+            nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
     ELSE
         !         IF(ICALCM.NE.0) WRITE(LUN,*) 'MMINRS: no preconditioning !!!'
         CALL minres(nagb,globalVector,  &
-        workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-        workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-        globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.FALSE., shift,  &
-        nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
+            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
+            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
+            globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.FALSE., shift,  &
+            nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
     END IF
     iitera=itn
     istopa=istop
@@ -5229,7 +5229,7 @@ SUBROUTINE xloopn                !
                 WRITE(lunp,121) 'solution method:', 'minres (Paige/Saunders)'
             ELSE IF(metsol == 4) THEN
                 WRITE(lunp,121) 'solution method:',  &
-                'gmres (generalized minimzation of residuals)'
+                    'gmres (generalized minimzation of residuals)'
             END IF
         END IF
         WRITE(lunp,123) 'convergence limit at Delta F=',dflim
@@ -5258,7 +5258,7 @@ SUBROUTINE xloopn                !
         ELSE
             ! FIXME: NPRESG contains parameters that failed the 'entries' cut...
             WRITE(lunp,124) 'pre-sigmas defined for',  &
-            FLOAT(100*npresg)/FLOAT(nvgb),' % of variable parameters'
+                FLOAT(100*npresg)/FLOAT(nvgb),' % of variable parameters'
             WRITE(lunp,123) 'default pre-sigma=',regpre
         END IF
         IF(nregul == 0) THEN
@@ -5402,8 +5402,8 @@ SUBROUTINE xloopn                !
                 WRITE(*,*) ' '
                 WRITE(*,*) 'Data rejected in previous loop:   '
                 WRITE(*,*) '   ',  &
-                nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
-                nrejec(2), ' (huge)   ',nrejec(3),' (large)'
+                    nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
+                    nrejec(2), ' (huge)   ',nrejec(3),' (large)'
                 WRITE(*,*) 'Too many rejects (>33.3%) - stop'
                 STOP
             END IF
@@ -5455,7 +5455,7 @@ SUBROUTINE xloopn                !
             ! do line search for this iteration/solution ?
             ! lsearch >2: all, =2: all with (next) chicut =1., =1: last, <1: none
             lsflag=(lsearch > 2 .OR. (lsearch == 2 .AND. chicut < 2.25) .OR. &
-            (lsearch == 1 .AND. chicut < 2.25 .AND. (delfun <= dflim .OR. iterat >= mitera)))
+                (lsearch == 1 .AND. chicut < 2.25 .AND. (delfun <= dflim .OR. iterat >= mitera)))
             IF (lsflag) THEN
                 ! initialize line search based on slopes and prepare next
                 CALL ptldef(wolfc2, 10.0, minf,10)
@@ -5501,11 +5501,11 @@ SUBROUTINE xloopn                !
         IF(icalcm+2 == 0) EXIT
         IF (lsflag) THEN
             CALL ptline(nvgb,workspaceLinesearch, &   ! current parameter values
-            flines, &          ! chi^2 function value
-            globalVector, &    ! gradient
-            globalCorrections, &   ! step vector stp
-            stp, &             ! returned step factor
-            info)              ! returned information
+                flines, &          ! chi^2 function value
+                globalVector, &    ! gradient
+                globalCorrections, &   ! step vector stp
+                stp, &             ! returned step factor
+                info)              ! returned information
         !      WRITE(*,*) 'PTLINE returns INFO, STP=',INFO, STP
         ELSE ! skip line search
             info=10
@@ -5521,7 +5521,7 @@ SUBROUTINE xloopn                !
         DO i=1,nvgb
             itgbi=globalParVarToTotal(i)
             IF ((.NOT.(workspaceLinesearch(i) <= 0.0D0)).AND.  &
-            (.NOT.(workspaceLinesearch(i) > 0.0D0))) nan=nan+1
+                (.NOT.(workspaceLinesearch(i) > 0.0D0))) nan=nan+1
             globalParameter(itgbi)=workspaceLinesearch(i) ! current parameter values
         END DO
 
@@ -5568,8 +5568,8 @@ SUBROUTINE xloopn                !
         WRITE(*,*) ' '
         WRITE(*,*) 'Data rejected in last loop:   '
         WRITE(*,*) '   ',  &
-        nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
-        nrejec(2), ' (huge)   ',nrejec(3),' (large)'
+            nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
+            nrejec(2), ' (huge)   ',nrejec(3),' (large)'
     END IF
 
     dwmean=sumndf/dfloat(ndfsum)
@@ -5598,7 +5598,7 @@ SUBROUTINE xloopn                !
         END IF
         WRITE(lunp,*) ' '
         IF(lhuber /= 0) WRITE(lunp,*)  &
-        '            with correction for down-weighting   ',catio
+            '            with correction for down-weighting   ',catio
     END DO
     nrej=nrejec(0)+nrejec(1)+nrejec(2)+nrejec(3) ! total number of rejects
 
@@ -5647,27 +5647,27 @@ SUBROUTINE xloopn                !
             WRITE(*,199) ' '
             WRITE(*,*) '        Chi^2/Ndf = ',dratio, '  (should be close to 1)'
             WRITE(*,*) '        => multiply all input standard ',  &
-            'deviations by factor',dfacin
+                'deviations by factor',dfacin
         END IF
 
         IF(nrati > 1) THEN
             WRITE(*,199) ' '
             WRITE(*,*) '        Fraction of rejects =',djrat,' %',  &
-            '  (should be far below 1 %)'
+                '  (should be far below 1 %)'
             WRITE(*,*) '        => please provide correct mille data'
         END IF
 
         IF(iagain /= 0) THEN
             WRITE(*,199) ' '
             WRITE(*,*) '        Matrix not positiv definite '//  &
-            '(function not decreasing)'
+                '(function not decreasing)'
             WRITE(*,*) '        => please provide correct mille data'
         END IF
 
         IF(nmiss1 /= 0) THEN
             WRITE(*,199) ' '
             WRITE(*,*) '        Rank defect =',nmiss1,  &
-            '  for constraint equations, should be 0'
+                '  for constraint equations, should be 0'
             WRITE(*,*) '        => please correct constraint definition'
         END IF
 
@@ -6258,7 +6258,7 @@ SUBROUTINE filetx ! ---------------------------------------------------
     IF(lunkno /= 0) THEN
         WRITE(*,*) ' '
         WRITE(*,*) lunkno,' unknown keywords in steering files, ',  &
-        'or file non-existing,'
+            'or file non-existing,'
         WRITE(*,*) '   see above!'
         WRITE(*,*) '------------>    stop'
         WRITE(*,*) ' '
@@ -6477,8 +6477,8 @@ SUBROUTINE intext(text,nline)
     END INTERFACE
 
     DATA keylst/'unknown','parameter','constraint','wconstraint',  &
-    'measurement', 'method',  &
-    'mestimate', 'atleast','option'/
+        'measurement', 'method',  &
+        'mestimate', 'atleast','option'/
 
     !add  number of iterations
     !     wconstraint like constraint
@@ -6561,7 +6561,7 @@ SUBROUTINE intext(text,nline)
         IF(mat >= (npat-npat/5)) THEN
             IF (nums > 0.AND.dnum(1) >= 0.) ncache=IDNINT(dnum(1)) ! cache size, <0 keeps default
             IF (nums == 2.AND.dnum(2) > 0..AND.dnum(2) <= 1.0)  &  ! read cache fill level
-            fcache(1)=SNGL(dnum(2))
+                fcache(1)=SNGL(dnum(2))
             IF (nums >= 4) THEN                                    ! explicit cache splitting
                 DO k=1,3
                     fcache(k)=SNGL(dnum(k+1))
@@ -6812,7 +6812,7 @@ SUBROUTINE intext(text,nline)
             IF(nums > 0) THEN
                 IF (dnum(1) < 1.0D-10.OR.dnum(1) > 1.0D-04) THEN
                     WRITE(*,*) 'ERROR: need 1.0D-10 <= MRESTL ',  &
-                    '<= 1.0D-04, but get ', dnum(1)
+                        '<= 1.0D-04, but get ', dnum(1)
                 ELSE
                     mrestl=IDNINT(dnum(1))
                 END IF
@@ -7197,7 +7197,7 @@ SUBROUTINE petime
     rstp=rst
     RETURN
 101 FORMAT(i4,' h',i3,' min',f5.1,' sec total',18X,'elapsed',  &
-    i4,' h',i3,' min',f5.1,' sec')
+        i4,' h',i3,' min',f5.1,' sec')
 END SUBROUTINE petime                          ! print
 
 ! ----- accurate summation ----(from mpnum) ---------------------------------

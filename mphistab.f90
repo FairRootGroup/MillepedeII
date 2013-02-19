@@ -210,7 +210,7 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
         IF(khist(ihc) /= 0) THEN
             IF(khist(ihc) == 1) THEN
                 CALL hmpmak(inhist(1,ihc),fnhist(1,ihc),jnhist(1,ihc),  &
-                xl(1,ihc),dl(1,ihc))
+                    xl(1,ihc),dl(1,ihc))
             END IF
             nn=jnhist(1,ihc)+jnhist(2,ihc)+jnhist(3,ihc)
             IF(nn /= 0.OR.khist(ihc) == 3) THEN
@@ -225,7 +225,7 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
                     WRITE(*,*) '   Out_low  inside  out_high = ', (jnhist(j,ihc),j=1,3)
                 ELSE IF(khist(ihc) == 2) THEN
                     WRITE(*,*) '   0_or_negative  inside  above_10^6 = ',  &
-                    (jnhist(j,ihc),j=1,3)
+                        (jnhist(j,ihc),j=1,3)
                 END IF
                 IF(khist(ihc) == 3) THEN
                     CALL pfvert(120,fnhist(1,ihc))
@@ -249,7 +249,7 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
                     END IF
                 ELSE IF(khist(ihc) == 2) THEN
                     WRITE(*,*) '   Plot of log10 of entries. Min and Max are',  &
-                    jnhist(4,ihc),jnhist(5,ihc)
+                        jnhist(4,ihc),jnhist(5,ihc)
                 END IF
             END IF
         END IF
@@ -275,14 +275,14 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
         IF(khist(ihc) /= 0) THEN
             IF(khist(ihc) == 1) THEN
                 CALL hmpmak(inhist(1,ihc),fnhist(1,ihc),jnhist(1,ihc),  &
-                xl(1,ihc),dl(1,ihc))
+                    xl(1,ihc),dl(1,ihc))
             END IF
             nbin=120
             WRITE(lun,204) ' '
             WRITE(lun,201) ihc,kvers(ihc),khist(ihc)
             WRITE(lun,204) htext(ihc)
             IF (jnhist(1,ihc)+jnhist(2,ihc)+jnhist(3,ihc) == 0  &
-            .AND.xl(1,ihc) == xl(2,ihc)) THEN
+                .AND.xl(1,ihc) == xl(2,ihc)) THEN
                 !     hist is empty and hist range makes no sense
                 !     - cause: hist with 'variable edges' was never filled
                 !     - workaround: make lower and upper edge of hist differ in output
@@ -441,7 +441,7 @@ SUBROUTINE bintab(tab,n,xa,xb)             ! hist scale from data
             x1=-xx
             x2=+xx
         ELSE IF(x1*x2 > 0.0.AND. & ! include zero ?
-        ABS(MIN(x1,x2)) < 0.4*ABS(MAX(x1,x2))) THEN
+            ABS(MIN(x1,x2)) < 0.4*ABS(MAX(x1,x2))) THEN
             IF(x1 < 0.0) THEN
                 x2=0.0
             ELSE
@@ -734,7 +734,7 @@ SUBROUTINE gmpdef(ig,ityp,text)            ! book, reset XY storage
                 WRITE(*,*) '      stored n-tuples: ',jflc(3,igc)
             ELSE
                 WRITE(*,*) '   stored n-tuples,  not-stored n-tuples: ',  &
-                jflc(3,igc),', ',jflc(4,igc)
+                    jflc(3,igc),', ',jflc(4,igc)
             END IF
     
             CALL stmacp(jflc(1,igc),array,na) ! get all data
@@ -751,7 +751,7 @@ SUBROUTINE gmpdef(ig,ityp,text)            ! book, reset XY storage
                 WRITE(*,*) '      stored n-tuples: ',jflc(3,igc)
             ELSE
                 WRITE(*,*) '   stored n-tuples,  not-stored n-tuples: ',  &
-                jflc(3,igc),', ',jflc(4,igc)
+                    jflc(3,igc),', ',jflc(4,igc)
             END IF
     
             CALL stmacp(jflc(1,igc),array,na) ! get all data
@@ -791,7 +791,7 @@ SUBROUTINE gmpdef(ig,ityp,text)            ! book, reset XY storage
                 WRITE(*,*) '      stored n-tuples: ',jflc(3,igc)
             ELSE
                 WRITE(*,*) '   stored n-tuples,  not-stored n-tuples: ',  &
-                jflc(3,igc),', ',jflc(4,igc)
+                    jflc(3,igc),', ',jflc(4,igc)
             END IF
     
             CALL stmacp(jflc(1,igc),array,na) ! get all data

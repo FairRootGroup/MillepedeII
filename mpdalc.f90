@@ -18,12 +18,12 @@ MODULE mpdalc
     !> allocate array
     INTERFACE mpalloc
         MODULE PROCEDURE mpallocdvec, mpallocfvec, mpallocivec, &
-        mpallocfarr, mpallociarr, mpalloclarr, mpalloclist, mpalloccvec
+            mpallocfarr, mpallociarr, mpalloclarr, mpalloclist, mpalloccvec
     END INTERFACE mpalloc
     !> deallocate array
     INTERFACE mpdealloc
         MODULE PROCEDURE mpdeallocdvec, mpdeallocfvec, mpdeallocivec, &
-        mpdeallocfarr, mpdeallociarr, mpdealloclarr, mpdealloclist, mpdealloccvec
+            mpdeallocfarr, mpdeallociarr, mpdealloclarr, mpdealloclist, mpdealloccvec
     END INTERFACE mpdealloc
 
 CONTAINS

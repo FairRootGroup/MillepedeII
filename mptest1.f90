@@ -107,9 +107,9 @@ SUBROUTINE mptest
     IF(ex3) CALL system('rm mp2tst.bin')   ! remove old file
 
     IF(.NOT.ex1) OPEN(UNIT=7,ACCESS='SEQUENTIAL',FORM='FORMATTED',  &
-    FILE='mp2str.txt')
+        FILE='mp2str.txt')
     IF(.NOT.ex2) OPEN(UNIT=9,ACCESS='SEQUENTIAL',FORM='FORMATTED',  &
-    FILE='mp2con.txt')
+        FILE='mp2con.txt')
     OPEN(UNIT=51,ACCESS='SEQUENTIAL',FORM='UNFORMATTED', FILE='mp2tst.bin')
 
     DO i=1,nplan
@@ -149,13 +149,13 @@ SUBROUTINE mptest
         WRITE(luns,101) '*chisqcut 1.0 1.0 ! cut factor in iterations 1 and 2'
         WRITE(luns,101) '*entries  10 ! lower limit on number of entries/parameter'
         WRITE(luns,101)  &
-        '*pairentries 10 ! lower limit on number of parameter pairs',  &
-        '                ! (not yet!)'
+            '*pairentries 10 ! lower limit on number of parameter pairs',  &
+            '                ! (not yet!)'
         WRITE(luns,101) '*printrecord   1  2      ! debug printout for records'
         WRITE(luns,101)  &
-        '*printrecord  -1 -1      ! debug printout for bad data records'
+            '*printrecord  -1 -1      ! debug printout for bad data records'
         WRITE(luns,101)  &
-        '*outlierdownweighting  2 ! number of internal iterations (> 1)'
+            '*outlierdownweighting  2 ! number of internal iterations (> 1)'
         WRITE(luns,101) '*dwfractioncut      0.2  ! 0 < value < 0.5'
         WRITE(luns,101) '*presigma           0.01 ! default value for presigma'
         WRITE(luns,101) '*regularisation 1.0      ! regularisation factor'
