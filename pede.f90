@@ -1419,6 +1419,7 @@ SUBROUTINE peread(more)
             IF (jfile > 0) THEN   ! rewind files
                 nrc=readBufferInfo(3,k)
                 IF (kfd(1,jfile) == 1) kfd(1,jfile)=-nrc
+                kfile=kfd(2,jfile)
                 IF (kfile <= nfilf) THEN
                     lun=kfile+10
                     REWIND lun
@@ -3914,8 +3915,9 @@ SUBROUTINE loop1
     END IF
     CALL hmpwrt(1)
     CALL hmpwrt(8)
-    CALL upone ! finalize the global label table
     ntgb = globalParHeader(-1)     ! total number of labels/parameters
+    IF (ntgb == 0) STOP 'LOOP1: no labels/parameters defined'
+    CALL upone ! finalize the global label table
     WRITE(lunlog,*) 'LOOP1:',ntgb,  &
         ' is total number NTGB of labels/parameters'
     !     histogram number of entries per label ----------------------------
@@ -4591,8 +4593,13 @@ SUBROUTINE loop2
         ELSE
             WRITE(lu,101) 'NOFF',noff,'max number of off-diagonal elements'
         END IF
-        IF(ndgn /= 0)  &
-            WRITE(lu,101) 'NDGN',ndgn,'actual number of off-diagonal elements'
+        IF(ndgn /= 0) THEN
+            IF (nagb >= 65536) THEN
+                WRITE(lu,101) 'NDGN/K',ndgn/1000,'actual number of off-diagonal elements'
+            ELSE
+                WRITE(lu,101) 'NDGN',ndgn,'actual number of off-diagonal elements'
+            ENDIF
+        ENDIF
         WRITE(lu,101) 'NCGB',ncgb,'number of constraints'
         WRITE(lu,101) 'NAGBN',nagbn,'max number of global parameters in an event'
         WRITE(lu,101) 'NALCN',nalcn,'max number of local parameters in an event'
