@@ -115,5 +115,12 @@ install: $(EXECUTABLES) #clean
 	$(CCOMP) -c $(C_FLAGS) $(DEFINES) $(C_INCLUDEDIRS) $(DEBUG) -o $@ $<
 #
 # ##################################################################
+# Module dependencies
+mpbits.o:  mpdef.o mpdalc.o
+mpdalc.o:  mpdef.o
+mpmod.o:   mpdef.o
+mpnum.o:   mpdef.o
+pede.o:    mpdef.o mpmod.o mpdalc.o mptest1.o mptest2.o mptext.o
+# ##################################################################
 # END
 # ##################################################################
