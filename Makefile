@@ -31,8 +31,6 @@ SUPPORT_C_RFIO =
 # yes
 # If yes (and if SUPPORT_READ_C is yes), use zlib to read gzipped binary files
 SUPPORT_ZLIB = yes
-# Define the size of LARGE integers (4: INTEGER*4 (on 32 bit systems), 8: INTEGER*8)
-LARGE_SIZE=8
 # If yes use multithreading with OpenMP (TM)
 SUPPORT_OPENMP = yes
 # ompP profiler (http://www.ompp-tool.com, needs Opari for source-to-source instrumentation)
@@ -42,7 +40,7 @@ OMPP =
 # #################################################################
 #
 FCOMP = $(OMPP) $(GCC)
-F_FLAGS = -Wall -fautomatic -fno-backslash -O3 -cpp -DLARGE_SIZE=${LARGE_SIZE}
+F_FLAGS = -Wall -fautomatic -fno-backslash -O3 -cpp
 #
 CCOMP = $(OMPP) $(GCC) 
 C_FLAGS = -Wall -O3 -Df2cFortran
