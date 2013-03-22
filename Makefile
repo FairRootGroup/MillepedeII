@@ -26,16 +26,30 @@ $(info Using gcc version $(GCCVERS))
 # All but 'yes' disables support of reading C-binaries:
 SUPPORT_READ_C = yes
 # If yes (and if SUPPORT_READ_C is yes), uses rfio, i.e. shift library, for IO,
-# requires shift library to be installed
+# requires shift library and header to be installed at places defined here:
+#
 SUPPORT_C_RFIO =
+# default path (by '=') to RFIO - overwrite if needed...
+RFIO_INCLUDES_DIR = =
+RFIO_LIBS_DIR = =
 # yes
-# If yes (and if SUPPORT_READ_C is yes), use zlib to read gzipped binary files
+#
+# If yes (and if SUPPORT_READ_C is yes and SUPPORT_C_RFIO is not yes),
+# use zlib to read gzipped binary files:
 SUPPORT_ZLIB = yes
+# default path (by '=') to ZLIB - overwrite if needed
+# requires z library and header to be installed at places defined here:
+ZLIB_INCLUDES_DIR = =
+ZLIB_LIBS_DIR = =
+#
 # If yes use multithreading with OpenMP (TM)
 SUPPORT_OPENMP = yes
 # ompP profiler (http://www.ompp-tool.com, needs Opari for source-to-source instrumentation)
 OMPP =
 # kinst-ompp
+#
+# make install copies the binary to $(PREFIX)/bin
+PREFIX = .
 #
 # #################################################################
 #
@@ -76,12 +90,12 @@ ifeq ($(SUPPORT_READ_C),yes)
   F_FLAGS += -DREAD_C_FILES
   USER_OBJ_PEDE += readc.o
   ifeq ($(SUPPORT_C_RFIO),yes)
-    C_FLAGS += -DUSE_SHIFT_RFIO
-    C_LIBS += -lshift
+    C_FLAGS += -DUSE_SHIFT_RFIO -I$(RFIO_INCLUDES_DIR)
+    C_LIBS += -L$(RFIO_LIBS_DIR) -lshift
   else
     ifeq ($(SUPPORT_ZLIB),yes)
-      C_FLAGS += -DUSE_ZLIB
-      C_LIBS += -lz
+      C_FLAGS += -DUSE_ZLIB -I$(ZLIB_INCLUDES_DIR)
+      C_LIBS += -L$(ZLIB_LIBS_DIR) -lz
     endif
   endif
 endif
@@ -104,8 +118,8 @@ clobber: clean
 	rm -f $(EXECUTABLES)
 
 install: $(EXECUTABLES) #clean
-	mkdir -p bin
-	mv $(EXECUTABLES) bin
+	mkdir -p $(PREFIX)/bin
+	mv $(EXECUTABLES) $(PREFIX)/bin
 
 # Make the object files - depend on source and include file 
 #
