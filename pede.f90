@@ -25,7 +25,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-00-00 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-00-03 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -1536,6 +1536,9 @@ SUBROUTINE peprep(mode)
     INTEGER :: jb
     INTEGER :: jsp
     INTEGER :: nst
+    INTEGER, PARAMETER :: maxbad = 100 ! max number of bad records with print out
+    INTEGER :: nbad
+    INTEGER :: nerr
     INTEGER :: inone
     !$    INTEGER :: OMP_GET_THREAD_NUM
 
@@ -1568,21 +1571,110 @@ SUBROUTINE peprep(mode)
 
     !$POMP INST BEGIN(peprep)
     IF (mode <= 0) THEN
+        nbad=0
         DO ibuf=1,numReadBuffer ! buffer for current record
-            ist=isfrst(ibuf)
-            nst=islast(ibuf)
-            DO ! loop over measurements
-                CALL isjajb(nst,ist,ja,jb,jsp)
-                IF(jb == 0) EXIT
-                DO j=1,ist-jb
-                    readBufferDataI(jb+j)=inone( readBufferDataI(jb+j) ) ! translate to index
+            CALL pechk(ibuf,nerr)
+            IF(nerr > 0) THEN
+                nbad=nbad+1
+                IF(nbad >= maxbad) EXIT
+            ELSE
+                ist=isfrst(ibuf)
+                nst=islast(ibuf)
+                DO ! loop over measurements
+                    CALL isjajb(nst,ist,ja,jb,jsp)
+                    IF(jb == 0) EXIT
+                    DO j=1,ist-jb
+                        readBufferDataI(jb+j)=inone( readBufferDataI(jb+j) ) ! translate to index
+                    END DO
                 END DO
-            END DO
+            END IF
         END DO
+        IF(nbad > 0) STOP 'PEREAD: stopping due to bad records'
     END IF
     !$POMP INST END(peprep)
 
 END SUBROUTINE peprep
+
+!> Check Millepede record.
+!!
+!! Check integer structure of labels and markers (zeros). Check floats for NaNs.
+!!
+!! \param [in]     ibuf   buffer number
+!! \param [out]    nerr   error flags
+!!
+SUBROUTINE pechk(ibuf, nerr)
+    USE mpmod
+
+    IMPLICIT NONE
+    REAL :: glder
+    INTEGER :: i
+    INTEGER :: is
+    INTEGER :: ist
+    INTEGER :: inder
+    INTEGER :: ioff
+    INTEGER :: isfrst
+    INTEGER :: islast
+    INTEGER :: ja
+    INTEGER :: jb
+    INTEGER :: jsp
+    INTEGER :: nan
+    INTEGER :: nst
+
+    INTEGER, INTENT(IN)                      :: ibuf
+    INTEGER, INTENT(OUT)                     :: nerr
+    SAVE
+    !     ...
+    inder(i)=readBufferDataI(i)
+    glder(i)=readBufferDataF(i)
+    isfrst(ibuf)=readBufferPointer(ibuf)+1
+    islast(ibuf)=readBufferDataI(readBufferPointer(ibuf))
+
+    ist=isfrst(ibuf)
+    nst=islast(ibuf)
+    nerr=0
+    is=ist
+    jsp=0
+    outer: DO WHILE(is < nst)
+        ja=0
+        jb=0
+        inner1: DO
+            is=is+1
+            IF(is > nst) EXIT outer
+            IF(inder(is) == 0) EXIT inner1 ! found 1. marker
+        END DO inner1
+        ja=is
+        inner2: DO
+            is=is+1
+            IF(is > nst) EXIT outer
+            IF(inder(is) == 0) EXIT inner2 ! found 2. marker
+        END DO inner2
+        jb=is
+        DO WHILE(inder(is+1) /= 0.AND.is < nst)
+            is=is+1
+        END DO
+        IF(ja+1 /= jb.OR.glder(jb) >= 0.0) CONTINUE
+        !        special data
+        jsp=jb          ! pointer to special data
+        is=is+IFIX(-glder(jb)+0.5) ! skip NSP words
+    END DO outer
+    IF(is > nst) THEN
+        ioff = readBufferPointer(ibuf)
+        WRITE(*,100) readBufferDataI(ioff-1), INT(readBufferDataF(ioff))
+100     FORMAT(' PEREAD: record ', I8,' in file ',I6, ' is broken !!!')
+        nerr=nerr+1
+    ENDIF
+    nan=0
+    DO i=ist, nst
+        IF(.NOT.(readBufferDataF(i) <= 0.0).AND..NOT.(readBufferDataF(i) > 0.0)) nan=nan+1
+    END DO
+    IF(nan > 0) THEN
+        ioff = readBufferPointer(ibuf)
+        WRITE(*,101) readBufferDataI(ioff-1), INT(readBufferDataF(ioff)), nan
+101     FORMAT(' PEREAD: record ', I8,' in file ',I6, ' contains ', I6, ' NaNs !!!')
+        nerr= nerr+2
+    ENDIF
+
+END SUBROUTINE pechk
 
 !> Decode Millepede record.
 !!
@@ -7055,8 +7147,8 @@ SUBROUTINE addItem(length,list,label,value)
     INTEGER, INTENT(IN) :: label
     REAL, INTENT(IN) :: value
 
-    INTEGER(kind=large) :: newSize
-    INTEGER(kind=large) :: oldSize
+    INTEGER(KIND=large) :: newSize
+    INTEGER(KIND=large) :: oldSize
     TYPE(listItem), DIMENSION(:), ALLOCATABLE :: tempList
 
     IF (label > 0.AND.value == 0.) RETURN ! skip zero for valid labels
