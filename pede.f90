@@ -6913,7 +6913,7 @@ SUBROUTINE intext(text,nline)
                     WRITE(*,*) 'ERROR: need 1.0D-10 <= MRESTL ',  &
                         '<= 1.0D-04, but get ', dnum(1)
                 ELSE
-                    mrestl=IDNINT(dnum(1))
+                    mrestl=dnum(1)
                 END IF
             END IF
             RETURN
