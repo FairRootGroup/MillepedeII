@@ -1652,7 +1652,7 @@ SUBROUTINE pechk(ibuf, nerr)
         DO WHILE(inder(is+1) /= 0.AND.is < nst)
             is=is+1
         END DO
-        IF(ja+1 /= jb.OR.glder(jb) >= 0.0) CONTINUE
+        IF(ja+1 /= jb.OR.glder(jb) >= 0.0) CYCLE outer
         !        special data
         jsp=jb          ! pointer to special data
         is=is+IFIX(-glder(jb)+0.5) ! skip NSP words
