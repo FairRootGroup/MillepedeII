@@ -19,35 +19,37 @@
 !! \param[out]  a  array of requested random number
 
 SUBROUTINE gbrshi(n,a)
-    IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ian
-    INTEGER :: iboost
-    INTEGER :: ic
-    INTEGER :: idum
-    INTEGER :: irotor
-    INTEGER :: iseed
-    INTEGER :: it
-    INTEGER :: iwarm
-    INTEGER :: j
-    INTEGER :: jseed
-    INTEGER :: jwarm
-    INTEGER :: k
-    INTEGER :: m
-    INTEGER :: mbuff
+    USE mpdef
 
-    INTEGER, INTENT(IN)                      :: n
-    REAL, INTENT(OUT)                        :: a(*)
-    INTEGER, PARAMETER :: nb=511
-    INTEGER, PARAMETER :: ia=16807
-    INTEGER, PARAMETER :: im=2147483647
-    INTEGER, PARAMETER :: iq=127773
-    INTEGER, PARAMETER :: ir=2836
-    REAL, PARAMETER :: aeps=1.0E-10
-    REAL, PARAMETER :: scalin=4.6566125E-10
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ian
+    INTEGER(mpi) :: iboost
+    INTEGER(mpi) :: ic
+    INTEGER(mpi) :: idum
+    INTEGER(mpi) :: irotor
+    INTEGER(mpi) :: iseed
+    INTEGER(mpi) :: it
+    INTEGER(mpi) :: iwarm
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jseed
+    INTEGER(mpi) :: jwarm
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: m
+    INTEGER(mpi) :: mbuff
+
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mps), INTENT(OUT)                        :: a(*)
+    INTEGER(mpi), PARAMETER :: nb=511
+    INTEGER(mpi), PARAMETER :: ia=16807
+    INTEGER(mpi), PARAMETER :: im=2147483647
+    INTEGER(mpi), PARAMETER :: iq=127773
+    INTEGER(mpi), PARAMETER :: ir=2836
+    REAL(mps), PARAMETER :: aeps=1.0E-10
+    REAL(mps), PARAMETER :: scalin=4.6566125E-10
     COMMON/ranbuf/mbuff(0:nb),ian,ic,iboost
 
-    INTEGER :: istart
+    INTEGER(mpi) :: istart
 
     irotor(m,n)=IEOR(ior(ishft(m,17),ishft(m,-15)),n)
     DATA istart/0/,iwarm/10/,iseed/4711/
@@ -80,7 +82,7 @@ SUBROUTINE gbrshi(n,a)
         mbuff(ian)=irotor(it,ic)   ! new spin
         ic=it                      ! replace red spin
         ian=IAND(it+iboost,nb)     ! boost and mask angle
-        a(i)=FLOAT(ishft(it,-1))*scalin+aeps ! avoid zero output
+        a(i)=REAL(ishft(it,-1),mps)*scalin+aeps ! avoid zero output
         iboost=iboost+1            ! increment boost
     END DO
     iboost=IAND(iboost,nb)
@@ -98,9 +100,11 @@ END SUBROUTINE gbrshi
 
 !> GBRSHI initialization using TIME().
 SUBROUTINE gbrtim
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: jseed
-    REAL :: time
+    INTEGER(mpi) :: jseed
+    REAL(mps) :: time
 
     LOGICAL :: done
     DATA    done/.FALSE./
@@ -115,13 +119,15 @@ END SUBROUTINE gbrtim
 !!
 !! \return   random number U(0,1)
 
-REAL FUNCTION uran()     ! U(0,1)
+REAL(mps) FUNCTION uran()     ! U(0,1)
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: indx
-    INTEGER :: ndim
+    INTEGER(mpi) :: indx
+    INTEGER(mpi) :: ndim
 
     PARAMETER (ndim=100)
-    REAL :: buffer(ndim)
+    REAL(mps) :: buffer(ndim)
     DATA indx/ndim/
     SAVE indx,buffer
     indx=MOD(indx,ndim)+1
@@ -133,20 +139,22 @@ END FUNCTION uran
 !!
 !! \return   random number N(0,1)
 
-REAL FUNCTION gran()     ! N(0,1)
+REAL(mps) FUNCTION gran()     ! N(0,1)
+    USE mpdef
+
     IMPLICIT NONE
-    REAL :: al
-    REAL :: cs
-    INTEGER :: indx
-    INTEGER :: kn
-    INTEGER :: ndim
-    REAL :: radsq
-    REAL :: rn1
-    REAL :: rn2
-    REAL :: sn
+    REAL(mps) :: al
+    REAL(mps) :: cs
+    INTEGER(mpi) :: indx
+    INTEGER(mpi) :: kn
+    INTEGER(mpi) :: ndim
+    REAL(mps) :: radsq
+    REAL(mps) :: rn1
+    REAL(mps) :: rn2
+    REAL(mps) :: sn
 
     PARAMETER (ndim=100)
-    REAL:: buffer(ndim)
+    REAL(mps) :: buffer(ndim)
     DATA indx/ndim/,kn/1/
     SAVE indx,buffer,kn,cs,al
     !     ...
@@ -162,7 +170,7 @@ REAL FUNCTION gran()     ! N(0,1)
         sn=rn1/SQRT(radsq)
         cs=rn2/SQRT(radsq)
         !        transform to gaussians
-        al=SQRT(-2.0*ALOG(radsq))
+        al=SQRT(-2.0*LOG(radsq))
         kn =2
         gran=sn*al
     ELSE

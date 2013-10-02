@@ -7,10 +7,12 @@
 
 !> Keyword position.
 MODULE mptext
+    USE mpdef
+
     IMPLICIT NONE
     SAVE
-    INTEGER:: keya   !< start (position) of keyword
-    INTEGER:: keyb   !< end (position) of keyword
+    INTEGER(mpi) :: keya   !< start (position) of keyword
+    INTEGER(mpi) :: keyb   !< end (position) of keyword
 
 END MODULE mptext
 
@@ -27,31 +29,31 @@ SUBROUTINE ratext(text,nums,dnum)
     USE mptext
 
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ia
-    INTEGER :: ib
-    INTEGER :: ic
-    INTEGER :: ich
-    INTEGER :: icl
-    INTEGER :: icode
-    INTEGER :: j
-    INTEGER :: k
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ia
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: ic
+    INTEGER(mpi) :: ich
+    INTEGER(mpi) :: icl
+    INTEGER(mpi) :: icode
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
 
-    INTEGER :: lent
-    INTEGER :: num
+    INTEGER(mpi) :: lent
+    INTEGER(mpi) :: num
 
     CHARACTER (LEN=*), INTENT(IN)            :: text
-    INTEGER, INTENT(OUT)                     :: nums
-    DOUBLE PRECISION, INTENT(OUT)            :: dnum(*)
+    INTEGER(mpi), INTENT(OUT)                     :: nums
+    REAL(mpd), INTENT(OUT)            :: dnum(*)
 
-    INTEGER :: last ! last non-blank character
-    INTEGER, PARAMETER :: ndim=1000
-    INTEGER, DIMENSION(2,ndim):: icd
+    INTEGER(mpi) :: last ! last non-blank character
+    INTEGER(mpi), PARAMETER :: ndim=1000
+    INTEGER(mpi), DIMENSION(2,ndim):: icd
     CHARACTER (LEN=16) :: keywrd
     CHARACTER (LEN=1) :: ch
-    DOUBLE PRECISION :: dic(ndim)
-    DOUBLE PRECISION :: dumber
-    INTEGER :: icdt(ndim)
+    REAL(mpd) :: dic(ndim)
+    REAL(mpd) :: dumber
+    INTEGER(mpi) :: icdt(ndim)
     SAVE
     !     ...
     nums=0
@@ -106,7 +108,7 @@ SUBROUTINE ratext(text,nums,dnum)
         IF(icdt(i) == 5) THEN
             dumber=0.0D0
             DO k=icd(1,i),icd(2,i)
-                dumber=10.d0*dumber+dfloat(ICHAR(text(k:k))-num)
+                dumber=10.0_mpd*dumber+REAL(ICHAR(text(k:k))-num,mpd)
             END DO
             dic(i)=dumber
         END IF
@@ -212,14 +214,16 @@ END SUBROUTINE ratext
 !! \param[out] nab   index of last non-blank character (=0 for blank text)
 
 SUBROUTINE rltext(text,ia,ib,nab)
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: lim
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: lim
 
     CHARACTER (LEN=*), INTENT(IN)            :: text
-    INTEGER, INTENT(OUT)                     :: ia
-    INTEGER, INTENT(OUT)                     :: ib
-    INTEGER, INTENT(OUT)                     :: nab
+    INTEGER(mpi), INTENT(OUT)                     :: ia
+    INTEGER(mpi), INTENT(OUT)                     :: ib
+    INTEGER(mpi), INTENT(OUT)                     :: nab
 
     SAVE
     !     ...
@@ -262,36 +266,38 @@ END SUBROUTINE rltext
 !! \param[out]  ntext  number of characters in text
 !! \return      number of matching characters of pattern in text
 
-INTEGER FUNCTION matint(pat,text,npat,ntext)
+INTEGER(mpi) FUNCTION matint(pat,text,npat,ntext)
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ic
-    INTEGER :: ideq
-    INTEGER :: ip
-    INTEGER :: ipa
-    INTEGER :: ipb
-    INTEGER :: ita
-    INTEGER :: itb
-    INTEGER :: j
-    INTEGER :: jc
-    INTEGER :: jot
-    INTEGER :: jt
-    INTEGER :: npatma
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ic
+    INTEGER(mpi) :: ideq
+    INTEGER(mpi) :: ip
+    INTEGER(mpi) :: ipa
+    INTEGER(mpi) :: ipb
+    INTEGER(mpi) :: ita
+    INTEGER(mpi) :: itb
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jc
+    INTEGER(mpi) :: jot
+    INTEGER(mpi) :: jt
+    INTEGER(mpi) :: npatma
 
     CHARACTER (LEN=*), INTENT(IN) :: pat
     CHARACTER (LEN=*), INTENT(IN) :: text
-    INTEGER, INTENT(OUT) :: npat
-    INTEGER, INTENT(OUT) :: ntext
+    INTEGER(mpi), INTENT(OUT) :: npat
+    INTEGER(mpi), INTENT(OUT) :: ntext
 
     !GF
     !      INTEGER ID(0:100,2)
     PARAMETER (npatma=512)
-    INTEGER :: id(0:npatma,2)
+    INTEGER(mpi) :: id(0:npatma,2)
     ! end GF
     LOGICAL :: start                        ! for case conversion
     CHARACTER (LEN=26) :: chu
     CHARACTER (LEN=26) :: chl
-    INTEGER :: nj(0:255)
+    INTEGER(mpi) :: nj(0:255)
     SAVE
     DATA  chu/'ABCDEFGHIJKLMNOPQRSTUVWXYZ'/
     DATA  chl/'abcdefghijklmnopqrstuvwxyz'/

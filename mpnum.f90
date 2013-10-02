@@ -67,33 +67,35 @@
 !! \param [in]     N size of V, B
 !! \param [out]    NRANK rank of matrix V
 !! \param [out]    DIAG  double precision scratch array
-!! \param [out]    NEXT  integer aux array
+!! \param [out]    NEXT  INTEGER(mpi) aux array
 
 SUBROUTINE sqminv(v,b,n,nrank,diag,next)   ! matrix inversion
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ij
-    INTEGER :: j
-    INTEGER :: jj
-    INTEGER :: jk
-    INTEGER :: jl
-    INTEGER :: k
-    INTEGER :: kk
-    INTEGER :: l
-    INTEGER :: last
-    INTEGER :: lk
-    INTEGER :: next0
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jj
+    INTEGER(mpi) :: jk
+    INTEGER(mpi) :: jl
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kk
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: last
+    INTEGER(mpi) :: lk
+    INTEGER(mpi) :: next0
 
-    DOUBLE PRECISION, INTENT(IN OUT)         :: v(*)
-    DOUBLE PRECISION, INTENT(OUT)            :: b(n)
-    INTEGER, INTENT(IN)                      :: n
-    INTEGER, INTENT(OUT)                     :: nrank
-    DOUBLE PRECISION, INTENT(OUT)            :: diag(n)
-    INTEGER, INTENT(OUT)                     :: next(n)
-    DOUBLE PRECISION :: vkk
-    DOUBLE PRECISION :: vjk
+    REAL(mpd), INTENT(IN OUT)         :: v(*)
+    REAL(mpd), INTENT(OUT)            :: b(n)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi), INTENT(OUT)                     :: nrank
+    REAL(mpd), INTENT(OUT)            :: diag(n)
+    INTEGER(mpi), INTENT(OUT)                     :: next(n)
+    REAL(mpd) :: vkk
+    REAL(mpd) :: vjk
 
-    DOUBLE PRECISION, PARAMETER :: eps=1.0D-10
+    REAL(mpd), PARAMETER :: eps=1.0E-10_mpd
     !     ...
     next0=1
     l=1
@@ -106,7 +108,7 @@ SUBROUTINE sqminv(v,b,n,nrank,diag,next)   ! matrix inversion
     nrank=0
     DO i=1,n                    ! start of loop
         k  =0
-        vkk=0.0D0
+        vkk=0.0_mpd
   
         j=next0
         last=0
@@ -168,9 +170,9 @@ SUBROUTINE sqminv(v,b,n,nrank,diag,next)   ! matrix inversion
         ELSE
             DO k=1,n
                 IF(next(k) /= 0) THEN
-                    b(k)=0.0D0       ! clear vector element
+                    b(k)=0.0_mpd       ! clear vector element
                     DO j=1,k
-                        IF(next(j) /= 0) v((k*k-k)/2+j)=0.0D0  ! clear matrix row/col
+                        IF(next(j) /= 0) v((k*k-k)/2+j)=0.0_mpd  ! clear matrix row/col
                     END DO
                 END IF
             END DO
@@ -199,34 +201,34 @@ SUBROUTINE sqminl(v,b,n,nrank,diag,next)   !
     USE mpdef
 
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: k
-    INTEGER :: l
-    INTEGER :: last
-    INTEGER :: next0
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: last
+    INTEGER(mpi) :: next0
 
-    DOUBLE PRECISION, INTENT(IN OUT)         :: v(*)
-    DOUBLE PRECISION, INTENT(OUT)            :: b(n)
-    INTEGER, INTENT(IN)                      :: n
-    INTEGER, INTENT(OUT)                     :: nrank
-    DOUBLE PRECISION, INTENT(OUT)            :: diag(n)
-    INTEGER, INTENT(OUT)                     :: next(n)
-    INTEGER*8 :: i8
-    INTEGER*8 :: j8
-    INTEGER*8 :: jj
-    INTEGER*8 :: k8
-    INTEGER*8 :: kk
-    INTEGER*8 :: kkmk
-    INTEGER*8 :: jk
-    INTEGER*8 :: jl
-    INTEGER*8 :: llk
-    INTEGER*8 :: ljl
+    REAL(mpd), INTENT(IN OUT)         :: v(*)
+    REAL(mpd), INTENT(OUT)            :: b(n)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi), INTENT(OUT)                     :: nrank
+    REAL(mpd), INTENT(OUT)            :: diag(n)
+    INTEGER(mpi), INTENT(OUT)                     :: next(n)
+    INTEGER(mpl) :: i8
+    INTEGER(mpl) :: j8
+    INTEGER(mpl) :: jj
+    INTEGER(mpl) :: k8
+    INTEGER(mpl) :: kk
+    INTEGER(mpl) :: kkmk
+    INTEGER(mpl) :: jk
+    INTEGER(mpl) :: jl
+    INTEGER(mpl) :: llk
+    INTEGER(mpl) :: ljl
     
-    DOUBLE PRECISION :: vkk
-    DOUBLE PRECISION :: vjk
+    REAL(mpd) :: vkk
+    REAL(mpd) :: vjk
 
-    DOUBLE PRECISION, PARAMETER :: eps=1.0D-10
+    REAL(mpd), PARAMETER :: eps=1.0E-10_mpd
     !     ...
     next0=1
     l=1
@@ -240,7 +242,7 @@ SUBROUTINE sqminl(v,b,n,nrank,diag,next)   !
     nrank=0
     DO i=1,n                    ! start of loop
         k  =0
-        vkk=0.0D0
+        vkk=0.0_mpd
         j=next0
         last=0
 05      IF(j > 0) THEN
@@ -322,9 +324,9 @@ SUBROUTINE sqminl(v,b,n,nrank,diag,next)   !
                 k8=int8(k)
                 kk=(k8*k8-k8)/2
                 IF(next(k) /= 0) THEN
-                    b(k)=0.0D0       ! clear vector element
+                    b(k)=0.0_mpd       ! clear vector element
                     DO j=1,k
-                        IF(next(j) /= 0) v(kk+int8(j))=0.0D0  ! clear matrix row/col
+                        IF(next(j) /= 0) v(kk+int8(j))=0.0_mpd  ! clear matrix row/col
                     END DO
                 END IF
             END DO
@@ -349,39 +351,41 @@ END SUBROUTINE sqminl
 !! \param [out] iwork  work array
 
 SUBROUTINE devrot(n,diag,u,v,work,iwork)   ! diagonalization
+    USE mpdef
+
     IMPLICIT NONE
 
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(OUT)            :: diag(n)
-    DOUBLE PRECISION, INTENT(OUT)            :: u(n,n)
-    DOUBLE PRECISION, INTENT(IN)             :: v(*)
-    DOUBLE PRECISION, INTENT(OUT)            :: work(n)
-    INTEGER, INTENT(OUT)                     :: iwork(n)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(OUT)            :: diag(n)
+    REAL(mpd), INTENT(OUT)            :: u(n,n)
+    REAL(mpd), INTENT(IN)             :: v(*)
+    REAL(mpd), INTENT(OUT)            :: work(n)
+    INTEGER(mpi), INTENT(OUT)                     :: iwork(n)
 
 
-    INTEGER, PARAMETER :: itmax=30
-    DOUBLE PRECISION, PARAMETER :: tol=1.0D-16
-    DOUBLE PRECISION, PARAMETER :: eps=1.0D-16
+    INTEGER(mpi), PARAMETER :: itmax=30
+    REAL(mpd), PARAMETER :: tol=EPSILON(tol)
+    REAL(mpd), PARAMETER :: eps=EPSILON(eps)
 
-    DOUBLE PRECISION :: f
-    DOUBLE PRECISION :: g
-    DOUBLE PRECISION :: h
-    DOUBLE PRECISION :: sh
-    DOUBLE PRECISION :: hh
-    DOUBLE PRECISION :: b
-    DOUBLE PRECISION :: p
-    DOUBLE PRECISION :: r
-    DOUBLE PRECISION :: s
-    DOUBLE PRECISION :: c
-    DOUBLE PRECISION :: workd
+    REAL(mpd) :: f
+    REAL(mpd) :: g
+    REAL(mpd) :: h
+    REAL(mpd) :: sh
+    REAL(mpd) :: hh
+    REAL(mpd) :: b
+    REAL(mpd) :: p
+    REAL(mpd) :: r
+    REAL(mpd) :: s
+    REAL(mpd) :: c
+    REAL(mpd) :: workd
 
-    INTEGER :: ij
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: k
-    INTEGER :: l
-    INTEGER :: m
-    INTEGER :: ll
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: m
+    INTEGER(mpi) :: ll
     !     ...
     !     1. part: symmetric matrix V reduced to tridiagonal from
     ij=0
@@ -395,7 +399,7 @@ SUBROUTINE devrot(n,diag,u,v,work,iwork)   ! diagonalization
     DO i=n,2,-1
         l=i-2
         f=u(i,i-1)
-        g=0.0D0
+        g=0.0_mpd
         IF(l /= 0) THEN
             DO k=1,l
                 IF(ABS(u(i,k)) > tol) g=g+u(i,k)*u(i,k)
@@ -404,19 +408,19 @@ SUBROUTINE devrot(n,diag,u,v,work,iwork)   ! diagonalization
         END IF
         IF(g < tol) THEN   ! G too small
             work(i)=f           ! skip transformation
-            h   =0.0D0
+            h   =0.0_mpd
         ELSE
             l=l+1
             sh=SQRT(h)
-            IF(f >= 0.0D0) sh=-sh
+            IF(f >= 0.0_mpd) sh=-sh
             g=sh
             work(i)=sh
             h=h-f*g
             u(i,i-1)=f-g
-            f=0.0D0
+            f=0.0_mpd
             DO j=1,l
                 u(j,i)=u(i,j)/h
-                g=0.0D0
+                g=0.0_mpd
                 !          form element of a u
                 DO k=1,j
                     IF(ABS(u(j,k)) > tol.AND.ABS(u(i,k)) > tol) THEN
@@ -446,14 +450,14 @@ SUBROUTINE devrot(n,diag,u,v,work,iwork)   ! diagonalization
         diag(i)=h
     END DO
 
-    diag(1)=0.0D0
-    work(1)=0.0D0
+    diag(1)=0.0_mpd
+    work(1)=0.0_mpd
 
     !     accumulation of transformation matrices
     DO i=1,n
         IF(diag(i) /= 0.0) THEN
             DO j=1,i-1
-                g=0.0D0
+                g=0.0_mpd
                 DO k=1,i-1
                     g=g+u(i,k)*u(k,j)
                 END DO
@@ -463,10 +467,10 @@ SUBROUTINE devrot(n,diag,u,v,work,iwork)   ! diagonalization
             END DO
         END IF
         diag(i)=u(i,i)
-        u(i,i)=1.0D0
+        u(i,i)=1.0_mpd
         DO j=1,i-1
-            u(i,j)=0.0D0
-            u(j,i)=0.0D0
+            u(i,j)=0.0_mpd
+            u(j,i)=0.0_mpd
         END DO
     END DO
 
@@ -474,9 +478,9 @@ SUBROUTINE devrot(n,diag,u,v,work,iwork)   ! diagonalization
     DO i=2,n
         work(i-1)=work(i)
     END DO
-    work(n)=0.0D0
-    b=0.0D0
-    f=0.0D0
+    work(n)=0.0_mpd
+    b=0.0_mpd
+    f=0.0_mpd
 
     DO l=1,n
         j=0
@@ -494,11 +498,11 @@ SUBROUTINE devrot(n,diag,u,v,work,iwork)   ! diagonalization
         END IF
         j=j+1
         g=diag(l)
-        p=(diag(l+1)-g)/(2.0D0*work(l))
-        r=SQRT(1.0D0+p*p)
+        p=(diag(l+1)-g)/(2.0_mpd*work(l))
+        r=SQRT(1.0_mpd+p*p)
         diag(l)=work(l)
-        IF(p < 0.0D0) diag(l)=diag(l)/(p-r)
-        IF(p >= 0.0D0) diag(l)=diag(l)/(p+r)
+        IF(p < 0.0_mpd) diag(l)=diag(l)/(p-r)
+        IF(p >= 0.0_mpd) diag(l)=diag(l)/(p+r)
         h=g-diag(l)
         DO i=l+1,n
             diag(i)=diag(i)-h
@@ -506,22 +510,22 @@ SUBROUTINE devrot(n,diag,u,v,work,iwork)   ! diagonalization
         f=f+h
         !      QL transformation
         p=diag(m)
-        c=1.0D0
-        s=0.0D0
+        c=1.0_mpd
+        s=0.0_mpd
         DO i=m-1,l,-1          ! reverse loop
             g=c*work(i)
             h=c*p
             IF(ABS(p) >= ABS(work(i))) THEN
                 c=work(i)/p
-                r=SQRT(1.0D0+c*c)
+                r=SQRT(1.0_mpd+c*c)
                 work(i+1)=s*p*r
                 s=c/r
-                c=1.0D0/r
+                c=1.0_mpd/r
             ELSE
                 c=p/work(i)
-                r=SQRT(1.0D0+c*c)
+                r=SQRT(1.0_mpd+c*c)
                 work(i+1)=s*work(i)*r
-                s=1.0D0/r
+                s=1.0_mpd/r
                 c=c/r
             END IF
             p=c*diag(i)-s*g
@@ -588,21 +592,23 @@ END SUBROUTINE devrot
 
 !> Calculate significances.
 SUBROUTINE devsig(n,diag,u,b,coef)
+    USE mpdef
+
     IMPLICIT NONE
 
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(IN)             :: diag(n)
-    DOUBLE PRECISION, INTENT(IN)             :: u(n,n)
-    DOUBLE PRECISION, INTENT(IN)             :: b(n)
-    DOUBLE PRECISION, INTENT(OUT)            :: coef(n)
-    INTEGER :: i
-    INTEGER :: j
-    DOUBLE PRECISION :: dsum
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(IN)             :: diag(n)
+    REAL(mpd), INTENT(IN)             :: u(n,n)
+    REAL(mpd), INTENT(IN)             :: b(n)
+    REAL(mpd), INTENT(OUT)            :: coef(n)
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    REAL(mpd) :: dsum
     !     ...
     DO i=1,n
-        coef(i)=0.0D0
-        IF(diag(i) > 0.0D0) THEN
-            dsum=0.0D0
+        coef(i)=0.0_mpd
+        IF(diag(i) > 0.0_mpd) THEN
+            dsum=0.0_mpd
             DO j=1,n
                 dsum=dsum+u(j,i)*b(j)
             END DO
@@ -624,23 +630,25 @@ END SUBROUTINE devsig
 !! \param [out]  WORK    work array
 
 SUBROUTINE devsol(n,diag,u,b,x,work)
+    USE mpdef
+
     IMPLICIT NONE
 
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(IN)             :: diag(n)
-    DOUBLE PRECISION, INTENT(IN)             :: u(n,n)
-    DOUBLE PRECISION, INTENT(IN)             :: b(n)
-    DOUBLE PRECISION, INTENT(OUT)            :: x(n)
-    DOUBLE PRECISION, INTENT(OUT)            :: work(n)
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: jj
-    DOUBLE PRECISION :: s
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(IN)             :: diag(n)
+    REAL(mpd), INTENT(IN)             :: u(n,n)
+    REAL(mpd), INTENT(IN)             :: b(n)
+    REAL(mpd), INTENT(OUT)            :: x(n)
+    REAL(mpd), INTENT(OUT)            :: work(n)
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jj
+    REAL(mpd) :: s
     !     ...
     DO j=1,n
-        s=0.0D0
-        work(j)=0.0D0
-        IF(diag(j) /= 0.0D0) THEN
+        s=0.0_mpd
+        work(j)=0.0_mpd
+        IF(diag(j) /= 0.0_mpd) THEN
             DO i=1,n
                 !           j-th eigenvector is U(.,J)
                 s=s+u(i,j)*b(i)
@@ -650,7 +658,7 @@ SUBROUTINE devsol(n,diag,u,b,x,work)
     END DO
 
     DO j=1,n
-        s=0.0D0
+        s=0.0_mpd
         DO jj=1,n
             s=s+u(j,jj)*work(jj)
         END DO
@@ -669,26 +677,27 @@ END SUBROUTINE devsol
 !! \param [out] V     smmmetric matrix
 
 SUBROUTINE devinv(n,diag,u,v)
+    USE mpdef
 
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ij
-    INTEGER :: j
-    INTEGER :: k
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
 
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(IN)             :: diag(n)
-    DOUBLE PRECISION, INTENT(IN)             :: u(n,n)
-    DOUBLE PRECISION, INTENT(OUT)            :: v(*)
-    DOUBLE PRECISION:: dsum
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(IN)             :: diag(n)
+    REAL(mpd), INTENT(IN)             :: u(n,n)
+    REAL(mpd), INTENT(OUT)            :: v(*)
+    REAL(mpd) :: dsum
     !     ...
     ij=0
     DO i=1,n
         DO j=1,i
             ij=ij+1
-            dsum=0.0D0
+            dsum=0.0_mpd
             DO k=1,n
-                IF(diag(k) /= 0.0D0) THEN
+                IF(diag(k) /= 0.0_mpd) THEN
                     dsum=dsum+u(i,k)*u(j,k)/diag(k)
                 END IF
             END DO
@@ -717,18 +726,20 @@ END SUBROUTINE devinv
 !! \param [in]     n size of matrix
 !!
 SUBROUTINE choldc(g,n)
-    IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ii
-    INTEGER :: j
-    INTEGER :: jj
-    INTEGER :: k
-    INTEGER :: kk
-    
-    DOUBLE PRECISION, INTENT(IN OUT)         :: g(*)
-    INTEGER, INTENT(IN)                      :: n
+    USE mpdef
 
-    DOUBLE PRECISION :: ratio
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ii
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jj
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kk
+    
+    REAL(mpd), INTENT(IN OUT)         :: g(*)
+    INTEGER(mpi), INTENT(IN)                      :: n
+
+    REAL(mpd) :: ratio
     !     ...
     ii=0
     DO i=1,n
@@ -761,16 +772,18 @@ END SUBROUTINE choldc
 !! \param [in]      n  size of matrix
 !!
 SUBROUTINE cholsl(g,x,n)
+    USE mpdef
+
     IMPLICIT NONE
-    DOUBLE PRECISION :: dsum
-    INTEGER :: i
-    INTEGER :: ii
-    INTEGER :: k
-    INTEGER :: kk
+    REAL(mpd) :: dsum
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ii
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kk
     
-    DOUBLE PRECISION, INTENT(IN)            :: g(*)
-    DOUBLE PRECISION, INTENT(IN OUT)        :: x(n)
-    INTEGER, INTENT(IN)                     :: n
+    REAL(mpd), INTENT(IN)            :: g(*)
+    REAL(mpd), INTENT(IN OUT)        :: x(n)
+    INTEGER(mpi), INTENT(IN)                     :: n
 
     ii=0
     DO i=1,n
@@ -805,18 +818,20 @@ END SUBROUTINE cholsl
 !! \param [in]      n  size of matrix
 !!
 SUBROUTINE cholin(g,v,n)
-    IMPLICIT NONE
-    DOUBLE PRECISION :: dsum
-    INTEGER :: i
-    INTEGER :: ii
-    INTEGER :: j
-    INTEGER :: k
-    INTEGER :: l
-    INTEGER :: m
+    USE mpdef
 
-    DOUBLE PRECISION, INTENT(IN)            :: g(*)
-    DOUBLE PRECISION, INTENT( OUT)          :: v(*)
-    INTEGER, INTENT(IN)                     :: n
+    IMPLICIT NONE
+    REAL(mpd) :: dsum
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ii
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: m
+
+    REAL(mpd), INTENT(IN)            :: g(*)
+    REAL(mpd), INTENT( OUT)          :: v(*)
+    INTEGER(mpi), INTENT(IN)                     :: n
 
     ii=(n*n-n)/2
     DO i=n,1,-1
@@ -828,7 +843,7 @@ SUBROUTINE cholin(g,v,n)
                 dsum=dsum-g(j+(k*k-k)/2)*v(l+(m*m-m)/2) ! (J,K) (I,K)
             END DO
             v(ii+j)=dsum                      ! (I,J)
-            dsum=0.0D0
+            dsum=0.0_mpd
         END DO
         ii=ii-i+1
     END DO
@@ -858,53 +873,41 @@ END SUBROUTINE cholin
 !! \param [in]      ilptr  pointer array
 
 SUBROUTINE vabdec(n,val,ilptr)
+    USE mpdef
+
     IMPLICIT NONE
 
-    INTEGER :: i
-    INTEGER :: in
-    INTEGER :: j
-    INTEGER :: k
-    INTEGER :: kj
-    INTEGER :: mj
-    INTEGER :: mk
-    DOUBLE PRECISION :: sn
-    DOUBLE PRECISION :: beta
-    DOUBLE PRECISION :: delta
-    DOUBLE PRECISION :: theta
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: in
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kj
+    INTEGER(mpi) :: mj
+    INTEGER(mpi) :: mk
+    REAL(mpd) :: sn
+    REAL(mpd) :: beta
+    REAL(mpd) :: delta
+    REAL(mpd) :: theta
 
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(IN OUT)         :: val(*)
-    INTEGER, INTENT(IN)                      :: ilptr(n)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(IN OUT)         :: val(*)
+    INTEGER(mpi), INTENT(IN)                      :: ilptr(n)
     
-    DOUBLE PRECISION :: dgamma
-    DOUBLE PRECISION :: xi
-    DOUBLE PRECISION :: eps
-    DOUBLE PRECISION :: prd
-    DOUBLE PRECISION :: valkj
+    REAL(mpd) :: dgamma
+    REAL(mpd) :: xi
+    REAL(mpd) :: valkj
 
-    DOUBLE PRECISION, PARAMETER :: one=1.0D0
-    DOUBLE PRECISION, PARAMETER :: two=2.0D0
-    !     DATA EPS/0.0D0/
-    DATA eps/2.22044605E-16/
-    SAVE eps
-    !     ...
-    IF(eps == 0.0D0) THEN
-        eps    = two**(-12)
-10      eps    = eps/two
-        prd=one
-        prd=prd+one*eps ! CALL dbaxpy(1,one,eps,prd)
-        IF(prd > one) GO TO 10
-        eps=eps*two                      ! EPS is machine presision
-        WRITE(*,*) 'Machine precision is ',eps
-    END IF
+    REAL(mpd), PARAMETER :: one=1.0_mpd
+    REAL(mpd), PARAMETER :: two=2.0_mpd
+    REAL(mpd), PARAMETER :: eps = EPSILON(eps)
 
     WRITE(*,*) 'Variable band matrix Cholesky decomposition'
 
-    dgamma=0.0D0
+    dgamma=0.0_mpd
     i=1
     DO j=1,ilptr(n) ! loop thrugh all matrix elements
         IF(ilptr(i) == j) THEN ! diagonal element
-            IF(val(j) <= 0.0D0) GO TO 01   ! exit loop for negative diag
+            IF(val(j) <= 0.0_mpd) GO TO 01   ! exit loop for negative diag
             dgamma=MAX(dgamma,ABS(val(j)))  ! max diagonal element
             i=i+1
         END IF
@@ -912,7 +915,7 @@ SUBROUTINE vabdec(n,val,ilptr)
     i=n+1
 01  in=i-1      ! IN positive diagonal elements
     WRITE(*,*) '  ',in,' positive diagonal elements'
-    xi=0.0D0
+    xi=0.0_mpd
     i=1
     DO j=1,ilptr(in)          ! loop for positive diagonal elements
         ! through all matrix elements
@@ -923,16 +926,16 @@ SUBROUTINE vabdec(n,val,ilptr)
         END IF
     END DO
 
-    delta=eps*MAX(1.0D0,dgamma+xi)
-    sn=1.0D0
-    IF(n > 1) sn=1.0D0/SQRT(dfloat(n*n-1))
+    delta=eps*MAX(1.0_mpd,dgamma+xi)
+    sn=1.0_mpd
+    IF(n > 1) sn=1.0_mpd/SQRT(REAL(n*n-1,mpd))
     beta=SQRT(MAX(eps,dgamma,xi*sn))           ! beta
     WRITE(*,*) '   DELTA and BETA ',delta,beta
 
     DO k=2,n
         mk=k-ilptr(k)+ilptr(k-1)+1
   
-        theta=0.0D0
+        theta=0.0_mpd
   
         DO j=mk,k
             mj=j-ilptr(j)+ilptr(j-1)+1
@@ -947,10 +950,10 @@ SUBROUTINE vabdec(n,val,ilptr)
             theta=MAX(theta,ABS(val(kj)))  ! maximum value of row
     
             IF(j /= k) THEN
-                IF(val(ilptr(j)) /= 0.0D0) THEN
+                IF(val(ilptr(j)) /= 0.0_mpd) THEN
                     val(kj)=val(kj)/val(ilptr(j))
                 ELSE
-                    val(kj)=0.0D0
+                    val(kj)=0.0_mpd
                 END IF
             END IF                                ! L_kj := L_kj/D_jj ! D_kk
     
@@ -969,7 +972,7 @@ SUBROUTINE vabdec(n,val,ilptr)
     END DO ! K
 
     DO k=1,n
-        IF(val(ilptr(k)) /= 0.0D0) val(ilptr(k))=1.0D0/val(ilptr(k))
+        IF(val(ilptr(k)) /= 0.0_mpd) val(ilptr(k))=1.0_mpd/val(ilptr(k))
     END DO
 
     RETURN
@@ -982,14 +985,16 @@ END SUBROUTINE vabdec
 !! \param [in]      ilptr  pointer array
 
 SUBROUTINE vabmmm(n,val,ilptr)
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: k
-    INTEGER :: kp
-    INTEGER :: kr
-    INTEGER :: ks
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(IN OUT)         :: val(*)
-    INTEGER, INTENT(IN)                      :: ilptr(n)
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kp
+    INTEGER(mpi) :: kr
+    INTEGER(mpi) :: ks
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(IN OUT)         :: val(*)
+    INTEGER(mpi), INTENT(IN)                      :: ilptr(n)
     kr=1
     ks=1
     kp=1
@@ -1017,15 +1022,17 @@ END SUBROUTINE vabmmm
 !! \param [in,out]  x      r.h.s vector B, replaced by solution vector X
 
 SUBROUTINE vabslv(n,val,ilptr,x)
-    IMPLICIT NONE
-    INTEGER :: j
-    INTEGER :: k
-    INTEGER :: mk
+    USE mpdef
 
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(IN OUT)         :: val(*)
-    INTEGER, INTENT(IN)                      :: ilptr(n)
-    DOUBLE PRECISION, INTENT(IN OUT)         :: x(n)
+    IMPLICIT NONE
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: mk
+
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(IN OUT)         :: val(*)
+    INTEGER(mpi), INTENT(IN)                      :: ilptr(n)
+    REAL(mpd), INTENT(IN OUT)         :: x(n)
     !     ...
     DO k=1,n                  ! forward loop
         mk=k-ilptr(k)+ilptr(k-1)+1
@@ -1055,16 +1062,18 @@ END SUBROUTINE vabslv
 !! \param [in] dy  vector
 !! \return dot product dx*dy
 
-DOUBLE PRECISION FUNCTION dbdot(n,dx,dy)
-    IMPLICIT NONE
-    INTEGER:: i
-    DOUBLE PRECISION :: dtemp
+REAL(mpd) FUNCTION dbdot(n,dx,dy)
+    USE mpdef
 
-    INTEGER, INTENT(IN)          :: n
-    DOUBLE PRECISION, INTENT(IN) :: dx(*)
-    DOUBLE PRECISION, INTENT(IN) :: dy(*)
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    REAL(mpd) :: dtemp
+
+    INTEGER(mpi), INTENT(IN)          :: n
+    REAL(mpd), INTENT(IN) :: dx(*)
+    REAL(mpd), INTENT(IN) :: dy(*)
     !     ...
-    dtemp=0.0D0
+    dtemp=0.0_mpd
     DO i = 1,MOD(n,5)
         dtemp=dtemp+dx(i)*dy(i)
     END DO
@@ -1085,13 +1094,15 @@ END FUNCTION dbdot
 !! \param [in]     da  scalar
 
 SUBROUTINE dbaxpy(n,da,dx,dy)
-    IMPLICIT NONE
-    INTEGER:: i
+    USE mpdef
 
-    INTEGER, INTENT(IN)              :: n
-    DOUBLE PRECISION, INTENT(IN)     :: dx(*)
-    DOUBLE PRECISION, INTENT(IN OUT) :: dy(*)
-    DOUBLE PRECISION, INTENT(IN)     :: da
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+
+    INTEGER(mpi), INTENT(IN)              :: n
+    REAL(mpd), INTENT(IN)     :: dx(*)
+    REAL(mpd), INTENT(IN OUT) :: dy(*)
+    REAL(mpd), INTENT(IN)     :: da
     !     ...
     DO i=1,MOD(n,4)
         dy(i)=dy(i)+da*dx(i)
@@ -1114,21 +1125,23 @@ END SUBROUTINE dbaxpy
 !! \param[in]  n  size of matrix
 
 SUBROUTINE dbsvx(v,a,b,n)                  !
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER:: i
-    INTEGER:: ij
-    INTEGER:: ijs
-    INTEGER:: j
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: ijs
+    INTEGER(mpi) :: j
 
     !         B   :=    V   *    A
     !         N        N*N       N
 
-    INTEGER, INTENT(IN)           :: n
-    DOUBLE PRECISION, INTENT(IN)  :: v(*)
-    DOUBLE PRECISION, INTENT(IN)  :: a(*)
-    DOUBLE PRECISION, INTENT(OUT) :: b(*)
+    INTEGER(mpi), INTENT(IN)           :: n
+    REAL(mpd), INTENT(IN)  :: v(*)
+    REAL(mpd), INTENT(IN)  :: a(*)
+    REAL(mpd), INTENT(OUT) :: b(*)
 
-    DOUBLE PRECISION:: dsum
+    REAL(mpd) :: dsum
     ijs=1
     DO i=1,n
         dsum=0.0
@@ -1156,21 +1169,23 @@ END SUBROUTINE dbsvx
 !! \param[in]  n  size of matrix
 
 SUBROUTINE dbsvxl(v,a,b,n)                  ! LARGE symm. matrix, vector
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER:: i
-    INTEGER:: j
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
 
     !         B   :=    V   *    A
     !         N        N*N       N
 
-    INTEGER, INTENT(IN)           :: n
-    DOUBLE PRECISION, INTENT(IN)  :: v(*)
-    DOUBLE PRECISION, INTENT(IN)  :: a(*)
-    DOUBLE PRECISION, INTENT(OUT) :: b(*)
+    INTEGER(mpi), INTENT(IN)           :: n
+    REAL(mpd), INTENT(IN)  :: v(*)
+    REAL(mpd), INTENT(IN)  :: a(*)
+    REAL(mpd), INTENT(OUT) :: b(*)
 
-    DOUBLE PRECISION:: dsum
-    INTEGER*8 :: ij
-    INTEGER*8 :: ijs
+    REAL(mpd) :: dsum
+    INTEGER(mpl) :: ij
+    INTEGER(mpl) :: ijs
     ijs=1
     DO i=1,n
         dsum=0.0
@@ -1197,21 +1212,23 @@ END SUBROUTINE dbsvxl
 !! \param [in]  N columns of A
 
 SUBROUTINE dbgax(a,x,y,m,n)
-    IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ij
-    INTEGER :: j
+    USE mpdef
 
-    DOUBLE PRECISION, INTENT(IN)             :: a(*)
-    DOUBLE PRECISION, INTENT(IN)             :: x(*)
-    DOUBLE PRECISION, INTENT(OUT)            :: y(*)
-    INTEGER, INTENT(IN)                      :: m
-    INTEGER, INTENT(IN)                      :: n
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: j
+
+    REAL(mpd), INTENT(IN)             :: a(*)
+    REAL(mpd), INTENT(IN)             :: x(*)
+    REAL(mpd), INTENT(OUT)            :: y(*)
+    INTEGER(mpi), INTENT(IN)                      :: m
+    INTEGER(mpi), INTENT(IN)                      :: n
 
     !     ...
     ij=0
     DO i=1,m
-        y(i)=0.0D0
+        y(i)=0.0_mpd
         DO j=1,n
             ij=ij+1
             y(i)=y(i)+a(ij)*x(j)
@@ -1232,31 +1249,33 @@ END SUBROUTINE dbgax
 !! \param [in]     N  columns of A
 !!
 SUBROUTINE dbavat(v,a,w,n,ms)
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ij
-    INTEGER :: ijs
-    INTEGER :: il
-    INTEGER :: j
-    INTEGER :: jk
-    INTEGER :: k
-    INTEGER :: l
-    INTEGER :: lk
-    INTEGER :: lkl
-    INTEGER :: m
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: ijs
+    INTEGER(mpi) :: il
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jk
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: lk
+    INTEGER(mpi) :: lkl
+    INTEGER(mpi) :: m
 
-    DOUBLE PRECISION, INTENT(IN)             :: v(*)
-    DOUBLE PRECISION, INTENT(IN)             :: a(*)
-    DOUBLE PRECISION, INTENT(INOUT)          :: w(*)
-    INTEGER, INTENT(IN)                      :: n
-    INTEGER, INTENT(IN)                      :: ms
+    REAL(mpd), INTENT(IN)             :: v(*)
+    REAL(mpd), INTENT(IN)             :: a(*)
+    REAL(mpd), INTENT(INOUT)          :: w(*)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi), INTENT(IN)                      :: ms
 
-    DOUBLE PRECISION :: cik
+    REAL(mpd) :: cik
     !     ...
     m=ms
     IF (m > 0) THEN
         DO i=1,(m*m+m)/2
-            w(i)=0.0D0             ! reset output matrix
+            w(i)=0.0_mpd             ! reset output matrix
         END DO
     ELSE
         m=-m
@@ -1269,7 +1288,7 @@ SUBROUTINE dbavat(v,a,w,n,ms)
         il=il+n                 !
         lkl=0                   !
         DO k=1,n                !   do K
-            cik=0.0D0              !
+            cik=0.0_mpd              !
             lkl=lkl+k-1            !
             lk=lkl                 !
             DO l=1,k               !     do L
@@ -1302,23 +1321,25 @@ END SUBROUTINE dbavat
 !! \param[in]  n    size of matrix, vector
 
 SUBROUTINE dbmprv(lun,x,v,n)
-    IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ii
-    INTEGER :: ij
-    INTEGER :: j
-    INTEGER :: jj
-    INTEGER :: l
-    INTEGER :: m
-    INTEGER :: mc(15)
-    REAL :: pd
-    REAL :: rho
-    REAL :: err
+    USE mpdef
 
-    INTEGER, INTENT(IN)          :: lun
-    DOUBLE PRECISION, INTENT(IN) :: x(*)
-    DOUBLE PRECISION, INTENT(IN) :: v(*)
-    INTEGER, INTENT(IN)          :: n
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ii
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jj
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: m
+    INTEGER(mpi) :: mc(15)
+    REAL(mps) :: pd
+    REAL(mps) :: rho
+    REAL(mps) :: err
+
+    INTEGER(mpi), INTENT(IN)          :: lun
+    REAL(mpd), INTENT(IN) :: x(*)
+    REAL(mpd), INTENT(IN) :: v(*)
+    INTEGER(mpi), INTENT(IN)          :: n
 
     WRITE(lun,103)
     WRITE(lun,101)
@@ -1327,17 +1348,17 @@ SUBROUTINE dbmprv(lun,x,v,n)
         ij=ii
         ii=ii+i
         ERR=0.0
-        IF(v(ii) > 0.0) ERR=SQRT(REAL(v(ii)))
+        IF(v(ii) > 0.0) ERR=SQRT(REAL(v(ii),mps))
         l=0
         jj=0
         DO j=1,i
             jj=jj+j
             ij=ij+1
             rho=0.0
-            pd=REAL(v(ii)*v(jj))
-            IF(pd > 0.0) rho=REAL(v(ij))/SQRT(pd)
+            pd=REAL(v(ii)*v(jj),mps)
+            IF(pd > 0.0) rho=REAL(v(ij),mps)/SQRT(pd)
             l=l+1
-            mc(l)=INT(100.0*ABS(rho)+0.5)
+            mc(l)=NINT(100.0*ABS(rho),mpi)
             IF(rho < 0.0) mc(l)=-mc(l)
             IF(j == i.OR.l == 15) THEN
                 IF(j <= 15) THEN
@@ -1375,18 +1396,20 @@ END SUBROUTINE dbmprv
 !! \param[in]  n    size of matrix,
 
 SUBROUTINE dbprv(lun,v,n)
-    IMPLICIT NONE
-    INTEGER, PARAMETER :: istp=6
-    INTEGER :: i
-    INTEGER :: ip
-    INTEGER :: ipe
-    INTEGER :: ipn
-    INTEGER :: ips
-    INTEGER :: k
+    USE mpdef
 
-    INTEGER, INTENT(IN)          :: lun
-    DOUBLE PRECISION, INTENT(IN) :: v(*)
-    INTEGER, INTENT(IN)          :: n
+    IMPLICIT NONE
+    INTEGER(mpi), PARAMETER :: istp=6
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ip
+    INTEGER(mpi) :: ipe
+    INTEGER(mpi) :: ipn
+    INTEGER(mpi) :: ips
+    INTEGER(mpi) :: k
+
+    INTEGER(mpi), INTENT(IN)          :: lun
+    REAL(mpd), INTENT(IN) :: v(*)
+    INTEGER(mpi), INTENT(IN)          :: n
 
     WRITE(lun,101)
 
@@ -1417,16 +1440,18 @@ END SUBROUTINE dbprv
 !! \param[in]     n number of keys
 
 SUBROUTINE heapf(a,n)
+    USE mpdef
+
     IMPLICIT NONE
     !
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: l
-    INTEGER :: r
-    REAL :: at    ! pivot key value
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: r
+    REAL(mps) :: at    ! pivot key value
 
-    REAL, INTENT(IN OUT) :: a(*)
-    INTEGER, INTENT(IN)  :: n
+    REAL(mps), INTENT(IN OUT) :: a(*)
+    INTEGER(mpi), INTENT(IN)  :: n
     !     ...
     IF(n <= 1) RETURN
     l=n/2+1
@@ -1470,22 +1495,24 @@ END SUBROUTINE heapf
 !! \param[in]     n size of vector
 
 SUBROUTINE sort1k(a,n)
-    IMPLICIT NONE
-    INTEGER :: nlev          ! stack size
-    PARAMETER (nlev=2*32) ! ... for N = 2**32 = 4.3 10**9
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: l
-    INTEGER :: r
-    INTEGER :: lev
-    INTEGER :: lr(nlev)
-    INTEGER :: lrh
-    INTEGER :: maxlev
-    INTEGER :: a1    ! pivot key
-    INTEGER :: at    ! pivot key
+    USE mpdef
 
-    INTEGER, INTENT(IN OUT) :: a(*)
-    INTEGER, INTENT(IN)     :: n
+    IMPLICIT NONE
+    INTEGER(mpi) :: nlev          ! stack size
+    PARAMETER (nlev=2*32) ! ... for N = 2**32 = 4.3 10**9
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: r
+    INTEGER(mpi) :: lev
+    INTEGER(mpi) :: lr(nlev)
+    INTEGER(mpi) :: lrh
+    INTEGER(mpi) :: maxlev
+    INTEGER(mpi) :: a1    ! pivot key
+    INTEGER(mpi) :: at    ! pivot key
+
+    INTEGER(mpi), INTENT(IN OUT) :: a(*)
+    INTEGER(mpi), INTENT(IN)     :: n
     !     ...
     IF (n <= 0) RETURN
     maxlev=0
@@ -1550,23 +1577,25 @@ END SUBROUTINE sort1k
 !! \param[in]     n size of vector
 
 SUBROUTINE sort2k(a,n)
-    IMPLICIT NONE
-    INTEGER:: nlev          ! stack size
-    PARAMETER (nlev=2*32) ! ... for N = 2**32 = 4.3 10**9
-    INTEGER:: i
-    INTEGER::j
-    INTEGER::l
-    INTEGER::r
-    INTEGER::lev
-    INTEGER::lr(nlev)
-    INTEGER::lrh
-    INTEGER::maxlev
-    INTEGER::a1       ! pivot key
-    INTEGER::a2       ! pivot key
-    INTEGER::at       ! pivot key
+    USE mpdef
 
-    INTEGER, INTENT(IN OUT) :: a(2,*)
-    INTEGER, INTENT(IN)     :: n
+    IMPLICIT NONE
+    INTEGER(mpi) :: nlev          ! stack size
+    PARAMETER (nlev=2*32) ! ... for N = 2**32 = 4.3 10**9
+    INTEGER(mpi) :: i
+    INTEGER(mpi) ::j
+    INTEGER(mpi) ::l
+    INTEGER(mpi) ::r
+    INTEGER(mpi) ::lev
+    INTEGER(mpi) ::lr(nlev)
+    INTEGER(mpi) ::lrh
+    INTEGER(mpi) ::maxlev
+    INTEGER(mpi) ::a1       ! pivot key
+    INTEGER(mpi) ::a2       ! pivot key
+    INTEGER(mpi) ::at       ! pivot key
+
+    INTEGER(mpi), INTENT(IN OUT) :: a(2,*)
+    INTEGER(mpi), INTENT(IN)     :: n
     !     ...
     maxlev=0
     lev=0
@@ -1638,14 +1667,16 @@ END SUBROUTINE sort2k
 !! \param[in] nd ndf
 !! \return Chi2/ndf cut value
 
-REAL FUNCTION chindl(n,nd)
+REAL(mps) FUNCTION chindl(n,nd)
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: m
-    INTEGER, INTENT(IN) :: n
-    INTEGER, INTENT(IN) :: nd
+    INTEGER(mpi) :: m
+    INTEGER(mpi), INTENT(IN) :: n
+    INTEGER(mpi), INTENT(IN) :: nd
     !
-    REAL:: sn(3)
-    REAL::table(30,3)
+    REAL(mps) :: sn(3)
+    REAL(mps) ::table(30,3)
     !     REAL PN(3)
     !     DATA PN/0.31731,0.0455002785,2.69985E-3/         ! probabilities
     DATA sn/0.47523,1.690140,2.782170/
@@ -1670,7 +1701,7 @@ REAL FUNCTION chindl(n,nd)
         IF(nd <= 30) THEN
             chindl=table(nd,m)     ! from table
         ELSE                      ! approximation for ND > 30
-            chindl=(sn(m)+SQRT(FLOAT(nd+nd-1)))**2/FLOAT(nd+nd)
+            chindl=(sn(m)+SQRT(REAL(nd+nd-1,mps)))**2/REAL(nd+nd,mps)
         END IF
     END IF
 END FUNCTION chindl
@@ -1710,27 +1741,29 @@ END FUNCTION chindl
 !! \param [out]     nrkd   removed components
 
 SUBROUTINE lltdec(n,c,india,nrkd)
-    IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: k
-    INTEGER :: kj
-    INTEGER :: mj
-    INTEGER :: mk
-    DOUBLE PRECISION::diag
+    USE mpdef
 
-    INTEGER, INTENT(IN)              :: n
-    DOUBLE PRECISION, INTENT(IN OUT) :: c(*)
-    INTEGER, INTENT(IN)              :: india(n)
-    INTEGER, INTENT(OUT)             :: nrkd
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kj
+    INTEGER(mpi) :: mj
+    INTEGER(mpi) :: mk
+    REAL(mpd) ::diag
+
+    INTEGER(mpi), INTENT(IN)              :: n
+    REAL(mpd), INTENT(IN OUT) :: c(*)
+    INTEGER(mpi), INTENT(IN)              :: india(n)
+    INTEGER(mpi), INTENT(OUT)             :: nrkd
     
     !     ...
     nrkd=0
-    diag=0.0D0
+    diag=0.0_mpd
     IF(c(india(1)) > 0.0) THEN
-        c(india(1))=1.0D0/SQRT(c(india(1))) ! square root
+        c(india(1))=1.0_mpd/SQRT(c(india(1))) ! square root
     ELSE
-        c(india(1))=0.0D0
+        c(india(1))=0.0_mpd
         nrkd=-1
     END IF
 
@@ -1751,10 +1784,10 @@ SUBROUTINE lltdec(n,c,india,nrkd)
         END DO ! J
   
         IF(diag+c(india(k)) > diag) THEN      ! test for linear dependence
-            c(india(k))=1.0D0/SQRT(c(india(k))) ! square root
+            c(india(k))=1.0_mpd/SQRT(c(india(k))) ! square root
         ELSE
             DO j=mk,k                  ! reset row K
-                c(india(k)-k+j)=0.0D0
+                c(india(k)-k+j)=0.0_mpd
             END DO ! J
             IF(nrkd == 0) THEN
                 nrkd=-k
@@ -1782,14 +1815,16 @@ END SUBROUTINE lltdec
 !! \param [in,out]  x      r.h.s vector B, replaced by solution vector X
 
 SUBROUTINE lltfwd(n,c,india,x)
-    IMPLICIT NONE
-    INTEGER :: j
-    INTEGER :: k
+    USE mpdef
 
-    INTEGER, INTENT(IN)              :: n
-    DOUBLE PRECISION, INTENT(IN)     :: c(*)
-    INTEGER, INTENT(IN)              :: india(n)
-    DOUBLE PRECISION, INTENT(IN OUT) :: x(n)
+    IMPLICIT NONE
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+
+    INTEGER(mpi), INTENT(IN)              :: n
+    REAL(mpd), INTENT(IN)     :: c(*)
+    INTEGER(mpi), INTENT(IN)              :: india(n)
+    REAL(mpd), INTENT(IN OUT) :: x(n)
 
     x(1)=x(1)*c(india(1))
     DO k=2,n                       ! forward loop
@@ -1814,14 +1849,16 @@ END SUBROUTINE lltfwd
 !! \param [in,out]  x      r.h.s vector B, replaced by solution vector X
 
 SUBROUTINE lltbwd(n,c,india,x)
-    IMPLICIT NONE
-    INTEGER :: j
-    INTEGER :: k
+    USE mpdef
 
-    INTEGER, INTENT(IN)              :: n
-    DOUBLE PRECISION, INTENT(IN)     :: c(*)
-    INTEGER, INTENT(IN)              :: india(n)
-    DOUBLE PRECISION, INTENT(IN OUT) :: x(n)
+    IMPLICIT NONE
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+
+    INTEGER(mpi), INTENT(IN)              :: n
+    REAL(mpd), INTENT(IN)     :: c(*)
+    INTEGER(mpi), INTENT(IN)              :: india(n)
+    REAL(mpd), INTENT(IN OUT) :: x(n)
 
     DO k=n,2,-1                    ! backward loop
         x(k)=x(k)*c(india(k))
@@ -1849,24 +1886,23 @@ END SUBROUTINE lltbwd
 !! \param [out]     nrkd2  removed components
 !!
 SUBROUTINE equdec(n,m,c,india,nrkd,nrkd2)
+    USE mpdef
+
     IMPLICIT NONE
-    REAL:: eps
-    INTEGER:: i
-    INTEGER:: j
-    INTEGER:: jk
-    INTEGER:: k
-    INTEGER:: ntotal
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jk
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: ntotal
 
-    INTEGER, INTENT(IN)              :: n
-    INTEGER, INTENT(IN)              :: m
-    DOUBLE PRECISION, INTENT(IN OUT) :: c(*)
-    INTEGER, INTENT(IN OUT)          :: india(n+m)
-    INTEGER, INTENT(OUT)             :: nrkd
-    INTEGER, INTENT(OUT)             :: nrkd2
+    INTEGER(mpi), INTENT(IN)              :: n
+    INTEGER(mpi), INTENT(IN)              :: m
+    REAL(mpd), INTENT(IN OUT) :: c(*)
+    INTEGER(mpi), INTENT(IN OUT)          :: india(n+m)
+    INTEGER(mpi), INTENT(OUT)             :: nrkd
+    INTEGER(mpi), INTENT(OUT)             :: nrkd2
 
-    
-    PARAMETER (eps=2.22044605E-16)
-    !     ...
+        !     ...
     ntotal=n+n*m+(m*m+m)/2
 
     CALL lltdec(n,c,india,nrkd)                  ! decomposition G G^T
@@ -1878,7 +1914,7 @@ SUBROUTINE equdec(n,m,c,india,nrkd,nrkd2)
     DO j=1,m
         DO k=1,j
             jk=jk+1
-            c(jk)=0.0D0                                 ! product K K^T
+            c(jk)=0.0_mpd                                 ! product K K^T
             DO i=1,n
                 c(jk)=c(jk)+c(india(n)+(j-1)*n+i)*c(india(n)+(k-1)*n+i)
             END DO
@@ -1913,15 +1949,17 @@ END SUBROUTINE equdec
 !! \param [in,out]  x      r.h.s vector B, replaced by solution vector X
 !!
 SUBROUTINE equslv(n,m,c,india,x)                   ! solution vector
-    IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: j
+    USE mpdef
 
-    INTEGER, INTENT(IN)              :: n
-    INTEGER, INTENT(IN)              :: m
-    DOUBLE PRECISION, INTENT(IN)     :: c(*)
-    INTEGER, INTENT(IN)              :: india(n+m)
-    DOUBLE PRECISION, INTENT(IN OUT) :: x(n+m)
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+
+    INTEGER(mpi), INTENT(IN)              :: n
+    INTEGER(mpi), INTENT(IN)              :: m
+    REAL(mpd), INTENT(IN)     :: c(*)
+    INTEGER(mpi), INTENT(IN)              :: india(n+m)
+    REAL(mpd), INTENT(IN OUT) :: x(n+m)
 
     CALL lltfwd(n,c,india,x)                           ! result is u
     DO i=1,m
@@ -1975,35 +2013,37 @@ END SUBROUTINE equslv
 !! \param [out]    s     Cholesky decomposed symmetric (P,P) matrix
 
 SUBROUTINE precon(p,n,c,cu,a,s)
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: ii
-    INTEGER :: j
-    INTEGER :: jj
-    INTEGER :: jk
-    INTEGER :: k
-    INTEGER :: kk
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ii
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jj
+    INTEGER(mpi) :: jk
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kk
 
-    INTEGER, INTENT(IN)              :: p
-    INTEGER, INTENT(IN)              :: n
-    DOUBLE PRECISION, INTENT(IN)     :: c(n)
-    DOUBLE PRECISION, INTENT(OUT)    :: cu(n)
-    DOUBLE PRECISION, INTENT(IN OUT) :: a(n,p)
-    DOUBLE PRECISION, INTENT(OUT)    :: s((p*p+p)/2)
+    INTEGER(mpi), INTENT(IN)              :: p
+    INTEGER(mpi), INTENT(IN)              :: n
+    REAL(mpd), INTENT(IN)     :: c(n)
+    REAL(mpd), INTENT(OUT)    :: cu(n)
+    REAL(mpd), INTENT(IN OUT) :: a(n,p)
+    REAL(mpd), INTENT(OUT)    :: s((p*p+p)/2)
 
-    DOUBLE PRECISION :: div
-    DOUBLE PRECISION :: ratio
+    REAL(mpd) :: div
+    REAL(mpd) :: ratio
     
     DO i=1,(p*p+p)/2
-        s(i)=0.0D0
+        s(i)=0.0_mpd
     END DO
     DO i=1,n
         jk=0
         div=c(i)                          ! copy
-        IF (div > 0.0D0) THEN
-            cu(i)=1.0D0/DSQRT(div)
+        IF (div > 0.0_mpd) THEN
+            cu(i)=1.0_mpd/SQRT(div)
         ELSE
-            cu(i)=0.0D0
+            cu(i)=0.0_mpd
         END IF
         DO j=1,p
             a(i,j)=a(i,j)*cu(i)              ! K = A C^{-1/2}
@@ -2017,7 +2057,7 @@ SUBROUTINE precon(p,n,c,cu,a,s)
     ii=0
     DO i=1,p                           ! S -> H D H^T (Cholesky)
         ii=ii+i
-        IF(s(ii) /= 0.0D0) s(ii)=1.0D0/s(ii)
+        IF(s(ii) /= 0.0_mpd) s(ii)=1.0_mpd/s(ii)
         jj=ii
         DO j=i+1,p
             ratio=s(i+jj)*s(ii)
@@ -2044,23 +2084,25 @@ END SUBROUTINE precon
 !! \param [in]     y     rhs vector (changed if x=y as actual parameters)
 
 SUBROUTINE presol(p,n,cu,a,s,x,y) ! solution
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: jj
-    INTEGER :: k
-    INTEGER :: kk
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jj
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kk
 
-    INTEGER, INTENT(IN)              :: p
-    INTEGER, INTENT(IN)              :: n
+    INTEGER(mpi), INTENT(IN)              :: p
+    INTEGER(mpi), INTENT(IN)              :: n
     
-    DOUBLE PRECISION, INTENT(IN)     :: cu(n)
-    DOUBLE PRECISION, INTENT(IN)     :: a(n,p)
-    DOUBLE PRECISION, INTENT(IN)     :: s((p*p+p)/2)
-    DOUBLE PRECISION, INTENT(OUT)    :: x(n+p)
-    DOUBLE PRECISION, INTENT(IN)     :: y(n+p)
+    REAL(mpd), INTENT(IN)     :: cu(n)
+    REAL(mpd), INTENT(IN)     :: a(n,p)
+    REAL(mpd), INTENT(IN)     :: s((p*p+p)/2)
+    REAL(mpd), INTENT(OUT)    :: x(n+p)
+    REAL(mpd), INTENT(IN)     :: y(n+p)
 
-    DOUBLE PRECISION :: dsum
+    REAL(mpd) :: dsum
 
     DO i=1,n+p
         x(i)=y(i)
@@ -2151,7 +2193,9 @@ END SUBROUTINE presol
 !! \param [out]    scflag workspace (I)
 !!
 SUBROUTINE sqmibb(v,b,n,nbdr,nbnd,inv,nrank,vbnd,vbdr,aux,vbk,vzru,scdiag,scflag)
-    ! Double precision scratch arrays:
+    USE mpdef
+
+    ! REAL(mpd) scratch arrays:
     !     VBND(N*(NBND+1)) = storage of band   part
     !     VBDR(N* NBDR)    = storage of border part
     !     AUX (N* NBDR)    = intermediate results
@@ -2159,39 +2203,39 @@ SUBROUTINE sqmibb(v,b,n,nbdr,nbnd,inv,nrank,vbnd,vbdr,aux,vbk,vzru,scdiag,scflag
     ! cost[dot ops] ~= (N-NBDR)*(NBDR+NBND+1)**2 + NBDR**3/3 (leading term, solution only)
 
     IMPLICIT NONE
-    INTEGER:: i
-    INTEGER:: ib
-    INTEGER:: ij
-    INTEGER:: ioff
-    INTEGER:: ip
-    INTEGER:: ip1
-    INTEGER:: ip2
-    INTEGER:: is
-    INTEGER:: j
-    INTEGER:: j0
-    INTEGER:: jb
-    INTEGER:: joff
-    INTEGER:: mp1
-    INTEGER:: nb1
-    INTEGER:: nmb
-    INTEGER:: npri
-    INTEGER:: nrankb
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: ioff
+    INTEGER(mpi) :: ip
+    INTEGER(mpi) :: ip1
+    INTEGER(mpi) :: ip2
+    INTEGER(mpi) :: is
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: j0
+    INTEGER(mpi) :: jb
+    INTEGER(mpi) :: joff
+    INTEGER(mpi) :: mp1
+    INTEGER(mpi) :: nb1
+    INTEGER(mpi) :: nmb
+    INTEGER(mpi) :: npri
+    INTEGER(mpi) :: nrankb
 
-    DOUBLE PRECISION, INTENT(IN OUT)         :: v(*)
-    DOUBLE PRECISION, INTENT(OUT)            :: b(n)
-    INTEGER, INTENT(IN)                      :: n
-    INTEGER, INTENT(IN)                      :: nbdr
-    INTEGER, INTENT(IN)                      :: nbnd
-    INTEGER, INTENT(IN)                      :: inv
-    INTEGER, INTENT(OUT)                     :: nrank
+    REAL(mpd), INTENT(IN OUT)         :: v(*)
+    REAL(mpd), INTENT(OUT)            :: b(n)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi), INTENT(IN)                      :: nbdr
+    INTEGER(mpi), INTENT(IN)                      :: nbnd
+    INTEGER(mpi), INTENT(IN)                      :: inv
+    INTEGER(mpi), INTENT(OUT)                     :: nrank
 
-    DOUBLE PRECISION, INTENT(OUT) :: vbnd(n*(nbnd+1))
-    DOUBLE PRECISION, INTENT(OUT) :: vbdr(n*nbdr)
-    DOUBLE PRECISION, INTENT(OUT) :: aux(n*nbdr)
-    DOUBLE PRECISION, INTENT(OUT) :: vbk((nbdr*nbdr+nbdr)/2)
-    DOUBLE PRECISION, INTENT(OUT) :: vzru(nbdr)
-    DOUBLE PRECISION, INTENT(OUT) :: scdiag(nbdr)
-    INTEGER, INTENT(OUT)          :: scflag(nbdr)
+    REAL(mpd), INTENT(OUT) :: vbnd(n*(nbnd+1))
+    REAL(mpd), INTENT(OUT) :: vbdr(n*nbdr)
+    REAL(mpd), INTENT(OUT) :: aux(n*nbdr)
+    REAL(mpd), INTENT(OUT) :: vbk((nbdr*nbdr+nbdr)/2)
+    REAL(mpd), INTENT(OUT) :: vzru(nbdr)
+    REAL(mpd), INTENT(OUT) :: scdiag(nbdr)
+    INTEGER(mpi), INTENT(OUT)          :: scflag(nbdr)
 
     SAVE npri
     DATA npri / 100 /
@@ -2231,10 +2275,10 @@ SUBROUTINE sqmibb(v,b,n,nbdr,nbnd,inv,nrank,vbnd,vbdr,aux,vbk,vzru,scdiag,scflag
     !      CALL DBCPRB(VBND,MP1,NMB)
     ip=1
     DO i=1, nmb
-        IF (vbnd(ip) <= 0.0D0) THEN
+        IF (vbnd(ip) <= 0.0_mpd) THEN
             npri=npri-1
             IF (npri >= 0) THEN
-                IF (vbnd(ip) == 0.0D0) THEN
+                IF (vbnd(ip) == 0.0_mpd) THEN
                     PRINT *, ' SQMIBB matrix singular', n, nbdr, nbnd
                 ELSE
                     PRINT *, ' SQMIBB matrix not positive definite', n, nbdr, nbnd
@@ -2242,10 +2286,10 @@ SUBROUTINE sqmibb(v,b,n,nbdr,nbnd,inv,nrank,vbnd,vbdr,aux,vbk,vzru,scdiag,scflag
             END IF
             !           return zeros
             DO ip=1,n
-                b(ip)=0.0D0
+                b(ip)=0.0_mpd
             END DO
             DO ip=1,(n*n+n)/2
-                v(ip)=0.0D0
+                v(ip)=0.0_mpd
             END DO
             RETURN
         END IF
@@ -2302,10 +2346,10 @@ SUBROUTINE sqmibb(v,b,n,nbdr,nbnd,inv,nrank,vbnd,vbdr,aux,vbk,vzru,scdiag,scflag
             npri=npri-1
             IF (npri >= 0) PRINT *, ' SQMIBB undef border ', n, nbdr, nbnd, nrankb
             DO ib=1,nbdr
-                vzru(ib)=0.0D0
+                vzru(ib)=0.0_mpd
             END DO
             DO ip=(nbdr*nbdr+nbdr)/2,1,-1
-                vbk(ip)=0.0D0
+                vbk(ip)=0.0_mpd
             END DO
         END IF
         !        smoothed data points
@@ -2350,7 +2394,7 @@ SUBROUTINE sqmibb(v,b,n,nbdr,nbnd,inv,nrank,vbnd,vbdr,aux,vbk,vzru,scdiag,scflag
                 ip2=ip2-j0
       
                 DO ib=nbdr,1,-1
-                    v(ip2)=0.0D0
+                    v(ip2)=0.0_mpd
                     joff=nb1
                     DO jb=1,nbdr
                         ij=MAX(ib,jb)

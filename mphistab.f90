@@ -71,36 +71,38 @@
 !     *************************** Histograms ******************************
 
 SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER:: i
-    INTEGER:: iha
-    INTEGER:: ihb
-    INTEGER:: ihc
-    INTEGER:: ix
-    INTEGER:: j
-    INTEGER:: lun
-    INTEGER:: lunw
-    INTEGER:: nbin
-    INTEGER:: nn
-    REAL:: x
-    REAL:: xcent
-    REAL:: xmean
-    REAL:: xsigm
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: iha
+    INTEGER(mpi) :: ihb
+    INTEGER(mpi) :: ihc
+    INTEGER(mpi) :: ix
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: lun
+    INTEGER(mpi) :: lunw
+    INTEGER(mpi) :: nbin
+    INTEGER(mpi) :: nn
+    REAL(mps) :: x
+    REAL(mps) :: xcent
+    REAL(mps) :: xmean
+    REAL(mps) :: xsigm
     !     book millepede histogram, 120 bins
 
-    INTEGER, INTENT(IN)                      :: ih
-    REAL, INTENT(IN)                         :: xa
-    REAL, INTENT(IN)                         :: xb
+    INTEGER(mpi), INTENT(IN)                      :: ih
+    REAL(mps), INTENT(IN)                         :: xa
+    REAL(mps), INTENT(IN)                         :: xb
     CHARACTER (LEN=*), INTENT(IN)            :: text
-    INTEGER, PARAMETER :: numhis=15
-    INTEGER:: inhist(120,numhis)
-    INTEGER::jnhist(5,numhis)
-    INTEGER::khist(numhis)
-    REAL:: fnhist(120,numhis)
+    INTEGER(mpi), PARAMETER :: numhis=15
+    INTEGER(mpi) :: inhist(120,numhis)
+    INTEGER(mpi) ::jnhist(5,numhis)
+    INTEGER(mpi) ::khist(numhis)
+    REAL(mps) :: fnhist(120,numhis)
     EQUIVALENCE (inhist(1,1),fnhist(1,1))
-    INTEGER:: kvers(numhis)
-    REAL:: xl(6,numhis)
-    DOUBLE PRECISION:: dl(2,numhis)
+    INTEGER(mpi) :: kvers(numhis)
+    REAL(mps) :: xl(6,numhis)
+    REAL(mpd):: dl(2,numhis)
     CHARACTER (LEN=60):: htext(numhis)
     SAVE
     DATA khist/numhis*0/,lun/7/
@@ -125,8 +127,8 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
     END IF
     khist(ih)=1    ! flt.pt. (lin)
     htext(ih)=text
-    dl(1,ih)=0.0D0
-    dl(2,ih)=0.0D0
+    dl(1,ih)=0.0_mpd
+    dl(2,ih)=0.0_mpd
     RETURN
 
     ENTRY hmpldf(ih,text)                   ! book, reset log histogram
@@ -164,7 +166,7 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
     !         XL(4,IH)=X
     !         XL(5,IH)=X
     !      END IF
-    i=INT(1.0+xl(3,ih)*(x-xl(1,ih)))   ! X - Xmin
+    i=INT(1.0+xl(3,ih)*(x-xl(1,ih)),mpi)   ! X - Xmin
     j=2
     IF(i <  1) j=1
     IF(i > 120) j=3
@@ -188,7 +190,7 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
         IF(jnhist(5,ih) == 0) jnhist(5,ih)=ix
         jnhist(4,ih)=MIN(jnhist(4,ih),ix)
         jnhist(5,ih)=MAX(jnhist(5,ih),ix)
-        i=INT(1.0+20.0*LOG10(REAL(ix)))
+        i=INT(1.0+20.0*LOG10(REAL(ix,mps)),mpi)
         j=2
         IF(i <  1) j=1
         IF(i > 120) j=3
@@ -241,10 +243,10 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
                 IF(khist(ihc) == 1) THEN
                     WRITE(*,*) '   Min and Max are',xl(4,ihc),xl(5,ihc)
                     IF(jnhist(2,ihc) > 1) THEN
-                        xmean=REAL(xl(6,ihc)+dl(1,ihc)/FLOAT(jnhist(2,ihc)))
+                        xmean=REAL(xl(6,ihc)+dl(1,ihc)/REAL(jnhist(2,ihc),mps),mps)
                         xcent=0.5*(xl(1,ihc)+xl(2,ihc))
-                        xsigm=REAL((dl(2,ihc)-dl(1,ihc)**2/FLOAT(jnhist(2,ihc))))
-                        xsigm=SQRT(xsigm/FLOAT(jnhist(2,ihc)-1))
+                        xsigm=REAL((dl(2,ihc)-dl(1,ihc)**2/REAL(jnhist(2,ihc),mps)),mps)
+                        xsigm=SQRT(xsigm/REAL(jnhist(2,ihc)-1,mps))
                         WRITE(*,*) '   Mean and sigma are', xmean,' +-',xsigm
                     END IF
                 ELSE IF(khist(ihc) == 2) THEN
@@ -301,14 +303,14 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
             IF(khist(ihc) == 1) THEN
                 WRITE(lun,205) xl(4,ihc),xl(5,ihc)
             ELSE IF(khist(ihc) == 2) THEN
-                WRITE(lun,205) FLOAT(jnhist(4,ihc)),FLOAT(jnhist(5,ihc))
+                WRITE(lun,205) REAL(jnhist(4,ihc),mps),REAL(jnhist(5,ihc),mps)
             END IF
             IF(khist(ihc) == 1) THEN
                 IF(jnhist(2,ihc) > 1) THEN
-                    xmean=REAL(xl(6,ihc)+dl(1,ihc)/FLOAT(jnhist(2,ihc)))
+                    xmean=REAL(xl(6,ihc)+dl(1,ihc)/REAL(jnhist(2,ihc),mps),mps)
                     xcent=0.5*(xl(1,ihc)+xl(2,ihc))
-                    xsigm=REAL((dl(2,ihc)-dl(1,ihc)**2/FLOAT(jnhist(2,ihc))))
-                    xsigm=SQRT(xsigm/FLOAT(jnhist(2,ihc)-1))
+                    xsigm=REAL((dl(2,ihc)-dl(1,ihc)**2/REAL(jnhist(2,ihc),mps)),mps)
+                    xsigm=SQRT(xsigm/REAL(jnhist(2,ihc)-1,mps))
                     WRITE(lun,206) xmean,xsigm
                 END IF
             END IF
@@ -327,21 +329,23 @@ SUBROUTINE hmpdef(ih,xa,xb,text)           ! book, reset histogram
 END SUBROUTINE hmpdef
 
 SUBROUTINE hmpmak(inhist,fnhist,jnhist,xl,dl) ! hist scale from data
-    IMPLICIT NONE
-    INTEGER:: i
-    INTEGER:: j
-    INTEGER:: k
-    INTEGER:: nn
-    REAL:: x
-    REAL:: xa
-    REAL:: xb
+    USE mpdef
 
-    INTEGER, INTENT(OUT)                     :: inhist(120)
-    REAL, INTENT(IN)                         :: fnhist(120)
-    INTEGER, INTENT(IN OUT)                  :: jnhist(5)
-    REAL, INTENT(IN OUT)                     :: xl(6)
-    DOUBLE PRECISION, INTENT(OUT)            :: dl(2)
-    REAL:: cphist(120)
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: nn
+    REAL(mps) :: x
+    REAL(mps) :: xa
+    REAL(mps) :: xb
+
+    INTEGER(mpi), INTENT(OUT)                     :: inhist(120)
+    REAL(mps), INTENT(IN)                         :: fnhist(120)
+    INTEGER(mpi), INTENT(IN OUT)                  :: jnhist(5)
+    REAL(mps), INTENT(IN OUT)                     :: xl(6)
+    REAL(mpd), INTENT(OUT)            :: dl(2)
+    REAL(mps) :: cphist(120)
 
 
 
@@ -372,7 +376,7 @@ SUBROUTINE hmpmak(inhist,fnhist,jnhist,xl,dl) ! hist scale from data
     END DO
     DO k=1,nn
         x=cphist(k)
-        i=INT(1.0+xl(3)*(x-xl(1)))   ! X - Xmin
+        i=INT(1.0+xl(3)*(x-xl(1)),mpi)   ! X - Xmin
         !       WRITE(*,*) 'K,I,X ',K,I,X
         j=2
         IF(i <  1) j=1
@@ -390,29 +394,31 @@ END SUBROUTINE hmpmak
 
 
 SUBROUTINE bintab(tab,n,xa,xb)             ! hist scale from data
+    USE mpdef
+
     IMPLICIT NONE
-    REAL:: dd
-    REAL:: dx
-    INTEGER:: i
-    INTEGER:: iexp
-    INTEGER:: ii
-    INTEGER:: j
-    INTEGER:: m1
-    INTEGER:: m2
-    INTEGER:: n1
-    INTEGER:: n2
-    REAL:: rat
-    REAL:: x1
-    REAL:: x2
-    REAL:: xx
+    REAL(mps) :: dd
+    REAL(mps) :: dx
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: iexp
+    INTEGER(mpi) :: ii
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: m1
+    INTEGER(mpi) :: m2
+    INTEGER(mpi) :: n1
+    INTEGER(mpi) :: n2
+    REAL(mps) :: rat
+    REAL(mps) :: x1
+    REAL(mps) :: x2
+    REAL(mps) :: xx
     !     Bin limits XA and XB from TAB(N)
 
-    REAL, INTENT(IN)                         :: tab(n)
-    INTEGER, INTENT(IN)                      :: n
-    REAL, INTENT(OUT)                        :: xa
-    REAL, INTENT(OUT)                        :: xb
+    REAL(mps), INTENT(IN)                         :: tab(n)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mps), INTENT(OUT)                        :: xa
+    REAL(mps), INTENT(OUT)                        :: xb
 
-    REAL:: bin(10)
+    REAL(mps) :: bin(10)
     DATA bin/1.0,1.5,2.0,3.0,4.0,5.0,8.0,10.0,15.0,20.0/
     SAVE
     !     ...
@@ -425,8 +431,8 @@ SUBROUTINE bintab(tab,n,xa,xb)             ! hist scale from data
         x2=tab(n)
     !         WRITE(*,*) 'reduced statistic X1 X2 ',X1,X2
     ELSE              ! large statistic
-        m1=INT(1.0+0.05*FLOAT(n))
-        m2=INT(1.0+0.16*FLOAT(n))
+        m1=INT(1.0+0.05*REAL(n),mpi)
+        m2=INT(1.0+0.16*REAL(n),mpi)
         x1=tab(m1)-4.0*(tab(m2)-tab(m1))
         IF(x1 < 0.0.AND.tab(1) >= 0.0) x1=tab(1)
         x2=tab(n+1-m1)+4.0*(tab(n+1-m1)-tab(n+1-m2))
@@ -461,18 +467,18 @@ SUBROUTINE bintab(tab,n,xa,xb)             ! hist scale from data
     DO j=1,11
         i=j
         IF(j == 11) i=ii
-        iexp=INT(101.0+LOG10(dx)-LOG10(6.0*bin(i)))
+        iexp=INT(101.0+LOG10(dx)-LOG10(6.0*bin(i)),mpi)
         iexp=iexp-100
         dd=bin(i)*10.0**iexp
   
-        n1=INT(ABS(x1)/dd)
+        n1=INT(ABS(x1)/dd,mpi)
         IF(x1 < 0.0) n1=-n1
-        IF(FLOAT(n1)*dd > x1) n1=n1-1
+        IF(REAL(n1,mps)*dd > x1) n1=n1-1
         !       WRITE(*,*) 'Bin ',I,N1,N1*DD,X1
   
-        n2=INT(ABS(x2)/dd)
+        n2=INT(ABS(x2)/dd,mpi)
         IF(x2 < 0.0) n2=-n2
-        IF(FLOAT(n2)*dd < x2) n2=n2+1
+        IF(REAL(n2,mps)*dd < x2) n2=n2+1
         !       WRITE(*,*) 'Bin ',I,N2,N2*DD,X2
 10      IF(n2-n1 < 6) THEN
             IF(n1 /= 0) n1=n1-1
@@ -480,8 +486,8 @@ SUBROUTINE bintab(tab,n,xa,xb)             ! hist scale from data
             GO TO 10
         END IF
         !       WRITE(*,*) 'corrected N1 N2 ',N1,N2
-        xa=SIGN(FLOAT(n1)*dd,x1)
-        xb=SIGN(FLOAT(n2)*dd,x2)
+        xa=SIGN(REAL(n1,mps)*dd,x1)
+        xb=SIGN(REAL(n2,mps)*dd,x2)
         !       WRITE(*,*) J,' resulting limits XA XB ',XA,XB
         IF((x2-x1)/(xb-xa) > rat) THEN
             ii=i
@@ -492,20 +498,22 @@ SUBROUTINE bintab(tab,n,xa,xb)             ! hist scale from data
 END SUBROUTINE bintab
 
 SUBROUTINE kprint(lun,list,n)              ! print integer array
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER:: i
-    INTEGER:: ia
-    INTEGER:: ib
-    INTEGER:: k
-    INTEGER:: ln
-    INTEGER:: lp
-    INTEGER:: np
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ia
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: ln
+    INTEGER(mpi) :: lp
+    INTEGER(mpi) :: np
     !     print integer array LIST(N)
 
-    INTEGER, INTENT(IN OUT)                  :: lun
-    INTEGER, INTENT(IN)                      :: list(n)
-    INTEGER, INTENT(IN)                      :: n
-    INTEGER:: li(7)
+    INTEGER(mpi), INTENT(IN OUT)                  :: lun
+    INTEGER(mpi), INTENT(IN)                      :: list(n)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi) :: li(7)
     DATA li/2,3,4,6,8,9,12/ ! number of characters
     SAVE
     !     ...
@@ -552,45 +560,47 @@ END SUBROUTINE kprint
 !     ***************************** XY data ****************************
 
 SUBROUTINE gmpdef(ig,ityp,text)            ! book, reset XY storage
+    USE mpdef
+
     IMPLICIT NONE
-    REAL:: dx
-    REAL:: dy
-    INTEGER:: i
-    INTEGER:: iga
-    INTEGER:: igb
-    INTEGER:: igc
-    INTEGER:: j
-    INTEGER:: lun
-    INTEGER:: lunw
-    INTEGER:: n
-    INTEGER:: na
-    REAL:: wght
-    REAL:: x
-    REAL:: y
-    REAL:: y1
+    REAL(mps) :: dx
+    REAL(mps) :: dy
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: iga
+    INTEGER(mpi) :: igb
+    INTEGER(mpi) :: igc
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: lun
+    INTEGER(mpi) :: lunw
+    INTEGER(mpi) :: n
+    INTEGER(mpi) :: na
+    REAL(mps) :: wght
+    REAL(mps) :: x
+    REAL(mps) :: y
+    REAL(mps) :: y1
     !     ITYP = 1  X,Y     as dots
     !          = 2  X,Y     as line
     !          = 3  X,Y     as line and dots
     !          = 4  X,Y, DX,DY symbols
 
-    INTEGER, INTENT(IN)                      :: ig
-    INTEGER, INTENT(IN)                      :: ityp
+    INTEGER(mpi), INTENT(IN)                      :: ig
+    INTEGER(mpi), INTENT(IN)                      :: ityp
     CHARACTER (LEN=*), INTENT(IN)            :: text
-    INTEGER, PARAMETER :: narr=1000
-    REAL:: array(2,narr)
-    REAL::array4(4,narr/2)
-    REAL::array1(narr+narr)
-    REAL::four(4)
+    INTEGER(mpi), PARAMETER :: narr=1000
+    REAL(mps) :: array(2,narr)
+    REAL(mps) ::array4(4,narr/2)
+    REAL(mps) ::array1(narr+narr)
+    REAL(mps) ::four(4)
     EQUIVALENCE (array(1,1),array4(1,1),array1(1))
-    INTEGER, PARAMETER :: numgxy=10
-    INTEGER, PARAMETER :: nlimit=500
-    INTEGER:: nstr(numgxy)
-    INTEGER::igtp(numgxy)
-    INTEGER::lvers(numgxy)
-    INTEGER::nst(3,numgxy)
-    REAL:: xyplws(10,numgxy)
-    INTEGER:: jflc(5,numgxy)
-    INTEGER::kflc(5,numgxy)
+    INTEGER(mpi), PARAMETER :: numgxy=10
+    INTEGER(mpi), PARAMETER :: nlimit=500
+    INTEGER(mpi) :: nstr(numgxy)
+    INTEGER(mpi) ::igtp(numgxy)
+    INTEGER(mpi) ::lvers(numgxy)
+    INTEGER(mpi) ::nst(3,numgxy)
+    REAL(mps) :: xyplws(10,numgxy)
+    INTEGER(mpi) :: jflc(5,numgxy)
+    INTEGER(mpi) ::kflc(5,numgxy)
     !     JFLC(1,.) = first used index
     !     JFLC(2,.) = last used index
     !     JFLC(3,.) = counter of used places
@@ -689,9 +699,9 @@ SUBROUTINE gmpdef(ig,ityp,text)            ! book, reset XY storage
             xyplws(6,ig)=xyplws(6,ig)+xyplws(4,ig)
             IF(nst(2,ig) == nst(3,ig)) THEN
                 xyplws(1,ig)=0.5*(xyplws(7,ig)+xyplws(8,ig))
-                xyplws(2,ig)=xyplws(5,ig)/FLOAT(nst(3,ig))
+                xyplws(2,ig)=xyplws(5,ig)/REAL(nst(3,ig),mps)
                 xyplws(3,ig)=0.5*(xyplws(8,ig)-xyplws(7,ig))
-                xyplws(4,ig)=xyplws(6,ig)/FLOAT(nst(3,ig))
+                xyplws(4,ig)=xyplws(6,ig)/REAL(nst(3,ig),mps)
                 xyplws(5,ig)=0.0
                 xyplws(6,ig)=0.0
                 nst(2,ig)=0
@@ -775,11 +785,11 @@ SUBROUTINE gmpdef(ig,ityp,text)            ! book, reset XY storage
                 xyplws(7,igc)=xyplws( 9,igc)
                 xyplws(8,igc)=xyplws(10,igc)
                 CALL rmesig(array1,n,xyplws(2,igc),xyplws(4,igc))
-                wght=FLOAT(n)/FLOAT(nst(3,igc)*kflc(5,igc))
+                wght=REAL(n,mps)/REAL(nst(3,igc)*kflc(5,igc),mps)
                 xyplws(5,igc)=xyplws(5,igc)+xyplws(2,igc)*wght
                 xyplws(6,igc)=xyplws(6,igc)+xyplws(4,igc)*wght
-                xyplws(2,igc)=xyplws(5,igc)/(FLOAT(nst(2,igc))+wght)
-                xyplws(4,igc)=xyplws(6,igc)/(FLOAT(nst(2,igc))+wght)
+                xyplws(2,igc)=xyplws(5,igc)/(REAL(nst(2,igc),mps)+wght)
+                xyplws(4,igc)=xyplws(6,igc)/(REAL(nst(2,igc),mps)+wght)
                 xyplws(1,igc)=0.5*(xyplws(7,igc)+xyplws(8,igc))
                 xyplws(3,igc)=0.5*(xyplws(8,igc)-xyplws(7,igc))
                 CALL stmadp(jflc(1,igc),xyplws(1,igc))
@@ -832,11 +842,11 @@ SUBROUTINE gmpdef(ig,ityp,text)            ! book, reset XY storage
                 xyplws(7,igc)=xyplws( 9,igc)
                 xyplws(8,igc)=xyplws(10,igc)
                 CALL rmesig(array1,n,xyplws(2,igc),xyplws(4,igc))
-                wght=FLOAT(n)/FLOAT(nst(3,igc)*kflc(5,igc))
+                wght=REAL(n,mps)/REAL(nst(3,igc)*kflc(5,igc),mps)
                 xyplws(5,igc)=xyplws(5,igc)+xyplws(2,igc)*wght
                 xyplws(6,igc)=xyplws(6,igc)+xyplws(4,igc)*wght
-                xyplws(2,igc)=xyplws(5,igc)/(FLOAT(nst(2,igc))+wght)
-                xyplws(4,igc)=xyplws(6,igc)/(FLOAT(nst(2,igc))+wght)
+                xyplws(2,igc)=xyplws(5,igc)/(REAL(nst(2,igc),mps)+wght)
+                xyplws(4,igc)=xyplws(6,igc)/(REAL(nst(2,igc),mps)+wght)
                 xyplws(1,igc)=0.5*(xyplws(7,igc)+xyplws(8,igc))
                 xyplws(3,igc)=0.5*(xyplws(8,igc)-xyplws(7,igc))
                 CALL stmadp(jflc(1,igc),xyplws(1,igc))
@@ -879,27 +889,28 @@ END SUBROUTINE gmpdef
 
 
 SUBROUTINE stmars                          ! init/reset  storage
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER:: i
-    INTEGER:: ifre
-    INTEGER:: ifrea
-    INTEGER:: ifreb
-    INTEGER:: ind
-    INTEGER:: j
-    INTEGER:: n
-    INTEGER:: ndim
-    REAL:: x
-    REAL:: y
-    PARAMETER (ndim=5000)   ! storage dimension, should be NUMGXY*NLIMIT
-    REAL:: tk(2,ndim)    ! pair storage for data pairs
-    INTEGER:: next(ndim)    ! pointer
-    INTEGER:: iflc1     ! first and last index of free pairs
-    INTEGER::iflc2     ! first and last index of free pairs
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ifre
+    INTEGER(mpi) :: ifrea
+    INTEGER(mpi) :: ifreb
+    INTEGER(mpi) :: ind
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: n
+    REAL(mps) :: x
+    REAL(mps) :: y
+    INTEGER(mpi), PARAMETER :: ndim=5000   ! storage dimension, should be NUMGXY*NLIMIT
+    REAL(mps) :: tk(2,ndim)    ! pair storage for data pairs
+    INTEGER(mpi) :: next(ndim)    ! pointer
+    INTEGER(mpi) :: iflc1     ! first and last index of free pairs
+    INTEGER(mpi) ::iflc2     ! first and last index of free pairs
     SAVE
 
-    REAL:: four(4) ! double_pair, copy array
-    REAL::array(2,*) ! double_pair, copy array
-    INTEGER:: jflc(5)         ! user array
+    REAL(mps) :: four(4) ! double_pair, copy array
+    REAL(mps) ::array(2,*) ! double_pair, copy array
+    INTEGER(mpi) :: jflc(5)         ! user array
     !     JFLC(1) = first used index
     !     JFLC(2) = last used index
     !     JFLC(3) = counter of used places
@@ -980,17 +991,19 @@ SUBROUTINE stmars                          ! init/reset  storage
 END SUBROUTINE stmars                          ! init/
 
 SUBROUTINE rmesig(x,n,xloc,xsca)           ! robust mean and sigma
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER:: i
+    INTEGER(mpi) :: i
     !     robust determination of location and scale parameter,
     !        for Gaussian data: location=mean and scale=standard deviation
     !     XLOC = median of X_i            (N values in array X(N))
     !     XCSA = median of | X_i - XLOC |, times 1.4826
 
-    REAL, INTENT(IN OUT)                     :: x(n) ! input array, modified
-    INTEGER, INTENT(IN)                      :: n
-    REAL, INTENT(OUT)                        :: xloc
-    REAL, INTENT(OUT)                        :: xsca
+    REAL(mps), INTENT(IN OUT)                     :: x(n) ! input array, modified
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mps), INTENT(OUT)                        :: xloc
+    REAL(mps), INTENT(OUT)                        :: xsca
     SAVE
     !     ...
     xloc=0.0

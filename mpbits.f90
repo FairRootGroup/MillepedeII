@@ -6,7 +6,7 @@
 !!
 !! In sparse storage mode for each row the list of column indices with non zero elements
 !! (and those elements) are stored. With compression this list is represented by the
-!! first column and their number for continous regions (encoded in single 32bit words).
+!! first column and their number for continous regions (encoded in single INTEGER(mpi) words).
 !! Rare elements may be stored in single precision.
 !!
 
@@ -15,14 +15,15 @@ MODULE mpbits
     USE mpdef
     IMPLICIT NONE
 
-    INTEGER(KIND=large) :: ndimb !< dimension for bit (field) array
-    INTEGER :: n      !< matrix size
-    INTEGER :: ibfw   !< bit field width
-    INTEGER :: mxcnt  !< max value for bit field counters
-    INTEGER :: nencdm !< max value for column counter
-    INTEGER :: nencdb !< number of bits for encoding column counter
-    INTEGER :: nthrd  !< number of threads
-    INTEGER, DIMENSION(:), ALLOCATABLE :: bitFieldCounters !< fit field counters for global parameters pairs
+    INTEGER(mpl) :: ndimb !< dimension for bit (field) array
+    INTEGER(mpi) :: n      !< matrix size
+    INTEGER(mpi) :: ibfw   !< bit field width
+    INTEGER(mpi) :: mxcnt  !< max value for bit field counters
+    INTEGER(mpi) :: nencdm !< max value for column counter
+    INTEGER(mpi) :: nencdb !< number of bits for encoding column counter
+    INTEGER(mpi) :: nthrd  !< number of threads
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: bitFieldCounters !< fit field counters for global parameters pairs
+    INTEGER(mpi), PARAMETER :: bs = BIT_SIZE(1_mpi)  !< number of bits in INTEGER(mpi)
 
 END MODULE mpbits
 
@@ -35,21 +36,21 @@ END MODULE mpbits
 SUBROUTINE inbits(im,jm,inc)        ! include element (I,J)
     USE mpbits
 
-    INTEGER, INTENT(IN) :: im
-    INTEGER, INTENT(IN) :: jm
-    INTEGER, INTENT(IN) :: inc
+    INTEGER(mpi), INTENT(IN) :: im
+    INTEGER(mpi), INTENT(IN) :: jm
+    INTEGER(mpi), INTENT(IN) :: inc
 
-    INTEGER(KIND=large) :: l
-    INTEGER(KIND=large) :: ll
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: noffj
-    INTEGER :: m
-    INTEGER :: mm
-    INTEGER :: icount
-    INTEGER :: ib
-    INTEGER :: jcount
-    INTEGER*8 :: noffi
+    INTEGER(mpl) :: l
+    INTEGER(mpl) :: ll
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: noffj
+    INTEGER(mpi) :: m
+    INTEGER(mpi) :: mm
+    INTEGER(mpi) :: icount
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: jcount
+    INTEGER(mpl) :: noffi
     LOGICAL :: btest
 
     IF(im == jm) RETURN  ! diagonal
@@ -57,11 +58,11 @@ SUBROUTINE inbits(im,jm,inc)        ! include element (I,J)
     i=MAX(im,jm)
     IF(j <= 0) RETURN    ! out low
     IF(i > n) RETURN    ! out high
-    noffi=int8(i-1)*int8(i-2)*int8(ibfw)/2 ! for J=1
+    noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(ibfw,mpl)/2 ! for J=1
     noffj=(j-1)*ibfw
-    l=noffi/32+i+noffj/32 ! row offset + column offset
+    l=noffi/bs+i+noffj/bs ! row offset + column offset
     !     add I instead of 1 to keep bit maps of different rows in different words (openMP !)
-    m=MOD(noffj,32)
+    m=MOD(noffj,bs)
     IF (ibfw <= 1) THEN
         bitFieldCounters(l)=ibset(bitFieldCounters(l),m)
     ELSE
@@ -72,9 +73,9 @@ SUBROUTINE inbits(im,jm,inc)        ! include element (I,J)
         DO ib=0,ibfw-1
             IF (btest(bitFieldCounters(ll),mm)) icount=ibset(icount,ib)
             mm=mm+1
-            IF (mm >= 32) THEN
+            IF (mm >= bs) THEN
                 ll=ll+1
-                mm=mm-32
+                mm=mm-bs
             END IF
         END DO
         !        increment
@@ -91,9 +92,9 @@ SUBROUTINE inbits(im,jm,inc)        ! include element (I,J)
                     bitFieldCounters(ll)=ibclr(bitFieldCounters(ll),mm)
                 END IF
                 mm=mm+1
-                IF (mm >= 32) THEN
+                IF (mm >= bs) THEN
                     ll=ll+1
-                    mm=mm-32
+                    mm=mm-bs
                 END IF
             END DO
         END IF
@@ -113,24 +114,24 @@ SUBROUTINE clbits(in,idimb,iencdb,jbfw)
     USE mpbits
     USE mpdalc
 
-    INTEGER, INTENT(IN) :: in
-    INTEGER(KIND=large), INTENT(OUT) :: idimb
-    INTEGER, INTENT(OUT) :: iencdb
-    INTEGER, INTENT(IN) :: jbfw
+    INTEGER(mpi), INTENT(IN) :: in
+    INTEGER(mpl), INTENT(OUT) :: idimb
+    INTEGER(mpi), INTENT(OUT) :: iencdb
+    INTEGER(mpi), INTENT(IN) :: jbfw
 
-    INTEGER*8 :: noffd
-    INTEGER :: i
-    INTEGER :: mb
-    INTEGER :: nbcol
-    !$    INTEGER :: OMP_GET_MAX_THREADS
+    INTEGER(mpl) :: noffd
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: mb
+    INTEGER(mpi) :: nbcol
+    !$    INTEGER(mpi) :: OMP_GET_MAX_THREADS
 
     n=in
     ibfw=jbfw
     mxcnt=2**ibfw-1
-    noffd=int8(n)*int8(n-1)*int8(ibfw)/2
-    ndimb=noffd/32+n
+    noffd=INT(n,mpl)*INT(n-1,mpl)*INT(ibfw,mpl)/2
+    ndimb=noffd/bs+n
     idimb=ndimb
-    mb=INT(4.0E-6*FLOAT(ndimb))
+    mb=INT(4.0E-6*REAL(ndimb,mps),mpi)
     WRITE(*,*) ' '
     WRITE(*,*) 'CLBITS: symmetric matrix of dimension',n
     WRITE(*,*) 'CLBITS: off-diagonal elements',noffd
@@ -142,11 +143,11 @@ SUBROUTINE clbits(in,idimb,iencdb,jbfw)
     CALL mpalloc(bitFieldCounters,ndimb,'INBITS: bit storage')
     bitFieldCounters=0
     !     encoding for compression
-    nbcol=16    ! 16 bits for column number, 16 bits for column counter
-    DO i=16,30
+    nbcol=bs/2    ! one half of the bits for column number, other for column counter
+    DO i=bs/2,bs-2
         IF (btest(n,i)) nbcol=i+1 ! more bits for column number
     END DO
-    nencdb=32-nbcol
+    nencdb=bs-nbcol
     iencdb=nencdb
     nencdm=ishft(1,nencdb)-1
     nthrd=1
@@ -167,48 +168,48 @@ END SUBROUTINE clbits
 SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
     USE mpbits
 
-    INTEGER(KIND=large), DIMENSION(4), INTENT(OUT) :: ndims
-    INTEGER, DIMENSION(:), INTENT(OUT) :: ncmprs
-    INTEGER(KIND=large), DIMENSION(:,:), INTENT(OUT) :: nsparr
-    INTEGER, INTENT(IN) :: mnpair
-    INTEGER, INTENT(IN) :: ihst
-    INTEGER, INTENT(IN) :: jcmprs
+    INTEGER(mpl), DIMENSION(4), INTENT(OUT) :: ndims
+    INTEGER(mpi), DIMENSION(:), INTENT(OUT) :: ncmprs
+    INTEGER(mpl), DIMENSION(:,:), INTENT(OUT) :: nsparr
+    INTEGER(mpi), INTENT(IN) :: mnpair
+    INTEGER(mpi), INTENT(IN) :: ihst
+    INTEGER(mpi), INTENT(IN) :: jcmprs
 
-    INTEGER :: nwcp(0:1)
-    INTEGER :: irgn(2)
-    INTEGER :: inr(2)
-    INTEGER :: ichunk
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: jb
-    INTEGER :: m
-    INTEGER :: last
-    INTEGER :: lrgn
-    INTEGER :: next
-    INTEGER :: icp
-    INTEGER :: kbfw
-    INTEGER :: mm
-    INTEGER :: jp
-    INTEGER :: icmprs
-    INTEGER :: nj
-    INTEGER :: ib
-    INTEGER :: ir
-    INTEGER :: icount
-    INTEGER :: iproc
-    INTEGER :: jbfw
-    INTEGER :: k
-    INTEGER :: mb
-    INTEGER :: n1
-    INTEGER(KIND=large) :: ll
-    INTEGER(KIND=large) :: lb
-    INTEGER(KIND=large) :: nin
-    INTEGER(KIND=large) :: ntot
-    INTEGER*8 :: noffi
-    REAL :: cpr
-    REAL :: fracu
-    REAL :: fracz
+    INTEGER(mpi) :: nwcp(0:1)
+    INTEGER(mpi) :: irgn(2)
+    INTEGER(mpi) :: inr(2)
+    INTEGER(mpi) :: ichunk
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jb
+    INTEGER(mpi) :: m
+    INTEGER(mpi) :: last
+    INTEGER(mpi) :: lrgn
+    INTEGER(mpi) :: next
+    INTEGER(mpi) :: icp
+    INTEGER(mpi) :: kbfw
+    INTEGER(mpi) :: mm
+    INTEGER(mpi) :: jp
+    INTEGER(mpi) :: icmprs
+    INTEGER(mpi) :: nj
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: ir
+    INTEGER(mpi) :: icount
+    INTEGER(mpi) :: iproc
+    INTEGER(mpi) :: jbfw
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: mb
+    INTEGER(mpi) :: n1
+    INTEGER(mpl) :: ll
+    INTEGER(mpl) :: lb
+    INTEGER(mpl) :: nin
+    INTEGER(mpl) :: ntot
+    INTEGER(mpl) :: noffi
+    REAL(mps) :: cpr
+    REAL(mps) :: fracu
+    REAL(mps) :: fracz
     LOGICAL :: btest
-    !$    INTEGER :: OMP_GET_THREAD_NUM
+    !$    INTEGER(mpi) :: OMP_GET_THREAD_NUM
     ndims(1)=ndimb
     ndims(2)=0
     ndims(3)=0
@@ -232,11 +233,11 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
         !$OMP  REDUCTION(+:NDIMS,NTOT) &
         !$OMP  SCHEDULE(DYNAMIC,ICHUNK)
         DO i=1,n
-            noffi=int8(i-1)*int8(i-2)*int8(ibfw)/2
-            ll=noffi/32+i
+            noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(ibfw,mpl)/2
+            ll=noffi/bs+i
             mm=0
-            noffi=int8(i-1)*int8(i-2)*int8(jbfw)/2
-            lb=noffi/32+i
+            noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(jbfw,mpl)/2
+            lb=noffi/bs+i
             mb=0
             inr(1)=0
             inr(2)=0
@@ -254,9 +255,9 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
                 DO ib=0,ibfw-1
                     IF (btest(bitFieldCounters(ll),mm)) icount=ibset(icount,ib)
                     mm=mm+1
-                    IF (mm >= 32) THEN
+                    IF (mm >= bs) THEN
                         ll=ll+1
-                        mm=mm-32
+                        mm=mm-bs
                     END IF
                 END DO
                 DO jb=0,kbfw-1
@@ -265,7 +266,7 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
 
                 IF (icount > 0) THEN
                     ntot=ntot+1
-                    IF (iproc == 0.AND.ihst > 0) CALL hmpent(ihst,FLOAT(icount))
+                    IF (iproc == 0.AND.ihst > 0) CALL hmpent(ihst,REAL(icount,mps))
                 END IF
                 !              keep pair ?
                 IF (icount >= mnpair) THEN
@@ -280,9 +281,9 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
                     lrgn=lrgn+1
                 END IF
                 mb=mb+kbfw
-                IF (mb >= 32) THEN
+                IF (mb >= bs) THEN
                     lb=lb+1
-                    mb=mb-32
+                    mb=mb-bs
                 END IF
                 last=next
             END DO
@@ -328,11 +329,11 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
 
         IF (jbfw /= kbfw) THEN ! move bit fields
             DO i=1,n
-                noffi=int8(i-1)*int8(i-2)*int8(jbfw)/2
-                ll=noffi/32+i
-                noffi=int8(i-1)*int8(i-2)*int8(kbfw)/2
-                lb=noffi/32+i
-                nj=((i-1)*kbfw)/32
+                noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(jbfw,mpl)/2
+                ll=noffi/bs+i
+                noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(kbfw,mpl)/2
+                lb=noffi/bs+i
+                nj=((i-1)*kbfw)/bs
                 DO k=0,nj
                     bitFieldCounters(lb+k)=bitFieldCounters(ll+k)
                 END DO
@@ -340,8 +341,8 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
         END IF
 
         ibfw=kbfw
-        noffi=int8(n)*int8(n-1)*int8(ibfw)/2
-        ndimb=noffi/32+n
+        noffi=INT(n,mpl)*INT(n-1,mpl)*INT(ibfw,mpl)/2
+        ndimb=noffi/bs+n
         ndims(1)=ndimb
 
     ELSE
@@ -351,11 +352,11 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
         nsparr(2,1)=n+1
         n1=1
         DO i=1,n
-            noffi=int8(i-1)*int8(i-2)/2
-            ll=noffi/32+i
-            nj=((i-1)*kbfw)/32
+            noffi=INT(i-1,mpl)*INT(i-2,mpl)/2
+            ll=noffi/bs+i
+            nj=((i-1)*kbfw)/bs
             DO k=0,nj
-                DO m=0,31
+                DO m=0,bs-1
                     IF(btest(bitFieldCounters(ll+k),m)) nin=nin+1
                 END DO
             END DO
@@ -370,15 +371,15 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
     END IF
 
     nin=ndims(3)+ndims(4)
-    fracz=200.0*FLOAT(ntot)/FLOAT(n)/FLOAT(n-1)
-    fracu=200.0*FLOAT(nin)/FLOAT(n)/FLOAT(n-1)
+    fracz=200.0*REAL(ntot,mps)/REAL(n,mps)/REAL(n-1,mps)
+    fracu=200.0*REAL(nin,mps)/REAL(n,mps)/REAL(n-1,mps)
     WRITE(*,*) ' '
     WRITE(*,*) 'NDBITS: number of diagonal elements',n
     WRITE(*,*) 'NDBITS: number of used off-diagonal elements',nin
     WRITE(*,1000) 'fraction of non-zero off-diagonal elements', fracz
     WRITE(*,1000) 'fraction of used off-diagonal elements', fracu
     IF (icmprs /= 0) THEN
-        cpr=100.0*FLOAT(ndims(2)+2*ndims(3)+ndims(4))/FLOAT(3*nin)
+        cpr=100.0*REAL(mpi*ndims(2)+mpd*ndims(3)+mps*ndims(4),mps)/REAL((mpd+mpi)*nin,mps)
         WRITE(*,1000) 'compression ratio for off-diagonal elements', cpr
     END IF
 1000 FORMAT(' NDBITS: ',a,f6.2,' %')
@@ -395,27 +396,27 @@ END SUBROUTINE ndbits
 SUBROUTINE ckbits(ndims,mnpair,jcmprs)
     USE mpbits
 
-    INTEGER(KIND=large), DIMENSION(4), INTENT(OUT) :: ndims
-    INTEGER, INTENT(IN) :: mnpair
-    INTEGER, INTENT(IN) :: jcmprs
+    INTEGER(mpl), DIMENSION(4), INTENT(OUT) :: ndims
+    INTEGER(mpi), INTENT(IN) :: mnpair
+    INTEGER(mpi), INTENT(IN) :: jcmprs
 
-    INTEGER :: nwcp(0:1)
-    INTEGER :: irgn(2)
-    INTEGER :: inr(2)
-    INTEGER(KIND=large) :: ll
-    INTEGER*8 :: noffi
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: last
-    INTEGER :: lrgn
-    INTEGER :: next
-    INTEGER :: icp
-    INTEGER :: ib
-    INTEGER :: icount
-    INTEGER :: icmprs
-    INTEGER :: kbfw
-    INTEGER :: jp
-    INTEGER :: mm
+    INTEGER(mpi) :: nwcp(0:1)
+    INTEGER(mpi) :: irgn(2)
+    INTEGER(mpi) :: inr(2)
+    INTEGER(mpl) :: ll
+    INTEGER(mpl) :: noffi
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: last
+    INTEGER(mpi) :: lrgn
+    INTEGER(mpi) :: next
+    INTEGER(mpi) :: icp
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: icount
+    INTEGER(mpi) :: icmprs
+    INTEGER(mpi) :: kbfw
+    INTEGER(mpi) :: jp
+    INTEGER(mpi) :: mm
     LOGICAL :: btest
 
     DO i=1,4
@@ -427,8 +428,8 @@ SUBROUTINE ckbits(ndims,mnpair,jcmprs)
     ll=0
 
     DO i=1,n
-        noffi=int8(i-1)*int8(i-2)*int8(ibfw)/2
-        ll=noffi/32+i
+        noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(ibfw,mpl)/2
+        ll=noffi/bs+i
         mm=0
         inr(1)=0
         inr(2)=0
@@ -442,9 +443,9 @@ SUBROUTINE ckbits(ndims,mnpair,jcmprs)
             DO ib=0,ibfw-1
                 IF (btest(bitFieldCounters(ll),mm)) icount=ibset(icount,ib)
                 mm=mm+1
-                IF (mm >= 32) THEN
+                IF (mm >= bs) THEN
                     ll=ll+1
-                    mm=mm-32
+                    mm=mm-bs
                 END IF
             END DO
 
@@ -495,29 +496,29 @@ SUBROUTINE spbits(nsparr,nsparc,ncmprs)               ! collect elements
     USE mpbits
     USE mpdalc
 
-    INTEGER(KIND=large), DIMENSION(:,:), INTENT(IN) :: nsparr
-    INTEGER, DIMENSION(:), INTENT(OUT) :: nsparc
-    INTEGER, DIMENSION(:), INTENT(IN) :: ncmprs
+    INTEGER(mpl), DIMENSION(:,:), INTENT(IN) :: nsparr
+    INTEGER(mpi), DIMENSION(:), INTENT(OUT) :: nsparc
+    INTEGER(mpi), DIMENSION(:), INTENT(IN) :: ncmprs
 
-    INTEGER(KIND=large) :: kl
-    INTEGER(KIND=large) :: l
-    INTEGER(KIND=large) :: ll
-    INTEGER(KIND=large) :: l1
-    INTEGER(KIND=large) :: k8
-    INTEGER(KIND=large) :: n1
-    INTEGER*8 :: noffi
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: j1
-    INTEGER :: jb
-    INTEGER :: jn
-    INTEGER :: m
-    INTEGER :: ichunk
-    INTEGER :: next
-    INTEGER :: last
-    INTEGER :: lrgn
-    INTEGER :: nrgn
-    INTEGER :: nrgn8
+    INTEGER(mpl) :: kl
+    INTEGER(mpl) :: l
+    INTEGER(mpl) :: ll
+    INTEGER(mpl) :: l1
+    INTEGER(mpl) :: k8
+    INTEGER(mpl) :: n1
+    INTEGER(mpl) :: noffi
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: j1
+    INTEGER(mpi) :: jb
+    INTEGER(mpi) :: jn
+    INTEGER(mpi) :: m
+    INTEGER(mpi) :: ichunk
+    INTEGER(mpi) :: next
+    INTEGER(mpi) :: last
+    INTEGER(mpi) :: lrgn
+    INTEGER(mpi) :: nrgn
+    INTEGER(mpi) :: nrgn8
     LOGICAL :: btest
 
     ichunk=MIN((n+nthrd-1)/nthrd/32+1,256)
@@ -530,8 +531,8 @@ SUBROUTINE spbits(nsparr,nsparc,ncmprs)               ! collect elements
         !$OMP  SCHEDULE(DYNAMIC,ICHUNK)
         DO i=1,n
             n1=i+jb*(n+1)
-            noffi=int8(i-1)*int8(i-2)*int8(ibfw)/2
-            l=noffi/32+i
+            noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(ibfw,mpl)/2
+            l=noffi/bs+i
             m=jb
             kl=nsparr(1,n1)-1  ! pointer to row in NSPARC
             l1=nsparr(2,n1)    ! pointer to row in sparse matrix
@@ -558,7 +559,7 @@ SUBROUTINE spbits(nsparr,nsparc,ncmprs)               ! collect elements
                             IF (last == 0.OR.jn >= nencdm) THEN
                                 IF (MOD(lrgn,8) == 0) THEN
                                     k8=k8+1
-                                    nsparc(k8)=INT(ll-l1)
+                                    nsparc(k8)=INT(ll-l1,mpi)
                                 END IF
                                 lrgn=lrgn+1
                                 kl=kl+1
@@ -572,8 +573,8 @@ SUBROUTINE spbits(nsparr,nsparc,ncmprs)               ! collect elements
                 END IF
                 last=next
                 m=m+ibfw
-                IF (m >= 32) THEN
-                    m=m-32
+                IF (m >= bs) THEN
+                    m=m-bs
                     l=l+1
                 END IF
 

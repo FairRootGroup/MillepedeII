@@ -14,34 +14,36 @@
 
 !> Parameters and data.
 MODULE mptest1
+    USE mpdef
+
     IMPLICIT NONE
     SAVE
 
-    INTEGER, PARAMETER :: nplan=100
+    INTEGER(mpi), PARAMETER :: nplan=100
 
     !     define detector geometry
-    REAL, PARAMETER :: detx= 10.0      !< x-value of first plane
-    REAL, PARAMETER :: disx= 10.0      !< distance between planes
-    REAL, PARAMETER :: thck=  2.0      !< thickness of plane
-    REAL, PARAMETER :: heit=100.0      !< height of detector plane
-    REAL, PARAMETER :: effp=0.90       !< plane efficiency
-    REAL, PARAMETER :: sgmp=0.0150     !< measurement sigma
+    REAL(mps), PARAMETER :: detx= 10.0      !< x-value of first plane
+    REAL(mps), PARAMETER :: disx= 10.0      !< distance between planes
+    REAL(mps), PARAMETER :: thck=  2.0      !< thickness of plane
+    REAL(mps), PARAMETER :: heit=100.0      !< height of detector plane
+    REAL(mps), PARAMETER :: effp=0.90       !< plane efficiency
+    REAL(mps), PARAMETER :: sgmp=0.0150     !< measurement sigma
 
     ! misalignment
-    REAL, DIMENSION(nplan) :: del      !< shift (position deviation) (alignment parameter)
-    REAL, DIMENSION(nplan) :: dvd      !< rel. drift velocity deviation (calibration parameter)
+    REAL(mps), DIMENSION(nplan) :: del      !< shift (position deviation) (alignment parameter)
+    REAL(mps), DIMENSION(nplan) :: dvd      !< rel. drift velocity deviation (calibration parameter)
     ! track parameter
-    REAL :: ynull                      !< track position at vertex
-    REAL :: slope                      !< track slope
+    REAL(mps) :: ynull                      !< track position at vertex
+    REAL(mps) :: slope                      !< track slope
 
-    INTEGER :: nhits                   !< number of hits
-    INTEGER, DIMENSION(nplan) :: ihits !< plane numbers (planes with hits)
-    REAL, DIMENSION(nplan) :: eff      !< plane efficiency
-    REAL, DIMENSION(nplan) :: sgm      !< measurement sigma (plane)
-    REAL, DIMENSION(nplan) :: ydrft    !< signed drift length
-    REAL, DIMENSION(nplan) :: xhits    !< position perp. to plane (hit)
-    REAL, DIMENSION(nplan) :: yhits    !< measured position in plane (hit)
-    REAL, DIMENSION(nplan) :: sigma    !< measurement sigma (hit)
+    INTEGER(mpi) :: nhits                   !< number of hits
+    INTEGER(mpi), DIMENSION(nplan) :: ihits !< plane numbers (planes with hits)
+    REAL(mps), DIMENSION(nplan) :: eff      !< plane efficiency
+    REAL(mps), DIMENSION(nplan) :: sgm      !< measurement sigma (plane)
+    REAL(mps), DIMENSION(nplan) :: ydrft    !< signed drift length
+    REAL(mps), DIMENSION(nplan) :: xhits    !< position perp. to plane (hit)
+    REAL(mps), DIMENSION(nplan) :: yhits    !< measured position in plane (hit)
+    REAL(mps), DIMENSION(nplan) :: sigma    !< measurement sigma (hit)
 
 END MODULE mptest1
 
@@ -58,38 +60,38 @@ SUBROUTINE mptest
     USE mptest1
 
     IMPLICIT NONE
-    REAL :: dbar
-    REAL :: det
-    REAL :: displ
-    REAL :: drift
-    REAL :: eps
-    REAL :: eta
-    REAL :: gran
-    REAL :: one
-    REAL :: ww
-    REAL :: x
-    REAL :: xbar
-    INTEGER :: i
-    INTEGER :: icount
-    INTEGER :: ios
-    INTEGER :: ip
-    INTEGER :: ipl
-    INTEGER :: labelt
-    INTEGER :: luns
-    INTEGER :: lunt
-    INTEGER :: ncount
-    INTEGER :: nrecds
-    INTEGER :: nthits
+    REAL(mps) :: dbar
+    REAL(mps) :: det
+    REAL(mps) :: displ
+    REAL(mps) :: drift
+    REAL(mps) :: eps
+    REAL(mps) :: eta
+    REAL(mps) :: gran
+    REAL(mps) :: one
+    REAL(mps) :: ww
+    REAL(mps) :: x
+    REAL(mps) :: xbar
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: icount
+    INTEGER(mpi) :: ios
+    INTEGER(mpi) :: ip
+    INTEGER(mpi) :: ipl
+    INTEGER(mpi) :: labelt
+    INTEGER(mpi) :: luns
+    INTEGER(mpi) :: lunt
+    INTEGER(mpi) :: ncount
+    INTEGER(mpi) :: nrecds
+    INTEGER(mpi) :: nthits
 
-    DOUBLE PRECISION :: s1
-    DOUBLE PRECISION :: s2
-    DOUBLE PRECISION :: sw
-    DOUBLE PRECISION :: sv
-    DOUBLE PRECISION :: sum1
-    DOUBLE PRECISION :: sum2
-    REAL :: derlc(2)
-    REAL :: dergl(2)
-    INTEGER :: label(2)
+    REAL(mpd) :: s1
+    REAL(mpd) :: s2
+    REAL(mpd) :: sw
+    REAL(mpd) :: sv
+    REAL(mpd) :: sum1
+    REAL(mpd) :: sum2
+    REAL(mps) :: derlc(2)
+    REAL(mps) :: dergl(2)
+    INTEGER(mpi) :: label(2)
     LOGICAL :: ex1
     LOGICAL :: ex2
     LOGICAL :: ex3
@@ -179,20 +181,20 @@ SUBROUTINE mptest
     IF(.NOT.ex2) WRITE(lunt,*) 'Constraint  0.0'
     DO i=1,nplan
         labelt=10+i*2
-        x=detx+FLOAT(i-1)*disx+0.5*thck
+        x=detx+REAL(i-1,mps)*disx+0.5*thck
         IF(.NOT.ex2) WRITE(lunt,103) labelt,one
     END DO
 
-    sw=0.0D0                         ! tilt constraint
-    sv=0.0D0
-    s1=0.0D0
-    s2=0.0D0
+    sw=0.0_mpd                         ! tilt constraint
+    sv=0.0_mpd
+    s1=0.0_mpd
+    s2=0.0_mpd
     IF(.NOT.ex2) WRITE(lunt,*) 'Constraint 0.0'   ! write
-    dbar=0.5*FLOAT(nplan-1)*disx
-    xbar=detx+0.5*FLOAT(nplan-1)*disx! +0.5*THCK
+    dbar=0.5*REAL(nplan-1,mps)*disx
+    xbar=detx+0.5*REAL(nplan-1,mps)*disx! +0.5*THCK
     DO i=1,nplan
         labelt=10+i*2
-        x=detx+FLOAT(i-1)*disx          !+0.5*THCK
+        x=detx+REAL(i-1,mps)*disx          !+0.5*THCK
         ww=(x-xbar)/dbar
         IF(.NOT.ex2) WRITE(lunt,103) labelt,ww          ! write
         s1=s1+del(i)
@@ -202,11 +204,11 @@ SUBROUTINE mptest
     END DO
 
 
-    det=REAL(FLOAT(nplan)*sv-sw*sw)
-    eps=REAL(sv*s1-sw*s2)/det
-    eta=REAL(FLOAT(nplan)*s2-sw*s1)/det
+    det=REAL(REAL(nplan,mpd)*sv-sw*sw,mps)
+    eps=REAL(sv*s1-sw*s2,mps)/det
+    eta=REAL(REAL(nplan,mpd)*s2-sw*s1,mps)/det
     DO i=1,nplan
-        x=detx+FLOAT(i-1)*disx
+        x=detx+REAL(i-1,mps)*disx
         ww=(x-xbar)/dbar
         del(i)=del(i)-eps-eta*ww        ! correct displacement ...
     END DO                           ! ... for constraints
@@ -215,7 +217,7 @@ SUBROUTINE mptest
     sum2=0.0
     DO i=1,nplan
         sum1=sum1+del(i)
-        x=detx+FLOAT(i-1)*disx          !+0.5*THCK
+        x=detx+REAL(i-1,mps)*disx          !+0.5*THCK
         ww=(x-xbar)/dbar
         sum2=sum2+del(i)*ww
     END DO
@@ -285,34 +287,34 @@ SUBROUTINE genlin(ip)
     USE mptest1
 
     IMPLICIT NONE
-    REAL :: gr
-    REAL :: gran
-    REAL :: uran
-    REAL :: x
-    REAL :: ybias
-    REAL :: ydvds
-    REAL :: ylin
-    REAL :: ymeas
-    REAL :: ywire
-    INTEGER :: i
-    INTEGER :: nwire
+    REAL(mps) :: gr
+    REAL(mps) :: gran
+    REAL(mps) :: uran
+    REAL(mps) :: x
+    REAL(mps) :: ybias
+    REAL(mps) :: ydvds
+    REAL(mps) :: ylin
+    REAL(mps) :: ymeas
+    REAL(mps) :: ywire
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: nwire
 
-    INTEGER, INTENT(IN)                      :: ip
+    INTEGER(mpi), INTENT(IN)                      :: ip
 
     !     ...
     ynull=0.5*heit+0.1*heit*(uran()-0.5)   ! uniform vertex
-    slope=(uran()-0.5)*heit/(FLOAT(nplan-1)*disx)
+    slope=(uran()-0.5)*heit/(REAL(nplan-1,mps)*disx)
     IF(ip /= 0) THEN
         WRITE(*,*) ' '
     !         WRITE(*,*) 'YNULL=',YNULL,'    SLOPE=',SLOPE
     END IF
     nhits=0
     DO i=1,nplan
-        x=detx+FLOAT(i-1)*disx  !  +0.5*THCK
+        x=detx+REAL(i-1,mps)*disx  !  +0.5*THCK
         IF(uran() < eff(i)) THEN
             ylin        =ynull+slope*x             ! true y value
             ybias       =ylin-del(i)               ! biased value
-            nwire=INT(1.0+ybias/4.0)               ! wire number
+            nwire=INT(1.0+ybias/4.0,mpi)               ! wire number
             IF(nwire <= 0.OR.nwire > 25) EXIT      ! check wire number
             nhits=nhits+1                          ! track hits the plane
             xhits(nhits)=x
@@ -321,7 +323,7 @@ SUBROUTINE genlin(ip)
             ymeas=sgm(i)*gr
             ydvds=0.0
             yhits(nhits)=ybias+ymeas+ydvds     ! measured
-            ywire=FLOAT(nwire)*4.0-2.0
+            ywire=REAL(nwire,mps)*4.0-2.0
             ydrft(nhits)=ybias-ywire           ! signed drift length
             ydvds=ydrft(nhits)*dvd(i)
             yhits(nhits)=ybias+ymeas-ydvds     ! measured

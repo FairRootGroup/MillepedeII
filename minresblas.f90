@@ -33,12 +33,13 @@
 !! \param[in]  incy  increment for dy
 
 SUBROUTINE daxpy(n,da,dx,incx,dy,incy)
+    USE mpdef
 
-    DOUBLE PRECISION :: dx(*),dy(*),da
-    INTEGER :: i,incx,incy,ix,iy,m,mp1,n
+    REAL(mpd) :: dx(*),dy(*),da
+    INTEGER(mpi) :: i,incx,incy,ix,iy,m,mp1,n
 
     IF(n <= 0)RETURN
-    IF (da == 0.0D0) RETURN
+    IF (da == 0.0_mpd) RETURN
     IF(incx == 1.AND.incy == 1)GO TO 20
 
     !        code for unequal increments or equal increments
@@ -90,9 +91,10 @@ END SUBROUTINE daxpy
 !! \param[in]  incy  increment for dy
 
 SUBROUTINE  dcopy(n,dx,incx,dy,incy)
+    USE mpdef
 
-    DOUBLE PRECISION :: dx(*),dy(*)
-    INTEGER :: i,incx,incy,ix,iy,m,mp1,n
+    REAL(mpd) :: dx(*),dy(*)
+    INTEGER(mpi) :: i,incx,incy,ix,iy,m,mp1,n
 
     IF(n <= 0)RETURN
     IF(incx == 1.AND.incy == 1)GO TO 20
@@ -149,13 +151,14 @@ END SUBROUTINE dcopy
 !! \param[in]  incy  increment for dy
 !! \return           dot porduct dx*dy
 
-DOUBLE PRECISION FUNCTION ddot(n,dx,incx,dy,incy)
+REAL(mpd) FUNCTION ddot(n,dx,incx,dy,incy)
+    USE mpdef
 
-    DOUBLE PRECISION :: dx(*),dy(*),dtemp
-    INTEGER :: i,incx,incy,ix,iy,m,mp1,n
+    REAL(mpd) :: dx(*),dy(*),dtemp
+    INTEGER(mpi) :: i,incx,incy,ix,iy,m,mp1,n
 
-    ddot = 0.0D0
-    dtemp = 0.0D0
+    ddot = 0.0_mpd
+    dtemp = 0.0_mpd
     IF(n <= 0)RETURN
     IF(incx == 1.AND.incy == 1)GO TO 20
 
@@ -209,19 +212,20 @@ END FUNCTION ddot
 !! \param[in]  incx  increment for x
 !! \return           vector norm
 
-DOUBLE PRECISION   FUNCTION dnrm2 ( n, x, incx )
+REAL(mpd)   FUNCTION dnrm2 ( n, x, incx )
+    USE mpdef
 
-    IMPLICIT           DOUBLE PRECISION (A-H,O-Z)
-    INTEGER :: incx, n
-    DOUBLE PRECISION :: x(*)
+    IMPLICIT           REAL(mpd) (A-H,O-Z)
+    INTEGER(mpi) :: incx, n
+    REAL(mpd) :: x(*)
 
-    !!!   double precision   s1flmx
-    PARAMETER         (one = 1.0D+0, zero = 0.0D+0 )
-    DOUBLE PRECISION :: norm
+    !!!   REAL(mpd)   s1flmx
+    PARAMETER         (one = 1.0_mpd, zero = 0.0_mpd )
+    REAL(mpd) :: norm
     INTRINSIC          ABS
     !     ------------------------------------------------------------------
     !     flmax = s1flmx( )
-    flmax = 1.0D+50
+    flmax = 1.0E+50_mpd
 
     IF (     n < 1) THEN
         norm  = zero
@@ -272,11 +276,12 @@ END FUNCTION dnrm2
 !! \param[out] z    output vector
 
 SUBROUTINE daxpy2( n, a, x, y, z )
+    USE mpdef
 
     IMPLICIT           NONE
-    INTEGER :: n
-    DOUBLE PRECISION :: a, x(n), y(n), z(n)
-    INTEGER :: i
+    INTEGER(mpi) :: n
+    REAL(mpd) :: a, x(n), y(n), z(n)
+    INTEGER(mpi) :: i
 
     DO i = 1, n
         z(i) = a*x(i) + y(i)
@@ -295,16 +300,17 @@ END SUBROUTINE daxpy2
 !! \param[out] x      output vector
 
 SUBROUTINE dload2( n, const, x )
+    USE mpdef
 
     IMPLICIT           NONE
-    INTEGER :: n
-    DOUBLE PRECISION :: const, x(n)
+    INTEGER(mpi) :: n
+    REAL(mpd) :: const, x(n)
 
     !     ------------------------------------------------------------------
     !     dload2
     !     ------------------------------------------------------------------
 
-    INTEGER :: i
+    INTEGER(mpi) :: i
 
     DO i = 1, n
         x(i) = const
@@ -322,12 +328,13 @@ END SUBROUTINE dload2
 !! \param[out] y    output vector
 
 SUBROUTINE dscal2( n, a, x, y )
+    USE mpdef
 
     IMPLICIT           NONE
-    INTEGER :: n
-    DOUBLE PRECISION :: a, x(n), y(n)
+    INTEGER(mpi) :: n
+    REAL(mpd) :: a, x(n), y(n)
 
-    INTEGER :: i
+    INTEGER(mpi) :: i
 
     DO i = 1, n
         y(i) = a*x(i)

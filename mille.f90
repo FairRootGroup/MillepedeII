@@ -63,25 +63,27 @@
 !! \param [in] SIGMA  error of measurement
 
 SUBROUTINE MILLE(nlc,derlc,ngl,dergl,label,rmeas,sigma) ! add data
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: icount
-    INTEGER :: isp
-    INTEGER :: nr
-    INTEGER :: nsp
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: icount
+    INTEGER(mpi) :: isp
+    INTEGER(mpi) :: nr
+    INTEGER(mpi) :: nsp
     !     -----------------------------------------------------------------
 
-    INTEGER, INTENT(IN)                      :: nlc
-    REAL, INTENT(IN)                         :: derlc(nlc)
-    INTEGER, INTENT(IN)                      :: ngl
-    REAL, INTENT(IN)                         :: dergl(ngl)
-    INTEGER, INTENT(IN)                      :: label(ngl)
-    REAL, INTENT(IN)                         :: rmeas
-    REAL, INTENT(IN)                         :: sigma
-    INTEGER, PARAMETER :: lun=51
-    INTEGER, PARAMETER :: ndim=10000
-    REAL :: glder(ndim)      ! real data record array
-    INTEGER :: inder(ndim)   ! integer data record array
+    INTEGER(mpi), INTENT(IN)                      :: nlc
+    REAL(mps), INTENT(IN)                         :: derlc(nlc)
+    INTEGER(mpi), INTENT(IN)                      :: ngl
+    REAL(mps), INTENT(IN)                         :: dergl(ngl)
+    INTEGER(mpi), INTENT(IN)                      :: label(ngl)
+    REAL(mps), INTENT(IN)                         :: rmeas
+    REAL(mps), INTENT(IN)                         :: sigma
+    INTEGER(mpi), PARAMETER :: lun=51
+    INTEGER(mpi), PARAMETER :: ndim=10000
+    REAL(mps) :: glder(ndim)      ! real data record array
+    INTEGER(mpi) :: inder(ndim)   ! integer data record array
     !     -----------------------------------------------------------------
 
     SAVE
@@ -151,7 +153,7 @@ SUBROUTINE MILLE(nlc,derlc,ngl,dergl,label,rmeas,sigma) ! add data
     glder(nr)=0.0
     inder(nr)=0
     nr=nr+1                   ! nsp and zero
-    glder(nr)=-FLOAT(nsp)
+    glder(nr)=-REAL(nsp,mps)
     inder(nr)=0
     DO i=1,nsp
         nr=nr+1

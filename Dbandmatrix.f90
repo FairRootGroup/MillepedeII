@@ -224,33 +224,35 @@
 !! \param [in]     AUX  scratch array
 
 SUBROUTINE dchdec(w,n, aux)
+    USE mpdef
+
     implicit none
-    integer :: i
-    integer :: ii
-    integer :: j
-    integer :: jj
-    integer :: k
-    integer :: kk
-    integer :: l
-    integer :: m
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ii
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jj
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kk
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: m
 
 
-    DOUBLE PRECISION, INTENT(IN OUT)         :: w(*)
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(OUT)            :: aux(n)
+    REAL(mpd), INTENT(IN OUT)         :: w(*)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(OUT)            :: aux(n)
 
-    DOUBLE PRECISION :: b(*),x(*),v(*),suma,ratio
+    REAL(mpd) :: b(*),x(*),v(*),suma,ratio
     !     ...
     DO i=1,n
-        aux(i)=16.0D0*w((i*i+i)/2) ! save diagonal elements
+        aux(i)=16.0_mpd*w((i*i+i)/2) ! save diagonal elements
     END DO
     ii=0
     DO i=1,n
         ii=ii+i
         IF(w(ii)+aux(i) /= aux(i)) THEN     ! GT
-            w(ii)=1.0D0/w(ii)                ! (I,I) div !
+            w(ii)=1.0_mpd/w(ii)                ! (I,I) div !
         ELSE
-            w(ii)=0.0D0
+            w(ii)=0.0_mpd
         END IF
         jj=ii
         DO j=i+1,n
@@ -308,7 +310,7 @@ SUBROUTINE dchdec(w,n, aux)
                 suma=suma-w(j+(k*k-k)/2)*v(l+(m*m-m)/2) ! (J,K) (I,K)
             END DO
             v(ii+j)=suma                      ! (I,J)
-            suma=0.0D0
+            suma=0.0_mpd
         END DO
         ii=ii-i+1
     END DO
@@ -321,23 +323,25 @@ END SUBROUTINE dchdec
 !! \param [in] AUX  scratch array
 !! \return condition
 
-REAL FUNCTION condes(w,n,aux)
+REAL(mps) FUNCTION condes(w,n,aux)
+    USE mpdef
+
     implicit none
-    real :: cond
-    integer :: i
-    integer :: ir
-    integer :: is
-    integer :: k
-    integer :: kk
-    real :: xla1
-    real :: xlan
+    REAL(mps) :: cond
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ir
+    INTEGER(mpi) :: is
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: kk
+    REAL(mps) :: xla1
+    REAL(mps) :: xlan
 
 
-    DOUBLE PRECISION, INTENT(IN)             :: w(*)
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(IN OUT)         :: aux(n)
+    REAL(mpd), INTENT(IN)             :: w(*)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(IN OUT)         :: aux(n)
 
-    DOUBLE PRECISION :: suma,sumu,sums
+    REAL(mpd) :: suma,sumu,sums
 
     ir=1
     is=1
@@ -350,7 +354,7 @@ REAL FUNCTION condes(w,n,aux)
     sums=0.0
     DO i=n,1,-1  ! backward
         suma=0.0
-        IF(i == ir) suma=1.0D0
+        IF(i == ir) suma=1.0_mpd
         kk=(i*i+i)/2
         DO k=i+1,n
             suma=suma-w(kk+i)*aux(k)             ! (K,I)
@@ -359,18 +363,18 @@ REAL FUNCTION condes(w,n,aux)
         aux(i)=suma
         sumu=sumu+aux(i)*aux(i)
     END DO
-    xlan=SNGL(w((ir*ir+ir)/2)*DSQRT(sumu))
+    xlan=REAL(w((ir*ir+ir)/2)*SQRT(sumu),mps)
     IF(xlan /= 0.0) xlan=1.0/xlan
 
     DO i=1,n
         IF(i == is) THEN
-            sums=1.0D0
+            sums=1.0_mpd
         ELSE IF(i > is) THEN
             sums=sums+w(is+(i*i-i)/2)**2
         END IF
     END DO       ! is Ws
     xla1=0.0
-    IF(w((is*is+is)/2) /= 0.0) xla1=SNGL(DSQRT(sums)/w((is*is+is)/2))
+    IF(w((is*is+is)/2) /= 0.0) xla1=REAL(SQRT(sums)/w((is*is+is)/2),mps)
 
     cond=0.0
     IF(xla1 > 0.0.AND.xlan > 0.0) cond=xla1/xlan
@@ -394,27 +398,29 @@ END FUNCTION condes
 !! \param [in]     AUX  scratch array
 
 SUBROUTINE dbcdec(w,mp1,n, aux)  ! decomposition, bandwidth M
+    USE mpdef
+
     implicit none
-    integer :: i
-    integer :: j
-    integer :: k
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
     !     M=MP1-1                                    N*M(M-1) dot operations
 
-    DOUBLE PRECISION, INTENT(IN OUT)         :: w(mp1,n)
-    INTEGER, INTENT(IN)                      :: mp1
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(OUT)            :: aux(n)
+    REAL(mpd), INTENT(IN OUT)         :: w(mp1,n)
+    INTEGER(mpi), INTENT(IN)                      :: mp1
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(OUT)            :: aux(n)
     ! decompos
-    DOUBLE PRECISION :: v(mp1,n),b(n),x(n), vs(*),rxw
+    REAL(mpd) :: v(mp1,n),b(n),x(n), vs(*),rxw
     !     ...
     DO i=1,n
-        aux(i)=16.0D0*w(1,i) ! save diagonal elements
+        aux(i)=16.0_mpd*w(1,i) ! save diagonal elements
     END DO
     DO i=1,n
         IF(w(1,i)+aux(i) /= aux(i)) THEN
             w(1,i)=1.0/w(1,i)
         ELSE
-            w(1,i)=0.0D0  ! singular
+            w(1,i)=0.0_mpd  ! singular
         END IF
         DO j=1,MIN(mp1-1,n-i)
             rxw=w(j+1,i)*w(1,i)
@@ -499,32 +505,34 @@ END SUBROUTINE dbcdec
 !! \param [in] B    vector
 
 SUBROUTINE dbcprv(w,mp1,n,b)
+    USE mpdef
+
     implicit none
-    integer :: i
-    integer :: j
-    integer :: nj
-    real :: rho
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: nj
+    REAL(mps) :: rho
 
 
-    DOUBLE PRECISION, INTENT(IN OUT)         :: w(mp1,n)
-    INTEGER, INTENT(IN)                      :: mp1
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(OUT)            :: b(n)
+    REAL(mpd), INTENT(IN OUT)         :: w(mp1,n)
+    INTEGER(mpi), INTENT(IN)                      :: mp1
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(OUT)            :: b(n)
 
-    DOUBLE PRECISION :: ERR
-    INTEGER :: irho(5)
+    REAL(mpd) :: ERR
+    INTEGER(mpi) :: irho(5)
     !     ...
     WRITE(*,*) ' '
     WRITE(*,101)
 
     DO i=1,n
-        ERR=DSQRT(w(1,i))
+        ERR=SQRT(w(1,i))
         nj=0
         DO j=2,mp1
             IF(i+1-j > 0.AND.nj < 5) THEN
                 nj=nj+1
-                rho=SNGL(w(j,i+1-j)/(ERR*DSQRT(w(1,i+1-j))))
-                irho(nj)=IFIX(100.0*ABS(rho)+0.5)
+                rho=REAL(w(j,i+1-j)/(ERR*SQRT(w(1,i+1-j))),mps)
+                irho(nj)=NINT(100.0*ABS(rho),mpi)
                 IF(rho < 0.0) irho(nj)=-irho(nj)
             END IF
         END DO
@@ -543,14 +551,16 @@ END SUBROUTINE dbcprv
 !! \param [in] N    size
 
 SUBROUTINE dbcprb(w,mp1,n)
+    USE mpdef
+
     implicit none
-    integer :: i
-    integer :: j
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
 
 
-    DOUBLE PRECISION, INTENT(IN OUT)         :: w(mp1,n)
-    INTEGER, INTENT(IN)                      :: mp1
-    INTEGER, INTENT(IN)                      :: n
+    REAL(mpd), INTENT(IN OUT)         :: w(mp1,n)
+    INTEGER(mpi), INTENT(IN)                      :: mp1
+    INTEGER(mpi), INTENT(IN)                      :: n
 
 
     !     ...
@@ -591,34 +601,36 @@ END SUBROUTINE dbcprb
 !! \param [in]     AUX  scratch array
 
 SUBROUTINE db2dec(w,n, aux)
+    USE mpdef
+
     implicit none
-    integer :: i
+    INTEGER(mpi) :: i
 
 
-    DOUBLE PRECISION, INTENT(IN OUT)         :: w(2,n)
-    INTEGER, INTENT(IN OUT)                  :: n
-    DOUBLE PRECISION, INTENT(OUT)            :: aux(n)
+    REAL(mpd), INTENT(IN OUT)         :: w(2,n)
+    INTEGER(mpi), INTENT(IN OUT)                  :: n
+    REAL(mpd), INTENT(OUT)            :: aux(n)
 
-    DOUBLE PRECISION :: v(2,n),b(n),x(n), rxw
+    REAL(mpd) :: v(2,n),b(n),x(n), rxw
 
     DO i=1,n
-        aux(i)=16.0D0*w(1,i) ! save diagonal elements
+        aux(i)=16.0_mpd*w(1,i) ! save diagonal elements
     END DO
     DO i=1,n-1
         IF(w(1,i)+aux(i) /= aux(i)) THEN
-            w(1,i)=1.0D0/w(1,i)
+            w(1,i)=1.0_mpd/w(1,i)
             rxw=w(2,i)*w(1,i)
             w(1,i+1)=w(1,i+1)-w(2,i)*rxw
             w(2,i)=rxw
         ELSE ! singular
-            w(1,i)=0.0D0
-            w(2,i)=0.0D0
+            w(1,i)=0.0_mpd
+            w(2,i)=0.0_mpd
         END IF
     END DO
     IF(w(1,n)+aux(n) > aux(n)) THEN           ! N
-        w(1,n)=1.0D0/w(1,n)
+        w(1,n)=1.0_mpd/w(1,n)
     ELSE ! singular
-        w(1,n)=0.0D0
+        w(1,n)=0.0_mpd
     END IF
     RETURN
 
@@ -677,23 +689,25 @@ END SUBROUTINE db2dec
 !! \param [in]     AUX  scratch array
 
 SUBROUTINE db3dec(w,n, aux)      ! decomposition (M=2)
+    USE mpdef
+
     implicit none
-    integer :: i
+    INTEGER(mpi) :: i
 
 
-    DOUBLE PRECISION, INTENT(IN OUT)         :: w(3,n)
-    INTEGER, INTENT(IN OUT)                  :: n
-    DOUBLE PRECISION, INTENT(OUT)            :: aux(n)
+    REAL(mpd), INTENT(IN OUT)         :: w(3,n)
+    INTEGER(mpi), INTENT(IN OUT)                  :: n
+    REAL(mpd), INTENT(OUT)            :: aux(n)
     ! decompos
 
-    DOUBLE PRECISION :: v(3,n),b(n),x(n), rxw
+    REAL(mpd) :: v(3,n),b(n),x(n), rxw
 
     DO i=1,n
-        aux(i)=16.0D0*w(1,i) ! save diagonal elements
+        aux(i)=16.0_mpd*w(1,i) ! save diagonal elements
     END DO
     DO i=1,n-2
         IF(w(1,i)+aux(i) /= aux(i)) THEN
-            w(1,i)=1.0D0/w(1,i)
+            w(1,i)=1.0_mpd/w(1,i)
             rxw=w(2,i)*w(1,i)
             w(1,i+1)=w(1,i+1)-w(2,i)*rxw
             w(2,i+1)=w(2,i+1)-w(3,i)*rxw
@@ -702,24 +716,24 @@ SUBROUTINE db3dec(w,n, aux)      ! decomposition (M=2)
             w(1,i+2)=w(1,i+2)-w(3,i)*rxw
             w(3,i)=rxw
         ELSE ! singular
-            w(1,i)=0.0D0
-            w(2,i)=0.0D0
-            w(3,i)=0.0D0
+            w(1,i)=0.0_mpd
+            w(2,i)=0.0_mpd
+            w(3,i)=0.0_mpd
         END IF
     END DO
     IF(w(1,n-1)+aux(n-1) > aux(n-1)) THEN
-        w(1,n-1)=1.0D0/w(1,n-1)
+        w(1,n-1)=1.0_mpd/w(1,n-1)
         rxw=w(2,n-1)*w(1,n-1)
         w(1,n)=w(1,n)-w(2,n-1)*rxw
         w(2,n-1)=rxw
     ELSE ! singular
-        w(1,n-1)=0.0D0
-        w(2,n-1)=0.0D0
+        w(1,n-1)=0.0_mpd
+        w(2,n-1)=0.0_mpd
     END IF
     IF(w(1,n)+aux(n) > aux(n)) THEN
-        w(1,n)=1.0D0/w(1,n)
+        w(1,n)=1.0_mpd/w(1,n)
     ELSE ! singular
-        w(1,n)=0.0D0
+        w(1,n)=0.0_mpd
     END IF
     RETURN
 
@@ -817,24 +831,25 @@ END SUBROUTINE db3dec
 !! \param [in]     N    size
 
 SUBROUTINE dcfdec(w,n)
+    USE mpdef
 
     IMPLICIT NONE
-    DOUBLE PRECISION, INTENT(OUT)            :: w(*)
-    INTEGER, INTENT(IN)                      :: n
-    INTEGER :: i,j,k
-    DOUBLE PRECISION :: epsm,gamm,xchi,beta,delta,theta
+    REAL(mpd), INTENT(OUT)            :: w(*)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi) :: i,j,k
+    REAL(mpd) :: epsm,gamm,xchi,beta,delta,theta
 
-    epsm=2.2D-16 ! machine precision
-    gamm=0.0D0   ! max diagonal element
-    xchi=0.0D0   ! max off-diagonal element
+    epsm=EPSILON(epsm) ! machine precision
+    gamm=0.0_mpd   ! max diagonal element
+    xchi=0.0_mpd   ! max off-diagonal element
     DO k=1,n
         gamm=MAX(gamm,ABS(w((k*k+k)/2)))
         DO j=k+1,n
             xchi=MAX(xchi,ABS(w((j*j-j)/2+k)))
         END DO
     END DO
-    beta=SQRT(MAX(gamm,xchi/MAX(1.0D0,SQRT(dfloat(n*n-1))),epsm))
-    delta=epsm*MAX(1.0D0,gamm+xchi)
+    beta=SQRT(MAX(gamm,xchi/MAX(1.0_mpd,SQRT(REAL(n*n-1,mpd))),epsm))
+    delta=epsm*MAX(1.0_mpd,gamm+xchi)
 
     DO k=1,n
         DO i=1,k-1
@@ -845,11 +860,11 @@ SUBROUTINE dcfdec(w,n)
                 w((j*j-j)/2+k)=w((j*j-j)/2+k)-w((k*k-k)/2+i)*w((j*j-j)/2+i)
             END DO
         END DO
-        theta=0.0D0
+        theta=0.0_mpd
         DO j=k+1,n
             theta=MAX(theta,ABS(w((j*j-j)/2+k)))
         END DO
-        w((k*k+k)/2)=1.0D0/MAX(ABS(w((k*k+k)/2)),(theta/beta)**2,delta)
+        w((k*k+k)/2)=1.0_mpd/MAX(ABS(w((k*k+k)/2)),(theta/beta)**2,delta)
         DO j=k+1,n
             w((j*j+j)/2)=w((j*j+j)/2)-w((j*j-j)/2+k)**2*w((k*k+k)/2)
         END DO
@@ -868,25 +883,26 @@ END SUBROUTINE dcfdec
 !! \param [in]     N    size
 
 SUBROUTINE dbfdec(w,mp1,n)
+    USE mpdef
 
     IMPLICIT NONE
-    DOUBLE PRECISION, INTENT(OUT)            :: w(mp1,n)
-    INTEGER, INTENT(IN OUT)                  :: mp1
-    INTEGER, INTENT(IN)                      :: n
-    INTEGER :: i,j,k
-    DOUBLE PRECISION :: epsm,gamm,xchi,beta,delta,theta
+    REAL(mpd), INTENT(OUT)            :: w(mp1,n)
+    INTEGER(mpi), INTENT(IN OUT)                  :: mp1
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi) :: i,j,k
+    REAL(mpd) :: epsm,gamm,xchi,beta,delta,theta
 
-    epsm=2.2D-16 ! machine precision
-    gamm=0.0D0   ! max diagonal element
-    xchi=0.0D0   ! max off-diagonal element
+    epsm=EPSILON(epsm) ! machine precision
+    gamm=0.0_mpd   ! max diagonal element
+    xchi=0.0_mpd   ! max off-diagonal element
     DO k=1,n
         gamm=MAX(gamm,ABS(w(1,k)))
         DO j=2,MIN(mp1,n-k+1)
             xchi=MAX(xchi,ABS(w(j,k)))
         END DO
     END DO
-    beta=SQRT(MAX(gamm,xchi/MAX(1.0D0,SQRT(dfloat(n*n-1))),epsm))
-    delta=epsm*MAX(1.0D0,gamm+xchi)
+    beta=SQRT(MAX(gamm,xchi/MAX(1.0_mpd,SQRT(REAL(n*n-1,mpd))),epsm))
+    delta=epsm*MAX(1.0_mpd,gamm+xchi)
 
     DO k=1,n
         DO i=2,MIN(mp1,k)
@@ -897,11 +913,11 @@ SUBROUTINE dbfdec(w,mp1,n)
                 w(j,k)=w(j,k)-w(k-i+2,i-1)*w(j-i+k+1,i-1)
             END DO
         END DO
-        theta=0.0D0
+        theta=0.0_mpd
         DO j=2,MIN(mp1,n-k+1)
             theta=MAX(theta,ABS(w(j,k)))
         END DO
-        w(1,k)=1.0D0/MAX(ABS(w(1,k)),(theta/beta)**2,delta)
+        w(1,k)=1.0_mpd/MAX(ABS(w(1,k)),(theta/beta)**2,delta)
         DO j=2,MIN(mp1,n-k+1)
             w(1,k+j-1)=w(1,k+j-1)-w(1,k)*w(j,k)**2
         END DO

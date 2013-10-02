@@ -37,35 +37,37 @@
 
 !> Parameters and data.
 MODULE mptest2
+    USE mpdef
+
     IMPLICIT NONE
     SAVE
 
-    INTEGER, PARAMETER :: nlyr=10            !< number of detector layers
-    INTEGER, PARAMETER :: nmlyr=14           !< number of measurement layers
-    INTEGER, PARAMETER :: nmx=10             !< number of modules in x direction
-    INTEGER, PARAMETER :: nmy=5              !< number of modules in y direction
-    INTEGER, PARAMETER :: ntot=nlyr*nmx*nmy  !< total number of modules
+    INTEGER(mpi), PARAMETER :: nlyr=10            !< number of detector layers
+    INTEGER(mpi), PARAMETER :: nmlyr=14           !< number of measurement layers
+    INTEGER(mpi), PARAMETER :: nmx=10             !< number of modules in x direction
+    INTEGER(mpi), PARAMETER :: nmy=5              !< number of modules in y direction
+    INTEGER(mpi), PARAMETER :: ntot=nlyr*nmx*nmy  !< total number of modules
     !     define detector geometry
-    REAL, PARAMETER :: dets= 10.0            !< arclength of first plane
-    REAL, PARAMETER :: diss= 10.0            !< distance between planes
-    REAL, PARAMETER :: thck= 0.02            !< thickness of plane (X0)
-    REAL, PARAMETER :: offs=  0.5            !< offset of stereo modules
-    REAL, PARAMETER :: stereo=0.08727        !< stereo angle
-    REAL, PARAMETER :: sizel= 20.0           !< size of layers
-    REAL, PARAMETER :: sigl =0.002           ! <resolution
+    REAL(mps), PARAMETER :: dets= 10.0            !< arclength of first plane
+    REAL(mps), PARAMETER :: diss= 10.0            !< distance between planes
+    REAL(mps), PARAMETER :: thck= 0.02            !< thickness of plane (X0)
+    REAL(mps), PARAMETER :: offs=  0.5            !< offset of stereo modules
+    REAL(mps), PARAMETER :: stereo=0.08727        !< stereo angle
+    REAL(mps), PARAMETER :: sizel= 20.0           !< size of layers
+    REAL(mps), PARAMETER :: sigl =0.002           ! <resolution
 
-    INTEGER :: nhits                         !< number of hits
-    REAL :: the0                             !< multiple scattering error
-    INTEGER, DIMENSION(nmlyr) :: islyr       !< (detector) layer
-    INTEGER, DIMENSION(nmlyr) :: ihits       !< module number
-    REAL, DIMENSION(ntot) :: sdevx           !< shift in x (alignment parameter)
-    REAL, DIMENSION(ntot) :: sdevy           !< shift in y (alignment parameter)
-    REAL, DIMENSION(nmlyr) :: sarc           !< arc length
-    REAL, DIMENSION(nmlyr) :: ssig           !< resolution
-    REAL, DIMENSION(2,nmlyr) :: spro         !< projection of measurent direction in (XY)
-    REAL, DIMENSION(nmlyr) :: xhits          !< position perp. to plane (hit)
-    REAL, DIMENSION(nmlyr) :: yhits          !< measured position in plane (hit)
-    REAL, DIMENSION(nmlyr) :: sigma          !< measurement sigma (hit)
+    INTEGER(mpi) :: nhits                         !< number of hits
+    REAL(mps) :: the0                             !< multiple scattering error
+    INTEGER(mpi), DIMENSION(nmlyr) :: islyr       !< (detector) layer
+    INTEGER(mpi), DIMENSION(nmlyr) :: ihits       !< module number
+    REAL(mps), DIMENSION(ntot) :: sdevx           !< shift in x (alignment parameter)
+    REAL(mps), DIMENSION(ntot) :: sdevy           !< shift in y (alignment parameter)
+    REAL(mps), DIMENSION(nmlyr) :: sarc           !< arc length
+    REAL(mps), DIMENSION(nmlyr) :: ssig           !< resolution
+    REAL(mps), DIMENSION(2,nmlyr) :: spro         !< projection of measurent direction in (XY)
+    REAL(mps), DIMENSION(nmlyr) :: xhits          !< position perp. to plane (hit)
+    REAL(mps), DIMENSION(nmlyr) :: yhits          !< measured position in plane (hit)
+    REAL(mps), DIMENSION(nmlyr) :: sigma          !< measurement sigma (hit)
 
 END MODULE mptest2
 
@@ -90,49 +92,49 @@ END MODULE mptest2
 SUBROUTINE mptst2(imodel)         ! generate test files
     USE mptest2
     IMPLICIT NONE
-    REAL :: cmbbrl
-    REAL :: dispxm
-    REAL :: dispym
-    REAL :: dn
-    REAL :: dp
-    REAL :: gran
-    REAL :: one
-    REAL :: p
-    REAL :: s
-    REAL :: sgn
-    REAL :: sbrl
-    REAL :: sold
-    REAL :: uran
-    REAL :: wbrl
-    INTEGER :: i
-    INTEGER :: ibrl
-    INTEGER :: icount
-    INTEGER :: im
-    INTEGER :: ios
-    INTEGER :: ip
-    INTEGER :: j
-    INTEGER :: k
-    INTEGER :: l
-    INTEGER :: labelt
-    INTEGER :: layer
-    INTEGER :: lb
-    INTEGER :: lbrl
-    INTEGER :: luns
-    INTEGER :: lunt
-    INTEGER :: lyr
-    INTEGER :: nalc
-    INTEGER :: nbrl
-    INTEGER :: ncount
-    INTEGER :: ncx
-    INTEGER :: nmxy
-    INTEGER :: nrecds
-    INTEGER :: nthits
+    REAL(mps) :: cmbbrl
+    REAL(mps) :: dispxm
+    REAL(mps) :: dispym
+    REAL(mps) :: dn
+    REAL(mps) :: dp
+    REAL(mps) :: gran
+    REAL(mps) :: one
+    REAL(mps) :: p
+    REAL(mps) :: s
+    REAL(mps) :: sgn
+    REAL(mps) :: sbrl
+    REAL(mps) :: sold
+    REAL(mps) :: uran
+    REAL(mps) :: wbrl
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ibrl
+    INTEGER(mpi) :: icount
+    INTEGER(mpi) :: im
+    INTEGER(mpi) :: ios
+    INTEGER(mpi) :: ip
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: labelt
+    INTEGER(mpi) :: layer
+    INTEGER(mpi) :: lb
+    INTEGER(mpi) :: lbrl
+    INTEGER(mpi) :: luns
+    INTEGER(mpi) :: lunt
+    INTEGER(mpi) :: lyr
+    INTEGER(mpi) :: nalc
+    INTEGER(mpi) :: nbrl
+    INTEGER(mpi) :: ncount
+    INTEGER(mpi) :: ncx
+    INTEGER(mpi) :: nmxy
+    INTEGER(mpi) :: nrecds
+    INTEGER(mpi) :: nthits
 
-    INTEGER, INTENT(IN)                      :: imodel
+    INTEGER(mpi), INTENT(IN)                      :: imodel
 
-    REAL :: derlc(nmlyr*2+3)
-    REAL :: dergl(nmlyr*2+3)
-    INTEGER :: label(2)
+    REAL(mps) :: derlc(nmlyr*2+3)
+    REAL(mps) :: dergl(nmlyr*2+3)
+    INTEGER(mpi) :: label(2)
     LOGICAL :: ex1
     LOGICAL :: ex2
     LOGICAL :: ex3
@@ -404,32 +406,32 @@ SUBROUTINE genln2(ip)
     USE mptest2
 
     IMPLICIT NONE
-    REAL:: ds
-    REAL:: dx
-    REAL:: dy
-    REAL:: gran
-    INTEGER:: i
-    INTEGER:: ihit
-    INTEGER:: imx
-    INTEGER:: imy
-    INTEGER:: ioff
-    REAL:: sold
-    REAL:: uran
-    REAL:: x
-    REAL:: xexit
-    REAL:: xl
-    REAL:: xnull
-    REAL:: xs
-    REAL:: xslop
-    REAL:: y
-    REAL:: yexit
-    REAL:: yl
-    REAL:: ynull
-    REAL:: ys
-    REAL:: yslop
+    REAL(mps) :: ds
+    REAL(mps) :: dx
+    REAL(mps) :: dy
+    REAL(mps) :: gran
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ihit
+    INTEGER(mpi) :: imx
+    INTEGER(mpi) :: imy
+    INTEGER(mpi) :: ioff
+    REAL(mps) :: sold
+    REAL(mps) :: uran
+    REAL(mps) :: x
+    REAL(mps) :: xexit
+    REAL(mps) :: xl
+    REAL(mps) :: xnull
+    REAL(mps) :: xs
+    REAL(mps) :: xslop
+    REAL(mps) :: y
+    REAL(mps) :: yexit
+    REAL(mps) :: yl
+    REAL(mps) :: ynull
+    REAL(mps) :: ys
+    REAL(mps) :: yslop
 
 
-    INTEGER, INTENT(IN)                      :: ip
+    INTEGER(mpi), INTENT(IN)                      :: ip
 
     !     track parameters
     xnull=sizel*(uran()-0.5)   ! uniform vertex
@@ -463,9 +465,9 @@ SUBROUTINE genln2(ip)
         dx=dx+gran()*the0
         dy=dy+gran()*the0
   
-        imx=IFIX((x+sizel*0.5)/sizel*FLOAT(nmx))
+        imx=INT((x+sizel*0.5)/sizel*REAL(nmx,mps),mpi)
         IF (imx < 0.OR.imx >= nmx) CYCLE
-        imy=IFIX((y+sizel*0.5)/sizel*FLOAT(nmy))
+        imy=INT((y+sizel*0.5)/sizel*REAL(nmy,mps),mpi)
         IF (imy < 0.OR.imy >= nmy) CYCLE
   
         ihit=((i-1)*nmy+imy)*nmx+imx

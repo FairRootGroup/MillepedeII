@@ -5,13 +5,17 @@
 MODULE mpdef
     IMPLICIT NONE
     SAVE
-    ! constants
-    INTEGER, PARAMETER :: large=8          !< size of LARGE integers (*8)
-    INTEGER, PARAMETER :: lscale=large/4   !< number of (32bit) words
-    INTEGER, PARAMETER :: maxi4=2147483647 !< max. INTEGER*4
+    ! precision constants
+    INTRINSIC :: selected_real_kind
+    INTRINSIC :: selected_int_kind
+    INTEGER, PARAMETER :: mpi = selected_int_kind(9)         !>  4 byte integer
+    INTEGER, PARAMETER :: mpl = selected_int_kind(18)        !>  8 byte integer
+    INTEGER, PARAMETER :: mps = selected_real_kind(6, 37)    !>  4 byte float
+    INTEGER, PARAMETER :: mpd = selected_real_kind(15, 307)  !>  8 byte float
+    INTEGER, PARAMETER :: mpq = selected_real_kind(33, 4931) !> 16 byte float, gcc needs libquadmath
     !> list items from steering file
     TYPE listItem
-        INTEGER :: label
-        REAL :: value
+        INTEGER(mpi) :: label
+        REAL(mps) :: value
     END TYPE listItem
 END MODULE mpdef

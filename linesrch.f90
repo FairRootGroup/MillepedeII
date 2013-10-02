@@ -31,19 +31,21 @@
 
 !> Line search data.
 MODULE linesrch
+    USE mpdef
+
     IMPLICIT NONE
 
-    INTEGER, PARAMETER :: msfd=20
-    INTEGER :: nsfd    !< number of function calls
-    INTEGER :: idgl    !< index of smallest negative slope
-    INTEGER :: idgr    !< index of smallest positive slope
-    INTEGER :: idgm    !< index of minimal slope
-    INTEGER :: minf=1  !< min. number of function calls
-    INTEGER :: maxf=5  !< max. number of function calls
-    INTEGER :: lsinfo  !< (status) information
-    DOUBLE PRECISION, DIMENSION(4,msfd) :: sfd !< abscissa; function value; slope; predicted zero
-    DOUBLE PRECISION :: stmx=0.9 !< maximum slope ratio
-    DOUBLE PRECISION :: gtol     !< slope ratio
+    INTEGER(mpi), PARAMETER :: msfd=20
+    INTEGER(mpi) :: nsfd    !< number of function calls
+    INTEGER(mpi) :: idgl    !< index of smallest negative slope
+    INTEGER(mpi):: idgr    !< index of smallest positive slope
+    INTEGER(mpi) :: idgm    !< index of minimal slope
+    INTEGER(mpi) :: minf=1  !< min. number of function calls
+    INTEGER(mpi) :: maxf=5  !< max. number of function calls
+    INTEGER(mpi) :: lsinfo  !< (status) information
+    REAL(mpd), DIMENSION(4,msfd) :: sfd !< abscissa; function value; slope; predicted zero
+    REAL(mpd) :: stmx=0.9 !< maximum slope ratio
+    REAL(mpd) :: gtol     !< slope ratio
 
 END MODULE linesrch
 
@@ -69,41 +71,41 @@ SUBROUTINE ptline(n,x,f,g,s,step, info) ! - 2 arguments
     USE linesrch
 
     IMPLICIT NONE
-    INTEGER, INTENT(IN)                      :: n
-    DOUBLE PRECISION, INTENT(IN OUT)         :: x(n)
-    DOUBLE PRECISION, INTENT(IN OUT)         :: f
-    DOUBLE PRECISION, INTENT(IN OUT)         :: g(n)
-    DOUBLE PRECISION, INTENT(IN OUT)         :: s(n)
-    DOUBLE PRECISION, INTENT(OUT)            :: step
-    INTEGER, INTENT(OUT)                     :: info
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mpd), INTENT(IN OUT)         :: x(n)
+    REAL(mpd), INTENT(IN OUT)         :: f
+    REAL(mpd), INTENT(IN OUT)         :: g(n)
+    REAL(mpd), INTENT(IN OUT)         :: s(n)
+    REAL(mpd), INTENT(OUT)            :: step
+    INTEGER(mpi), INTENT(OUT)                     :: info
 
-    INTEGER::  i1
-    INTEGER :: i2
-    INTEGER :: i               ! internal
-    INTEGER :: im              ! internal
-    DOUBLE PRECISION :: alpha  ! internal
-    DOUBLE PRECISION :: dginit ! internal
-    DOUBLE PRECISION :: dg     ! internal
-    DOUBLE PRECISION :: fsaved ! internal
-    DOUBLE PRECISION :: tot    ! internal
-    DOUBLE PRECISION :: fp1    ! internal
-    DOUBLE PRECISION :: fp2    ! internal
+    INTEGER(mpi)::  i1
+    INTEGER(mpi) :: i2
+    INTEGER(mpi) :: i               ! internal
+    INTEGER(mpi) :: im              ! internal
+    REAL(mpd) :: alpha  ! internal
+    REAL(mpd) :: dginit ! internal
+    REAL(mpd) :: dg     ! internal
+    REAL(mpd) :: fsaved ! internal
+    REAL(mpd) :: tot    ! internal
+    REAL(mpd) :: fp1    ! internal
+    REAL(mpd) :: fp2    ! internal
     SAVE
 
     !     initialization ---------------------------------------------------
 
     info=0             ! reset INFO flag
-    dg=0.0D0
+    dg=0.0_mpd
     DO i=1,n           !
         dg=dg-g(i)*s(i)   ! DG = scalar product: grad x search
     END DO!
 
     IF(nsfd == 0) THEN    ! initial call
         dginit=dg          ! DG = initial directional gradient
-        IF(dginit >= 0.0D0) GO TO 100 ! error: step not decreasing
-        step=1.0D0         ! initial step factor is one
+        IF(dginit >= 0.0_mpd) GO TO 100 ! error: step not decreasing
+        step=1.0_mpd         ! initial step factor is one
         alpha=step         ! get initial step factor
-        tot=0.0D0          ! reset total step
+        tot=0.0_mpd          ! reset total step
         idgl=1             ! index of smallest negative slope
         idgr=0             ! index of smallest positive slope
         fsaved=f           ! initial Function value
@@ -124,10 +126,10 @@ SUBROUTINE ptline(n,x,f,g,s,step, info) ! - 2 arguments
         END IF
   
         !        define interval indices IDGL and IDGR
-        IF(dg <= 0.0D0) THEN
+        IF(dg <= 0.0_mpd) THEN
             IF(dg >= sfd(3,idgl)) idgl=nsfd
         END IF
-        IF(dg >= 0.0D0) THEN     ! limit to the right
+        IF(dg >= 0.0_mpd) THEN     ! limit to the right
             IF(idgr == 0) idgr=nsfd
             IF(dg <= sfd(3,idgr)) idgr=nsfd
         END IF
@@ -150,14 +152,14 @@ SUBROUTINE ptline(n,x,f,g,s,step, info) ! - 2 arguments
             step =alpha
             idgm=idgl
             IF(idgr /= 0) THEN
-                IF(sfd(3,idgr)+sfd(3,idgl) < 0.0D0) idgm=idgr
+                IF(sfd(3,idgr)+sfd(3,idgl) < 0.0_mpd) idgm=idgr
             END IF
             GO TO 101
         END IF
         IF(nsfd >= maxf) GO TO 102 ! max number of function calls
         alpha=MIN(sfd(4,nsfd),stmx)-tot     ! new step from previous
-        IF(ABS(alpha) < 1.0D-3.AND.sfd(4,nsfd) > stmx) GO TO 103
-        IF(ABS(alpha) < 1.0D-3) GO TO 104
+        IF(ABS(alpha) < 1.0E-3_mpd.AND.sfd(4,nsfd) > stmx) GO TO 103
+        IF(ABS(alpha) < 1.0E-3_mpd) GO TO 104
     END IF
 
     !     prepare next function call ---------------------------------------
@@ -190,7 +192,7 @@ SUBROUTINE ptline(n,x,f,g,s,step, info) ! - 2 arguments
     step=sfd(1,im)           ! total step at convergence
     IF(im /= 1) RETURN       ! improvement
     info=5                   ! no improvement
-100 step=0.0D0               ! 0: initial slope not negative
+100 step=0.0_mpd               ! 0: initial slope not negative
     lsinfo=info
     RETURN
 END SUBROUTINE ptline
@@ -212,15 +214,15 @@ SUBROUTINE ptldef(gtole,stmax,minfe,maxfe)
     USE linesrch
 
     IMPLICIT NONE
-    INTEGER, INTENT(IN) :: minfe
-    INTEGER, INTENT(IN) :: maxfe
-    REAL, INTENT(IN)    :: gtole
-    REAL, INTENT(IN)    :: stmax
+    INTEGER(mpi), INTENT(IN) :: minfe
+    INTEGER(mpi), INTENT(IN) :: maxfe
+    REAL(mps), INTENT(IN)    :: gtole
+    REAL(mps), INTENT(IN)    :: stmax
 
     gtol=MAX(1.0E-4,MIN(gtole,0.9E0))  ! slope ratio
-    IF(gtole == 0.0) gtol=0.9D0   ! default slope ratio
+    IF(gtole == 0.0) gtol=0.9_mpd   ! default slope ratio
     stmx=stmax                    ! maximum total step
-    IF(stmx == 0.0D0) stmx=10.0D0 ! default limit
+    IF(stmx == 0.0_mpd) stmx=10.0_mpd ! default limit
     minf=MAX(1,MIN(minfe,msfd-2)) ! minimum number of evaluations
     maxf=MAX(2,MIN(maxfe,msfd-1)) ! maximum number of evaluations
     IF(maxfe == 0) maxf=5         ! default max number of values
@@ -238,11 +240,11 @@ SUBROUTINE ptlopt(nf,m,slopes,steps)
     USE linesrch
     IMPLICIT NONE
 
-    INTEGER, INTENT(OUT)                     :: nf
-    INTEGER, INTENT(OUT)                     :: m
-    REAL, DIMENSION(3), INTENT(OUT)          :: slopes
-    REAL, DIMENSION(3), INTENT(OUT)          :: steps
-    INTEGER :: i
+    INTEGER(mpi), INTENT(OUT)                     :: nf
+    INTEGER(mpi), INTENT(OUT)                     :: m
+    REAL(mps), DIMENSION(3), INTENT(OUT)          :: slopes
+    REAL(mps), DIMENSION(3), INTENT(OUT)          :: steps
+    INTEGER(mpi) :: i
 
     !     ...
     nf=nsfd
@@ -274,12 +276,12 @@ SUBROUTINE ptlprt(lunp)
     USE linesrch
 
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: j
-    INTEGER :: im
-    INTEGER :: lun
-    INTEGER, INTENT(IN) :: lunp
-    REAL :: ratio
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: im
+    INTEGER(mpi) :: lun
+    INTEGER(mpi), INTENT(IN) :: lunp
+    REAL(mps) :: ratio
     CHARACTER (LEN=2) :: tlr
     !     ...
     lun=lunp

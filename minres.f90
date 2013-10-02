@@ -289,29 +289,30 @@
 SUBROUTINE minres( n, b, r1, r2, v, w, w1, w2, x, y,  &
     aprod, msolve, checka, precon, shift, nout , itnlim, rtol,  &
     istop, itn, anorm, acond, rnorm, ynorm )
+    USE mpdef
 
     IMPLICIT NONE
     EXTERNAL aprod, msolve
-    INTEGER :: n, nout, itnlim, istop, itn
+    INTEGER(mpi) :: n, nout, itnlim, istop, itn
     LOGICAL :: checka, precon
-    DOUBLE PRECISION :: shift, rtol, anorm, acond, rnorm, ynorm,  &
+    REAL(mpd) :: shift, rtol, anorm, acond, rnorm, ynorm,  &
         b(n), r1(n), r2(n), v(n), w(n), w1(n), w2(n), x(n), y(n)
 
     EXTERNAL ddot  , dnrm2
-    DOUBLE PRECISION :: ddot  , dnrm2
+    REAL(mpd) :: ddot  , dnrm2
 
     !     Local variables
 
-    DOUBLE PRECISION :: alfa  , beta  , beta1 , cs    ,  &
+    REAL(mpd) :: alfa  , beta  , beta1 , cs    ,  &
         dbar  , delta , denom , diag  , eps   , epsa  , epsln , epsr  , epsx  ,  &
         agamma, gbar  , gmax  , gmin  , oldb  , oldeps, qrnorm, phi   , phibar,  &
-        rhs1  , rhs2  , s     , sn    , t     , tnorm2, ynorm2, z
-    INTEGER :: i
+        rhs1  , rhs2  , s     , sn    , t     , tnorm2, ynorm2, z, relArnorml
+    INTEGER(mpi) :: i
     LOGICAL :: debug, prnt
 
-    DOUBLE PRECISION :: zero, one, two, ten
-    PARAMETER        ( zero = 0.0D+0,  one =  1.0D+0,  &
-        two  = 2.0D+0,  ten = 10.0D+0 )
+    REAL(mpd) :: zero, one, two, ten
+    PARAMETER        ( zero = 0.0_mpd,  one =  1.0_mpd,  &
+        two  = 2.0_mpd,  ten = 10.0_mpd )
 
     CHARACTER (LEN=16) :: enter, EXIT
     CHARACTER (LEN=52) :: msg(-1:8)
@@ -337,7 +338,7 @@ SUBROUTINE minres( n, b, r1, r2, v, w, w1, w2, x, y,  &
     !     intended to fool compilers that use extra-length registers.
     !     31 May 1999: Hardwire eps so the debugger can step thru easily.
     !     ------------------------------------------------------------------
-    eps    = 2.22D-16    ! Set eps = zero here if you want it computed.
+    eps    = EPSILON(eps)    ! Set eps = zero here if you want it computed.
 
     eps  = 0.0D0                             !!!!!!!!!!!!!!!
     gmin = 0.0D0
@@ -400,7 +401,7 @@ SUBROUTINE minres( n, b, r1, r2, v, w, w1, w2, x, y,  &
         s      = ddot  ( n, y, 1, y, 1 )
         t      = ddot  ( n,r1, 1,r2, 1 )
         z      = ABS( s - t )
-        epsa   = (s + eps) * eps**0.33333D+0
+        epsa   = (s + eps) * eps**0.33333_mpd
         IF (z > epsa) THEN
             istop = 7
             GO TO 900
@@ -416,7 +417,7 @@ SUBROUTINE minres( n, b, r1, r2, v, w, w1, w2, x, y,  &
         s      = ddot  ( n, w, 1, w, 1 )
         t      = ddot  ( n, y, 1,r2, 1 )
         z      = ABS( s - t )
-        epsa   = (s + eps) * eps**0.33333D+0
+        epsa   = (s + eps) * eps**0.33333_mpd
         IF (z > epsa) THEN
             istop = 6
             GO TO 900
@@ -570,7 +571,9 @@ SUBROUTINE minres( n, b, r1, r2, v, w, w1, w2, x, y,  &
 
         qrnorm = phibar
         rnorm  = qrnorm
-
+        relArnorml = sqrt(gbar**2+dbar**2)/anorm
+        print *, ' iter ', itn, anorm, ynorm, qrnorm, relArnorml, rtol
+        
         ! Estimate  cond(A).
         ! In this version we look at the diagonals of  R  in the
         ! factorization of the lower Hessenberg matrix,  Q * H = R,
@@ -584,7 +587,7 @@ SUBROUTINE minres( n, b, r1, r2, v, w, w1, w2, x, y,  &
 
         IF (istop == 0) THEN
             IF (itn    >= itnlim    ) istop = 5
-            IF (acond  >= 0.1D+0/eps) istop = 4
+            IF (acond  >= 0.1_mpd/eps) istop = 4
             IF (epsx   >= beta1     ) istop = 3
             IF (qrnorm <= epsx      ) istop = 2
             IF (qrnorm <= epsr      ) istop = 1
@@ -601,7 +604,7 @@ SUBROUTINE minres( n, b, r1, r2, v, w, w1, w2, x, y,  &
             IF (MOD(itn,10)  ==     0) prnt = .true.
             IF (qrnorm <=  ten * epsx) prnt = .true.
             IF (qrnorm <=  ten * epsr) prnt = .true.
-            IF (acond  >= 1.0D-2/eps ) prnt = .true.
+            IF (acond  >= 1.0E-2_mpd/eps ) prnt = .true.
             IF (istop  /=  0         ) prnt = .true.
   
             IF ( prnt ) THEN

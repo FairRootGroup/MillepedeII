@@ -13,31 +13,33 @@
 !! \param[in]  x    array of numbers
 
 SUBROUTINE pzvert(n,x)
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: i1
-    INTEGER :: i2
-    INTEGER :: ia
-    INTEGER :: ij
-    INTEGER :: im
-    INTEGER :: in
-    INTEGER :: iz
-    INTEGER :: j
-    INTEGER :: jl
-    INTEGER :: jm
-    INTEGER :: ke
-    INTEGER :: kl
-    INTEGER :: kn
-    INTEGER :: lc
-    INTEGER :: m
-    INTEGER :: mx
-    REAL :: fac
-    REAL :: xm
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: i1
+    INTEGER(mpi) :: i2
+    INTEGER(mpi) :: ia
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: im
+    INTEGER(mpi) :: in
+    INTEGER(mpi) :: iz
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jl
+    INTEGER(mpi) :: jm
+    INTEGER(mpi) :: ke
+    INTEGER(mpi) :: kl
+    INTEGER(mpi) :: kn
+    INTEGER(mpi) :: lc
+    INTEGER(mpi) :: m
+    INTEGER(mpi) :: mx
+    REAL(mps) :: fac
+    REAL(mps) :: xm
     !
 
-    INTEGER, INTENT(IN)                      :: n
-    REAL, INTENT(IN)                         :: x(n)
-    INTEGER, PARAMETER :: nn=6
+    INTEGER(mpi), INTENT(IN)                      :: n
+    REAL(mps), INTENT(IN)                         :: x(n)
+    INTEGER(mpi), PARAMETER :: nn=6
 
     CHARACTER (LEN=66):: px(10)
     CHARACTER (LEN=66)::ch(10)*1
@@ -65,10 +67,10 @@ SUBROUTINE pzvert(n,x)
     jl=60
 
     kn=MIN(6,MAX(2,IABS(nn)))
-    ke=INT(ALOG10(xm*1.0001))
+    ke=INT(LOG10(xm*1.0001),mpi)
     IF(xm < 1.0) ke=ke-1
 22  fac=10.0**(kn-1-ke)
-    ij=INT(fac*xm+0.5)
+    ij=NINT(fac*xm,mpi)
     IF(ij >= 10**kn) THEN
         ke=ke+1
         GO TO 22
@@ -76,7 +78,7 @@ SUBROUTINE pzvert(n,x)
     ia=2+kn
 
     DO j=1,jl
-        ij=INT(fac*ABS(x(j))+0.5)   ! convert to integer
+        ij=NINT(fac*ABS(x(j)),mpi)   ! convert to integer
         im=0
         IF(ij /= 0) THEN
             DO i=1,kn
@@ -160,18 +162,20 @@ END SUBROUTINE pzvert
 !! \param[in]  list array of integers
 
 SUBROUTINE pivert(n,list)                  !
-    IMPLICIT NONE
-    INTEGER :: i
-    INTEGER :: l
-    INTEGER :: ll
-    INTEGER :: m
-    INTEGER :: nhist
+    USE mpdef
 
-    INTEGER, INTENT(IN)                      :: n
-    INTEGER, INTENT(IN)                      :: list(n)
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: ll
+    INTEGER(mpi) :: m
+    INTEGER(mpi) :: nhist
+
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi), INTENT(IN)                      :: list(n)
 
     
-    REAL :: y(60)
+    REAL(mps) :: y(60)
     
     SAVE
     !     ...
@@ -198,16 +202,18 @@ END SUBROUTINE pivert
 !! \param[in]  x    array of floats
 
 SUBROUTINE pfvert(n,x)                       ! vert. print fltpt data
-    IMPLICIT NONE
-    REAL :: dsum
-    INTEGER :: i
-    INTEGER :: l
-    INTEGER :: ll
-    INTEGER :: m
-    REAL :: y(60)
+    USE mpdef
 
-    INTEGER, INTENT(IN)                      :: n
-    INTEGER, INTENT(IN)                      :: x(n)
+    IMPLICIT NONE
+    REAL(mps) :: dsum
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: l
+    INTEGER(mpi) :: ll
+    INTEGER(mpi) :: m
+    REAL(mps) :: y(60)
+
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi), INTENT(IN)                      :: x(n)
 
     ll=(n+59)/60 ! compression factor
     m=0
@@ -218,7 +224,7 @@ SUBROUTINE pfvert(n,x)                       ! vert. print fltpt data
     END DO
     i=i+ll
     m=m+1
-    y(m)=REAL(dsum)
+    y(m)=REAL(dsum,mps)
     IF(i < n) GO TO 20
     CALL pzvert(m,y)
     RETURN
@@ -230,18 +236,20 @@ END SUBROUTINE pfvert
 !! \param[in]   xb   upper bound of range
 
 SUBROUTINE psvert(xa,xb)                     ! print scale
+    USE mpdef
+
     IMPLICIT NONE
-    INTEGER:: i
-    REAL:: xc
+    INTEGER(mpi) :: i
+    REAL(mps) :: xc
     !     print scale from XA ... XB
 
 
-    REAL, INTENT(IN)                         :: xa
-    REAL, INTENT(IN)                         :: xb
-    REAL:: sc(7)
+    REAL(mps), INTENT(IN)                         :: xa
+    REAL(mps), INTENT(IN)                         :: xb
+    REAL(mps) :: sc(7)
     xc=xb
     DO i=1,7
-        sc(i)=(FLOAT(7-i)*xa+FLOAT(i-1)*xc)/6.0
+        sc(i)=(REAL(7-i,mps)*xa+REAL(i-1,mps)*xc)/6.0
     END DO
     WRITE(*,101) sc
 101 FORMAT(3X,7G10.3)
