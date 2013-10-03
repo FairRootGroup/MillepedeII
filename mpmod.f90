@@ -12,7 +12,7 @@ MODULE mpmod
     SAVE
     ! steering parameters
     INTEGER(mpi) :: ictest=0  !< test mode '-t'
-    INTEGER(mpi) :: metsol=0  !< solution method (1: inversion, 2: diagonalization, 3: \ref minres "MINRES")
+    INTEGER(mpi) :: metsol=0  !< solution method (1: inversion, 2: diagonalization, 3: \ref minresmodule::minres "MINRES")
     INTEGER(mpi) :: matsto=2  !< (global) matrix storage mode (1: full, 2: sparse)
     INTEGER(mpi) :: mprint=1  !< print flag (0: minimal, 1: normal, >1: more)
     INTEGER(mpi) :: mdebug=0  !< debug flag (number of records to print)
@@ -142,7 +142,6 @@ MODULE mpmod
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: workspaceDiagonalization !< workspace diag.
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: workspaceEigenValues !< workspace eigen values
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: workspaceEigenVectors !< workspace eigen vectors
-    REAL(mpd), DIMENSION(:), ALLOCATABLE :: workspaceMinres !< workspace MINRES
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: workspaceI !< (general) workspace (I)
     ! constraint matrix, residuals
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matConsProduct !< product matrix of constraints

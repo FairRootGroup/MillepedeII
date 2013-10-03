@@ -82,7 +82,7 @@ L_FLAGS = -Wall -O3
 # objects for this project
 #
 USER_OBJ_PEDE = mpdef.o mpdalc.o mpmod.o mpbits.o mptest1.o mptest2.o mille.o mpnum.o mptext.o mphistab.o \
-	minresblas.o minres.o randoms.o vertpr.o linesrch.o Dbandmatrix.o pede.o
+	minresDataModule.o minresModule.o randoms.o vertpr.o linesrch.o Dbandmatrix.o pede.o
 #
 # Chose flags/object files for C-binary support:
 #

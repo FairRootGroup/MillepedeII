@@ -108,7 +108,7 @@
 !! eigenvalue (and eigenvector) for all global parameters.
 !! \subsection ch-minres Minimal Residual Method (MINRES)
 !! The solution is obtained by minimizing \f$\Vert\Vek{A}\cdot\Vek{x}-\Vek{b}\Vert_2\f$
-!! iteratively. \ref minres "MINRES" is a special case of the
+!! iteratively. \ref minresmodule::minres "MINRES" is a special case of the
 !! generalized minimal residual method (\ref an-gmres "GMRES") for symmetric matrices.
 !! Preconditioning with a band matrix of zero or finite
 !! \ref mpmod::mbandw "bandwidth" is possible.
@@ -236,7 +236,7 @@
 !!
 !! \subsection cmd-bandwidth bandwidth
 !! Set band width \ref mpmod::mbandw "mbandw" for
-!! \ref minres "MINRES" preconditioner to \a number1.
+!! \ref minresmodule::minres "MINRES" preconditioner to \a number1.
 !! \subsection cmd-cache cache
 !! Set (read+write) cache size \ref mpmod::ncache "ncache" to \a number1.
 !! Define cache size and average fill level.
@@ -308,7 +308,7 @@
 !! (minimum) number of iterations \ref mpmod::mitera "mitera" to \a number1,
 !! convergence limit \ref mpmod::dflim "dflim" to \a number2.
 !! \subsection cmd-mrestol mrestol
-!! Set tolerance criterion \ref mpmod::mrestl "mrestl" for \ref minres "MINRES"
+!! Set tolerance criterion \ref mpmod::mrestl "mrestl" for \ref minresmodule::minres "MINRES"
 !! to \a number1 (\f$10^{-10}\f$ .. \f$10^{-4}\f$).
 !! \subsection cmd-nofeasiblestart nofeasiblestart
 !! Set flag \ref mpmod::nofeas "nofeas" for \ref an-nofeas "skipping"
@@ -758,7 +758,7 @@ PROGRAM mptwo
 END PROGRAM mptwo                              ! Mille
 
 
-!> Error for single global parameter from \ref minres "MINRES".
+!> Error for single global parameter from \ref minresmodule::minres "MINRES".
 !!
 !! Calculate single row 'x_i' from inverse matrix by solving A*x_i=b
 !! with b=0 except b_i=1.
@@ -767,6 +767,7 @@ END PROGRAM mptwo                              ! Mille
 
 SUBROUTINE solglo(ivgbi)
     USE mpmod
+    USE minresModule, ONLY: minres
 
     IMPLICIT NONE
     REAL(mps) :: dpa
@@ -787,6 +788,7 @@ SUBROUTINE solglo(ivgbi)
     REAL(mpd) :: rtol
     REAL(mpd) :: anorm
     REAL(mpd) :: acond
+    REAL(mpd) :: arnorm
     REAL(mpd) :: rnorm
     REAL(mpd) :: ynorm
     REAL(mpd) :: gmati
@@ -816,30 +818,18 @@ SUBROUTINE solglo(ivgbi)
     rtol  = mrestl ! from steering
     checka=.FALSE.
 
-    IF(mbandw == 0) THEN           ! default preconditioner
-        CALL minres(nagb,globalVector,  &
-            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-            globalCorrections,workspaceMinres, avprod, mcsolv, checka ,.TRUE. , shift,  &
-            nout , itnlim, rtol, istop, itn, anorm, acond, rnorm, ynorm)
-    ELSE IF(mbandw > 0) THEN                          ! band matrix preconditioner
-        CALL minres(nagb,globalVector,  &
-            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-            globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.TRUE. , shift,  &
-            nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
-    ELSE
-        CALL minres(nagb,globalVector,  &
-            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-            globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.FALSE., shift,  &
-            nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
-    END IF
 
-    !      subroutine MINRES( n, b, r1, r2, v, w, w1, w2, x, y,
-    !     $                   AVPROD, Msolve, .TRUE. , .FALSE. , SHIFT,
-    !     $                   NOUT , ITNLIM, rtol,
-    !     $                   ISTOP, ITN, Anorm, Acond, rnorm, ynorm )
+    IF(mbandw == 0) THEN           ! default preconditioner
+        CALL minres(nagb,  avprod, mcsolv, globalVector, shift, checka ,.TRUE. , &
+            globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
+
+    ELSE IF(mbandw > 0) THEN       ! band matrix preconditioner
+        CALL minres(nagb,  avprod, mvsolv, globalVector, shift, checka ,.TRUE. , &
+            globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
+    ELSE
+        CALL minres(nagb,  avprod, mvsolv, globalVector, shift, checka ,.FALSE. , &
+            globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
+    END IF
 
     par=REAL(globalParameter(itgbi),mps)
     dpa=par-globalParStart(itgbi)
@@ -3441,7 +3431,7 @@ END SUBROUTINE prtglo    ! print final log file
 
 !> Product symmetric matrix times vector.
 !!
-!! A(sym) * X => B. Used by \ref minres "MINRES" method (Is most CPU intensive part).
+!! A(sym) * X => B. Used by \ref minresmodule::minres "MINRES" method (Is most CPU intensive part).
 !! The matrix A is the global matrix in full symmetric or (compressed) sparse storage.
 !!
 !! \param [in]   n   size of matrix
@@ -4815,7 +4805,6 @@ SUBROUTINE vmprep(msize)
 
     IMPLICIT NONE
     INTEGER(mpi) :: i
-    INTEGER(mpi) :: nmats
                          !
     INTEGER(mpl), INTENT(IN) :: msize(2)
 
@@ -4876,7 +4865,6 @@ SUBROUTINE vmprep(msize)
 
     CALL mpalloc(workspaceLinesearch,length,'auxiliary array (D2)')  ! double aux 2
     CALL mpalloc(workspaceI, length,'auxiliary array (I)')   ! int aux 1
-    CALL mpalloc(workspaceMinres,length,'auxiliary array (D7)')  ! double aux 7
 
     IF(metsol == 1) THEN
         CALL mpalloc(workspaceD,length,'auxiliary array (D1)')  ! double aux 1
@@ -4889,12 +4877,6 @@ SUBROUTINE vmprep(msize)
         CALL mpalloc(workspaceEigenValues,length,'auxiliary array (D6)')  ! double aux 6
         length=nagb*nagb
         CALL mpalloc(workspaceEigenVectors,length,'(rotation) matrix U')   ! rotation matrix
-    END IF
-
-    IF(metsol >= 3) THEN
-        nmats=6
-        length=nmats*nagb
-        CALL mpalloc(workspaceD,length,'auxiliary array (D1)')  ! double aux 1
     END IF
 
 END SUBROUTINE vmprep
@@ -5060,7 +5042,7 @@ SUBROUTINE zdiags
 
 END SUBROUTINE zdiags
 
-!> Solution with \ref minres "MINRES".
+!> Solution with \ref minresmodule::minres "MINRES".
 !!
 !! Solve A*x=b by minimizing |A*x-b| iteratively. Parallelized (AVPROD).
 !!
@@ -5068,6 +5050,7 @@ END SUBROUTINE zdiags
 
 SUBROUTINE mminrs
     USE mpmod
+    USE minresModule, ONLY: minres
 
     IMPLICIT NONE
     INTEGER(mpi) :: istop
@@ -5082,6 +5065,7 @@ SUBROUTINE mminrs
     REAL(mpd) :: rtol
     REAL(mpd) :: anorm
     REAL(mpd) :: acond
+    REAL(mpd) :: arnorm
     REAL(mpd) :: rnorm
     REAL(mpd) :: ynorm
     LOGICAL :: checka
@@ -5102,29 +5086,20 @@ SUBROUTINE mminrs
             CALL precon(ncgb,nvgb,matPreCond,matPreCond, matPreCond(1+nvgb),  &
                 matPreCond(1+nvgb+ncgb*nvgb))
         END IF
-  
-        CALL minres(nagb,globalVector,  &
-            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-            globalCorrections,workspaceMinres, avprod, mcsolv, checka ,.TRUE. , shift,  &
-            nout , itnlim, rtol, istop, itn, anorm, acond, rnorm, ynorm)
+        CALL minres(nagb,  avprod, mcsolv, globalVector, shift, checka ,.TRUE. , &
+            globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
     ELSE IF(mbandw > 0) THEN                          ! band matrix preconditioner
         IF(icalcm == 1) THEN
             WRITE(lun,*) 'MMINRS: EQUDEC started'
             CALL equdec(nvgb,ncgb,matPreCond,indPreCond,nrkd,nrkd2)
             WRITE(lun,*) 'MMINRS: EQUDEC ended'
         END IF
-        CALL minres(nagb,globalVector,  &
-            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-            globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.TRUE. , shift,  &
-            nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
+        CALL minres(nagb,  avprod, mvsolv, globalVector, shift, checka ,.TRUE. , &
+            globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
     ELSE
-        CALL minres(nagb,globalVector,  &
-            workspaceD(1),       workspaceD(1+nagb),  workspaceD(1+2*nagb),  &
-            workspaceD(1+3*nagb),workspaceD(1+4*nagb),workspaceD(1+5*nagb),  &
-            globalCorrections,workspaceMinres, avprod, mvsolv, checka ,.FALSE., shift,  &
-            nout,   itnlim, rtol, istop,  itn, anorm, acond, rnorm, ynorm)
+
+        CALL minres(nagb,  avprod, mvsolv, globalVector, shift, checka ,.FALSE. , &
+            globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
     END IF
     iitera=itn
     istopa=istop
@@ -5136,7 +5111,7 @@ END SUBROUTINE mminrs
 
 !> Solution for zero band width preconditioner.
 !!
-!! Used by \ref minres "MINRES".
+!! Used by \ref minresmodule::minres "MINRES".
 !!
 !! \param[in]      n     size of vectors
 !! \param [in]     x     rhs vector
@@ -5156,7 +5131,7 @@ END SUBROUTINE mcsolv
 
 !> Solution for finite band width preconditioner.
 !!
-!! Used by \ref minres "MINRES".
+!! Used by \ref minresmodule::minres "MINRES".
 !!
 !! \param[in]      n     size of vectors
 !! \param [in]     x     rhs vector
@@ -5292,7 +5267,7 @@ SUBROUTINE xloopn                !
             WRITE(lunp,121) 'solution method:','diagonalization'
         ELSE
             IF(metsol == 3) THEN
-                WRITE(lunp,121) 'solution method:', 'minres (Paige/Saunders)'
+                WRITE(lunp,121) 'solution method:', 'minres (Paige/Saunders/Choi)'
             ELSE IF(metsol == 4) THEN
                 WRITE(lunp,121) 'solution method:',  &
                     'gmres (generalized minimzation of residuals)'
