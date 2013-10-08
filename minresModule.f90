@@ -576,7 +576,6 @@ contains
        Arnorml     = rnorml*rootl               ! ||A r_{k-1} ||
        relArnorml  = rootl  /  Anorm;           ! ||Ar|| / (||A|| ||r||)     
        !relArnorml = Arnorml / Anorm;           ! ||Ar|| / ||A|| 
-       print *, ' iter ', itn, anorm, ynorm, qrnorm, relArnorml, rtol
 
        ! Estimate  cond(A).
        ! In this version we look at the diagonals of  R  in the

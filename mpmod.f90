@@ -12,7 +12,7 @@ MODULE mpmod
     SAVE
     ! steering parameters
     INTEGER(mpi) :: ictest=0  !< test mode '-t'
-    INTEGER(mpi) :: metsol=0  !< solution method (1: inversion, 2: diagonalization, 3: \ref minresmodule::minres "MINRES")
+    INTEGER(mpi) :: metsol=0  !< solution method (1: inversion, 2: diagonalization, 3: \ref minresqlpmodule::minresqlp "MINRES-QLP")
     INTEGER(mpi) :: matsto=2  !< (global) matrix storage mode (1: full, 2: sparse)
     INTEGER(mpi) :: mprint=1  !< print flag (0: minimal, 1: normal, >1: more)
     INTEGER(mpi) :: mdebug=0  !< debug flag (number of records to print)
@@ -36,7 +36,9 @@ MODULE mpmod
     INTEGER(mpi) :: isubit=0  !< subito flag '-s'
     REAL(mps)    :: wolfc1=0.0!< C_1 of strong Wolfe condition
     REAL(mps)    :: wolfc2=0.0!< C_2 of strong Wolfe condition
-    REAL(mpd) :: mrestl=1.0D-06 !< tolerance criterion for MINRES
+    REAL(mpd) :: mrestl=1.0E-06 !< tolerance criterion for MINRES-QLP
+    REAL(mpd) :: mrtcnd=1.0E+07 !< transition (QR -> QLP) (matrix) condition for MINRES-QLP
+    INTEGER(mpi) :: mrmode=0  !< MINRES-QLP mode (0: QR+QLP, 1: only QR, 2: only QLP factorization)
     INTEGER(mpi) :: nofeas=0  !< flag for skipping making parameters feasible
     INTEGER(mpi) :: nhistp=0  !< flag for histogram printout
     REAL(mps)    :: delfun=0.0!< expected function change

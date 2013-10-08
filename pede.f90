@@ -25,7 +25,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-00-03 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-01-00 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -36,6 +36,10 @@
 !!         ./pede -t
 !!
 !!    This will create (and use) the necessary text and binary files.
+!!
+!! \section news_sec News
+!! * 131008: New solution method \ref ch-minresqlp "MINRES-QLP"
+!! [\ref ref_sec "ref 9"] implemented.
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -84,6 +88,17 @@
 !! 7. Volker Blobel und Erich Lohrmann, Statistische und numerische Methoden der
 !!    Datenanalyse, Teubner Studienb&uuml;cher, B.G. Teubner, Stuttgart, 1998.
 !!    [Online-Ausgabe](http://www.desy.de/~blobel/eBuch.pdf).
+!! 8. [Systems Optimization Laboratory](http://www.stanford.edu/group/SOL/software/minres.html),
+!!    Stanford University;\n
+!!    C. C. Paige and M. A. Saunders (1975),
+!!    Solution of sparse indefinite systems of linear equations,
+!!    SIAM J. Numer. Anal. 12(4), pp. 617-629.
+!! 9. [Systems Optimization Laboratory](http://www.stanford.edu/group/SOL/software/minresqlp.html),
+!!    Stanford University;\n
+!!    Sou-Cheng Choi, Christopher Paige, and Michael Saunders,
+!!    MINRES-QLP: A Krylov subspace method for indefinite or singular
+!!    symmetric systems, SIAM Journal of Scientific Computing 33:4, 1810-1836, 2011,
+!!    [doi:10.1137/100787921](http://dx.doi.org/10.1137/100787921)
 !!
 !! \file
 !! Millepede II program, subroutines.
@@ -108,7 +123,7 @@
 !! eigenvalue (and eigenvector) for all global parameters.
 !! \subsection ch-minres Minimal Residual Method (MINRES)
 !! The solution is obtained by minimizing \f$\Vert\Vek{A}\cdot\Vek{x}-\Vek{b}\Vert_2\f$
-!! iteratively. \ref minresmodule::minres "MINRES" is a special case of the
+!! iteratively. \ref minresmodule::minres "MINRES"  [\ref ref_sec "ref 8"] is a special case of the
 !! generalized minimal residual method (\ref an-gmres "GMRES") for symmetric matrices.
 !! Preconditioning with a band matrix of zero or finite
 !! \ref mpmod::mbandw "bandwidth" is possible.
@@ -119,6 +134,18 @@
 !! has been \ref ch-openmp "parallelized".
 !! Available are the value for all (and optionally error, global correlation
 !! for few) global parameters.
+!!\subsection ch-minresqlp Advanced Minimal Residual Method (MINRES-QLP)
+!! The \ref minresqlpmodule::minresqlp "MINRES-QLP" implementation [\ref ref_sec "ref 9"]
+!! is a MINRES evolution with improved norm estimates and stopping conditions
+!! (leading potentially to different numbers of internal iterations).
+!! Internally it uses QLP instead of the QR factorization in
+!! MINRES which should be numerically superior and allows to find for
+!! singular systems the minimal length (pseudo-inverse) solution.
+!!
+!! The default behavior is to start (the internal iterations) with QR factorization
+!! and to switch to QLP if the (estimated) matrix condition exceeds
+!! \ref cmd-mrestranscond "mrtcnd". Pure QR or QLP factorization can be enforced
+!! by \ref cmd-mresmode "mrmode".
 !!
 !! \section ch-regul Regularization
 !! Optionally a term \f$\tau\cdot\Vert\Vek{x}\Vert\f$ can be added to the objective function
@@ -301,12 +328,19 @@
 !!
 !!         method   name     number1  number2
 !!
-!! Set solution method \ref mpmod::metsol "metsol" and
+!! Set \ref ch-methods "solution method" \ref mpmod::metsol "metsol" and
 !! storage mode \ref mpmod::matsto "matsto" according to \a name,
 !! (\c inversion : (1,1), \c diagonalization : (2,1),
-!! \c fullMINRES : (3,1) or \c sparseMINRES : (3,2)),
+!! \c fullMINRES : (3,1) or \c sparseMINRES : (3,2),
+!! \c fullMINRES-QLP : (4,1) or \c sparseMINRES-QLP : (4,2)),
 !! (minimum) number of iterations \ref mpmod::mitera "mitera" to \a number1,
 !! convergence limit \ref mpmod::dflim "dflim" to \a number2.
+!! \subsection cmd-mresmode mresmode
+!! Set \ref minresqlpmodule::minresqlp "MINRES-QLP" factorization mode
+!!  \ref mpmod::mrmode "mrmode" to \a number1.
+!! \subsection cmd-mrestranscond mrestranscond
+!! Set \ref minresqlpmodule::minresqlp "MINRES-QLP" transition (matrix) condition
+!!  \ref mpmod::mrtcnd "mrtcnd" to \a number1.
 !! \subsection cmd-mrestol mrestol
 !! Set tolerance criterion \ref mpmod::mrestl "mrestl" for \ref minresmodule::minres "MINRES"
 !! to \a number1 (\f$10^{-10}\f$ .. \f$10^{-4}\f$).
@@ -757,7 +791,6 @@ PROGRAM mptwo
 105 FORMAT('      Peak dynamic memory allocation: ',f11.6,' GB')
 END PROGRAM mptwo                              ! Mille
 
-
 !> Error for single global parameter from \ref minresmodule::minres "MINRES".
 !!
 !! Calculate single row 'x_i' from inverse matrix by solving A*x_i=b
@@ -853,6 +886,107 @@ SUBROUTINE solglo(ivgbi)
         '       Error gcor^2   iit'/ 1X,'---------',2X,5('-----------'),2X,'----')
 102 FORMAT(i10,2X,4G12.4,f7.4,i6,i4)
 END SUBROUTINE solglo
+
+!> Error for single global parameter from \ref minresqlpmodule::minresqlp "MINRES-QLP".
+!!
+!! Calculate single row 'x_i' from inverse matrix by solving A*x_i=b
+!! with b=0 except b_i=1.
+!!
+!! \param [in]  ivgbi index of variable parameter
+
+SUBROUTINE solgloqlp(ivgbi)
+    USE mpmod
+    USE minresqlpModule, ONLY: minresqlp
+
+    IMPLICIT NONE
+    REAL(mps) :: dpa
+    REAL(mps) :: err
+    REAL(mps) :: gcor2
+    REAL(mps) :: par
+    INTEGER(mpi) :: iph
+    INTEGER(mpi) :: istop
+    INTEGER(mpi) :: itgbi
+    INTEGER(mpi) :: itgbl
+    INTEGER(mpi) :: itn
+    INTEGER(mpi) :: itnlim
+    INTEGER(mpi) :: nout
+
+    INTEGER(mpi), INTENT(IN)                      :: ivgbi
+
+    REAL(mpd) :: shift
+    REAL(mpd) :: rtol
+    REAL(mpd) :: mxxnrm
+    REAL(mpd) :: trcond
+    REAL(mpd) :: gmati
+    REAL(mpd) :: diag
+    INTEGER(mpl) :: ijadd
+    INTEGER(mpl) :: jk
+    INTEGER(mpl) :: ii
+
+    EXTERNAL avprod, mcsolv, mvsolv
+    SAVE
+    DATA iph/0/
+    !     ...
+    IF(iph == 0) THEN
+        iph=1
+        WRITE(*,101)
+    END IF
+    itgbi=globalParVarToTotal(ivgbi)
+    itgbl=globalParLabelIndex(1,itgbi)
+
+    globalVector=0.0_mpd ! reset rhs vector IGVEC
+    globalVector(ivgbi)=1.0_mpd
+
+    !      NOUT  =6
+    nout  =0
+    itnlim=200
+    shift =0.0_mpd
+    rtol  = mrestl ! from steering
+    mxxnrm = REAL(nagb,mpd)/SQRT(epsilon(mxxnrm))
+    IF(mrmode == 1) THEN
+        trcond = 1.0_mpd/epsilon(trcond) ! only QR
+    ELSE IF(mrmode == 2) THEN
+        trcond = 1.0_mpd ! only QLP
+    ELSE
+        trcond = mrtcnd ! QR followed by QLP
+    END IF
+
+    IF(mbandw == 0) THEN           ! default preconditioner
+        CALL minresqlp( n=nagb, Aprod=avprod, b=globalVector,  Msolve=mcsolv, nout=nout, &
+            itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
+            x=globalCorrections, istop=istop, itn=itn)
+    ELSE IF(mbandw > 0) THEN       ! band matrix preconditioner
+        CALL minresqlp( n=nagb, Aprod=avprod, b=globalVector,  Msolve=mvsolv, nout=nout, &
+            itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
+            x=globalCorrections, istop=istop, itn=itn)
+    ELSE
+        CALL minresqlp( n=nagb, Aprod=avprod, b=globalVector, nout=nout, &
+            itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
+            x=globalCorrections, istop=istop, itn=itn)
+    END IF
+
+    par=REAL(globalParameter(itgbi),mps)
+    dpa=par-globalParStart(itgbi)
+    gmati=globalCorrections(ivgbi)
+    ERR=SQRT(ABS(REAL(gmati,mps)))
+    IF(gmati < 0.0_mpd) ERR=-ERR
+    IF(matsto == 1) THEN ! normal matrix               ! ???
+        ii=ivgbi
+        jk=(ii*ii+ii)/2
+    ELSE IF(matsto == 2) THEN ! sparse matrix
+        jk=ijadd(ivgbi,ivgbi)
+    END IF
+    IF (jk > 0) THEN
+        diag=globalMatD(jk)
+    ELSE
+        diag=REAL(globalMatF(-jk),mpd)
+    END IF
+    gcor2=REAL(1.0_mpd-1.0_mpd/(gmati*diag),mps) ! global correlation (squared)
+    WRITE(*,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR,gcor2,itn
+101 FORMAT(1X,'    label     parameter    presigma      differ',  &
+        '       Error gcor^2   iit'/ 1X,'---------',2X,5('-----------'),2X,'----')
+102 FORMAT(i10,2X,4G12.4,f7.4,i6,i4)
+END SUBROUTINE solgloqlp
 
 !> Add \ref par-glowithcon "constraint" information to matrix and vector.
 SUBROUTINE addcst
@@ -1796,7 +1930,7 @@ SUBROUTINE loopn
 
     IF(nloopn == 1) THEN      ! book histograms for 1. iteration
         CALL gmpdef(1,4,'Function value in iterations')
-        IF (metsol == 3) THEN ! extend to GMRES, i.e. 4?
+        IF (metsol == 3 .OR. metsol == 4) THEN ! extend to GMRES, i.e. 4?
             CALL gmpdef(2,3,'Number of MINRES steps vs iteration nr')
         END IF
         CALL hmpdef( 5,0.0,0.0,'Number of degrees of freedom')
@@ -2246,6 +2380,7 @@ END SUBROUTINE ploopd
 !> Print explanation of iteration table.
 SUBROUTINE explfc(lunit)
     USE mpdef
+    USE mpmod, ONLY: metsol
 
     IMPLICIT NONE
     INTEGER(mpi) :: lunit
@@ -2264,18 +2399,39 @@ SUBROUTINE explfc(lunit)
     WRITE(lunit,101) 'slpr', 'ratio of the actual slope to inital slope.'
     WRITE(lunit,101) 'costh',  &
         'cosine of angle between search direction and -gradient'
-    WRITE(lunit,101) 'iit',  &
-        'number of internal iterations in GMRES/MINRES algorithmus'
-    WRITE(lunit,101) 'st', 'stop code of GMRES/MINRES algorithmus'
-    WRITE(lunit,102) '< 0:   rhs is very special, with beta2 = 0'
-    WRITE(lunit,102) '= 0:   rhs b = 0, i.e. the exact solution is  x = 0'
-    WRITE(lunit,102) '= 1    requested accuracy achieved, as determined by rtol'
-    WRITE(lunit,102) '= 2    reasonable accuracy achieved, given eps'
-    WRITE(lunit,102) '= 3    x has converged to an eigenvector'
-    WRITE(lunit,102) '= 4    matrix ill-conditioned (Acond has exceeded 0.1/eps)'
-    WRITE(lunit,102) '= 5    the iteration limit was reached'
-    WRITE(lunit,102) '= 6    Matrix x vector does not define a symmetric matrix'
-    WRITE(lunit,102) '= 7    Preconditioner does not define a symmetric matrix'
+    IF (metsol == 3) THEN
+        WRITE(lunit,101) 'iit',  &
+            'number of internal iterations in MINRES algorithm'
+        WRITE(lunit,101) 'st', 'stop code of MINRES algorithm'
+        WRITE(lunit,102) '< 0:   rhs is very special, with beta2 = 0'
+        WRITE(lunit,102) '= 0:   rhs b = 0, i.e. the exact solution is  x = 0'
+        WRITE(lunit,102) '= 1    requested accuracy achieved, as determined by rtol'
+        WRITE(lunit,102) '= 2    reasonable accuracy achieved, given eps'
+        WRITE(lunit,102) '= 3    x has converged to an eigenvector'
+        WRITE(lunit,102) '= 4    matrix ill-conditioned (Acond has exceeded 0.1/eps)'
+        WRITE(lunit,102) '= 5    the iteration limit was reached'
+        WRITE(lunit,102) '= 6    Matrix x vector does not define a symmetric matrix'
+        WRITE(lunit,102) '= 7    Preconditioner does not define a symmetric matrix'
+    ELSEIF (metsol == 4) THEN
+        WRITE(lunit,101) 'iit',  &
+            'number of internal iterations in MINRES-QLP algorithm'
+        WRITE(lunit,101) 'st', 'stop code of MINRES-QLP algorithm'
+        WRITE(lunit,102) '= 1: beta_{k+1} < eps, iteration k is the final Lanczos step.'
+        WRITE(lunit,102) '= 2: beta2 = 0.  If M = I, b and x are eigenvectors of A.'
+        WRITE(lunit,102) '= 3: beta1 = 0.  The exact solution is  x = 0.'
+        WRITE(lunit,102) '= 4: A solution to (poss. singular) Ax = b found, given rtol.'
+        WRITE(lunit,102) '= 5: A solution to (poss. singular) Ax = b found, given eps.'
+        WRITE(lunit,102) '= 6: Pseudoinverse solution for singular LS problem, given rtol.'
+        WRITE(lunit,102) '= 7: Pseudoinverse solution for singular LS problem, given eps.'
+        WRITE(lunit,102) '= 8: The iteration limit was reached.'
+        WRITE(lunit,102) '= 9: The operator defined by Aprod appears to be unsymmetric.'
+        WRITE(lunit,102) '=10: The operator defined by Msolve appears to be unsymmetric.'
+        WRITE(lunit,102) '=11: The operator defined by Msolve appears to be indefinite.'
+        WRITE(lunit,102) '=12: xnorm has exceeded maxxnorm or will exceed it next iteration.'
+        WRITE(lunit,102) '=13: Acond has exceeded Acondlim or 0.1/eps.'
+        WRITE(lunit,102) '=14: Least-squares problem but no converged solution yet.'
+        WRITE(lunit,102) '=15: A null vector obtained, given rtol.'
+    ENDIF
     WRITE(lunit,101) 'ls', 'line search info'
     WRITE(lunit,102) '< 0    recalculate function'
     WRITE(lunit,102) '= 0:   N or STP lt 0 or step not descending'
@@ -4701,10 +4857,11 @@ SUBROUTINE loop2
         ELSE IF(metsol == 2) THEN
             WRITE(lu,*) '     METSOL = 2:  diagonalization'
         ELSE IF(metsol == 3) THEN
-            !GF         WRITE(LU,*) '     METSOL = 3:  MINRES'
             WRITE(lu,*) '     METSOL = 3:  MINRES (rtol', mrestl,')'
         ELSE IF(metsol == 4) THEN
-            WRITE(lu,*) '     METSOL = 4:  GMRES'
+            WRITE(lu,*) '     METSOL = 4:  MINRES-QLP (rtol', mrestl,')'
+        ELSE IF(metsol == 5) THEN
+            WRITE(lu,*) '     METSOL = 5:  GMRES'
         END IF
         WRITE(lu,*) '                  with',mitera,' iterations'
         IF(matsto == 1) THEN
@@ -5109,6 +5266,78 @@ SUBROUTINE mminrs
 
 END SUBROUTINE mminrs
 
+!> Solution with \ref minresqlpmodule::minresqlp "MINRES-QLP".
+!!
+!! Solve A*x=b by minimizing |A*x-b| iteratively. Parallelized (AVPROD).
+!!
+!! Use preconditioner with zero (precon) or finite (equdec) band width.
+
+SUBROUTINE mminrsqlp
+    USE mpmod
+    USE minresqlpModule, ONLY: minresqlp
+
+    IMPLICIT NONE
+    INTEGER(mpi) :: istop
+    INTEGER(mpi) :: itn
+    INTEGER(mpi) :: itnlim
+    INTEGER(mpi) :: lun
+    INTEGER(mpi) :: nout
+    INTEGER(mpi) :: nrkd
+    INTEGER(mpi) :: nrkd2
+
+    REAL(mpd) :: rtol
+    REAL(mpd) :: mxxnrm
+    REAL(mpd) :: trcond
+
+    EXTERNAL avprod, mvsolv, mcsolv
+    SAVE
+    !     ...
+    lun=lunlog                       ! log file
+    IF(lunlog == 0) lun=6
+
+    nout=lun
+    itnlim=2000    ! iteration limit
+    rtol = mrestl ! from steering
+    mxxnrm = REAL(nagb,mpd)/SQRT(epsilon(mxxnrm))
+    IF(mrmode == 1) THEN
+        trcond = 1.0_mpd/epsilon(trcond) ! only QR
+    ELSE IF(mrmode == 2) THEN
+        trcond = 1.0_mpd ! only QLP
+    ELSE
+        trcond = mrtcnd ! QR followed by QLP
+    END IF
+
+    IF(mbandw == 0) THEN           ! default preconditioner
+        IF(icalcm == 1) THEN
+            CALL precon(ncgb,nvgb,matPreCond,matPreCond, matPreCond(1+nvgb),  &
+                matPreCond(1+nvgb+ncgb*nvgb))
+        END IF
+        CALL minresqlp( n=nagb, Aprod=avprod, b=globalVector,  Msolve=mcsolv, nout=nout, &
+            itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
+            x=globalCorrections, istop=istop, itn=itn)
+    ELSE IF(mbandw > 0) THEN                          ! band matrix preconditioner
+        IF(icalcm == 1) THEN
+            WRITE(lun,*) 'MMINRS: EQUDEC started'
+            CALL equdec(nvgb,ncgb,matPreCond,indPreCond,nrkd,nrkd2)
+            WRITE(lun,*) 'MMINRS: EQUDEC ended'
+        END IF
+
+        CALL minresqlp( n=nagb, Aprod=avprod, b=globalVector,  Msolve=mvsolv, nout=nout, &
+            itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
+            x=globalCorrections, istop=istop, itn=itn)
+    ELSE
+        CALL minresqlp( n=nagb, Aprod=avprod, b=globalVector, nout=nout, &
+            itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
+            x=globalCorrections, istop=istop, itn=itn)
+    END IF
+    iitera=itn
+    istopa=istop
+    mnrsit=mnrsit+itn
+
+    IF (istopa == 3) PRINT *, 'MINRES: istop=0, exact solution x=0.'
+
+END SUBROUTINE mminrsqlp
+
 !> Solution for zero band width preconditioner.
 !!
 !! Used by \ref minresmodule::minres "MINRES".
@@ -5265,13 +5494,21 @@ SUBROUTINE xloopn                !
             WRITE(lunp,121) 'solution method:','matrix inversion'
         ELSE IF(metsol == 2) THEN
             WRITE(lunp,121) 'solution method:','diagonalization'
-        ELSE
-            IF(metsol == 3) THEN
-                WRITE(lunp,121) 'solution method:', 'minres (Paige/Saunders/Choi)'
-            ELSE IF(metsol == 4) THEN
-                WRITE(lunp,121) 'solution method:',  &
-                    'gmres (generalized minimzation of residuals)'
+        ELSE IF(metsol == 3) THEN
+            WRITE(lunp,121) 'solution method:', 'minres (Paige/Saunders)'
+        ELSE IF(metsol == 4) THEN
+            WRITE(lunp,121) 'solution method:', 'minres-qlp (Choi/Paige/Saunders)'
+            IF(mrmode == 1) THEN
+                WRITE(lunp,121) ' ', '   using QR factorization' ! only QR
+            ELSE IF(mrmode == 2) THEN
+                WRITE(lunp,121) ' ', '   using QLP factorization' ! only QLP
+            ELSE
+                WRITE(lunp,121) ' ', '   using QR and QLP factorization' ! QR followed by QLP
+                WRITE(lunp,123) 'transition condition', mrtcnd
             END IF
+        ELSE IF(metsol == 5) THEN
+            WRITE(lunp,121) 'solution method:',  &
+                'gmres (generalized minimzation of residuals)'
         END IF
         WRITE(lunp,123) 'convergence limit at Delta F=',dflim
         WRITE(lunp,122) 'maximum number of iterations=',mitera
@@ -5356,6 +5593,9 @@ SUBROUTINE xloopn                !
     ELSE IF(metsol == 4) THEN
         wolfc2=0.1             ! accurate
         minf=3
+    ELSE IF(metsol == 5) THEN
+        wolfc2=0.1             ! accurate
+        minf=3
     END IF
 
     !     check initial feasibility of constraint equations ----------------
@@ -5411,7 +5651,7 @@ SUBROUTINE xloopn                !
                         CALL ploopb(lunlog)
                         litera=iterat
                         CALL gmpxyd(1,REAL(nloopn,mps),REAL(fvalue,mps),0.5,delfun) ! fcn-value (with expected)
-                        IF(metsol == 3) THEN ! extend to 4, i.e. GMRES?
+                        IF(metsol == 3 .OR. metsol == 4) THEN ! extend to 4, i.e. GMRES?
                             CALL gmpxy(2,REAL(iterat,mps),REAL(iitera,mps)) ! MINRES iterations
                         END IF
                     ELSE
@@ -5467,6 +5707,8 @@ SUBROUTINE xloopn                !
             ELSE IF(metsol == 3) THEN
                 CALL mminrs                   ! MINRES
             ELSE IF(metsol == 4) THEN
+                CALL mminrsqlp                ! MINRES-QLP
+            ELSE IF(metsol == 5) THEN
                 WRITE(*,*) '... reserved for GMRES (not yet!)'
                 CALL mminrs                   ! GMRES not yet
             END IF
@@ -5512,12 +5754,15 @@ SUBROUTINE xloopn                !
                 ELSE IF(metsol == 4) THEN
                     wolfc2=0.1            ! accurate
                     minf=4
+                ELSE IF(metsol == 5) THEN
+                    wolfc2=0.1            ! accurate
+                    minf=4
                 END IF
             ENDIF
 
             IF(db <= 0.0_mpd) THEN
                 WRITE(*,*) 'Function not decreasing:',db
-                IF(db <= -1.0D-3) THEN ! 100311, VB/CK: allow some margin for numerics
+                IF(db <= -1.0E-3_mpd) THEN ! 100311, VB/CK: allow some margin for numerics
                     iagain=iagain+1
                     IF (iagain <= 1) THEN
                         WRITE(*,*) '... again matrix calculation'
@@ -5732,7 +5977,7 @@ SUBROUTINE xloopn                !
 
     ELSE IF(metsol == 2) THEN
         CALL zdiags
-    ELSE IF(metsol == 3) THEN
+    ELSE IF(metsol == 3 .OR. metsol == 4) THEN
         !        errors and correlations from MINRES
         DO  k=1,mnrsel
             labelg=lbmnrs(k)
@@ -5743,10 +5988,14 @@ SUBROUTINE xloopn                !
             IF(ivgbi < 0) ivgbi=0
             IF(ivgbi == 0) CYCLE
             !          determine error and global correlation for parameter IVGBI
-            CALL solglo(ivgbi)
+            IF (metsol == 3) THEN
+                CALL solglo(ivgbi)
+            ELSE
+                CALL solgloqlp(ivgbi)
+            ENDIF
         END DO
   
-    ELSE IF(metsol == 4) THEN
+    ELSE IF(metsol == 5) THEN
   
     END IF
 
@@ -6323,7 +6572,9 @@ SUBROUTINE filetx ! ---------------------------------------------------
         matsto=1
     ELSE IF(metsol == 3) THEN   ! if MINRES
     !        MATSTO=2 or 1
-    ELSE IF(metsol == 4) THEN   ! if GMRES
+    ELSE IF(metsol == 4) THEN   ! if MINRES-QLP
+    !        MATSTO=2 or 1
+    ELSE IF(metsol == 5) THEN   ! if GMRES
     !        MATSTO=2 or 1
     ELSE
         WRITE(*,*) 'MINRES forced with sparse matrix!'
@@ -6355,7 +6606,9 @@ SUBROUTINE filetx ! ---------------------------------------------------
     ELSE IF(metsol == 3) THEN
         WRITE(*,*) '     METSOL = 3:  MINRES'
     ELSE IF(metsol == 4) THEN
-        WRITE(*,*) '     METSOL = 4:  GMRES (-> MINRES)'
+        WRITE(*,*) '     METSOL = 4:  MINRES-QLP'
+    ELSE IF(metsol == 5) THEN
+        WRITE(*,*) '     METSOL = 5:  GMRES (-> MINRES)'
   
     END IF
 
@@ -6498,7 +6751,7 @@ SUBROUTINE intext(text,nline)
     CHARACTER (LEN=*), INTENT(IN) :: text
     INTEGER(mpi), INTENT(IN) :: nline
 
-    PARAMETER (nkeys=9,nmeth=4)
+    PARAMETER (nkeys=9,nmeth=6)
     CHARACTER (LEN=16) :: methxt(nmeth)
     CHARACTER (LEN=16) :: keylst(nkeys)
     CHARACTER (LEN=32) :: keywrd
@@ -6527,7 +6780,8 @@ SUBROUTINE intext(text,nline)
     !     measured   r sigma label factor ...(more)
 
     SAVE
-    DATA methxt/'diagonalization','inversion','fullMINRES', 'sparseMINRES'/
+    DATA methxt/'diagonalization','inversion','fullMINRES', 'sparseMINRES', &
+        'fullMINRES-QLP', 'sparseMINRES-QLP'/
     DATA lkey/-1/                 ! last keyword
 
     !     ...
@@ -6852,8 +7106,8 @@ SUBROUTINE intext(text,nline)
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
             IF(nums > 0) THEN
-                IF (dnum(1) < EPSILON(mrestl).OR.dnum(1) > 1.0D-04) THEN
-                    WRITE(*,*) 'ERROR: need ', EPSILON(mrestl), ' <= MRESTL ',  &
+                IF (dnum(1) < 1.0E-10_mpd.OR.dnum(1) > 1.0E-04_mpd) THEN
+                    WRITE(*,*) 'ERROR: need 1.0D-10 <= MRESTL ',  &
                         '<= 1.0D-04, but get ', dnum(1)
                 ELSE
                     mrestl=dnum(1)
@@ -6862,7 +7116,25 @@ SUBROUTINE intext(text,nline)
             RETURN
         END IF
         ! GF added end
-  
+
+        keystx='mrestranscond'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            IF(nums > 0) THEN
+                mrtcnd = dnum(1)
+            END IF
+            RETURN
+        END IF
+
+        keystx='mresmode'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            IF(nums > 0) THEN
+                mrmode = INT(dnum(1),mpi)
+            END IF
+            RETURN
+        END IF
+
         keystx='nofeasiblestart'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
@@ -6997,12 +7269,15 @@ SUBROUTINE intext(text,nline)
                     ELSE IF(i == 3) THEN       ! fullMINRES
                         metsol=3
                         matsto=1
-                    !                  METSOL=4 !!!
                     ELSE IF(i == 4) THEN       ! sparseMINRES
-                        !                  METSOL=4
                         metsol=3
                         matsto=2
-          
+                    ELSE IF(i == 5) THEN       ! fullMINRES-QLP
+                        metsol=4
+                        matsto=1
+                    ELSE IF(i == 6) THEN       ! sparseMINRES-QLP
+                        metsol=4
+                        matsto=2
                     END IF
                 END IF
             END DO
@@ -7290,4 +7565,3 @@ SUBROUTINE getsum(asum)
     accurateNexp=0
     RETURN
 END SUBROUTINE getsum
-
