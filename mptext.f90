@@ -339,6 +339,7 @@ INTEGER(mpi) FUNCTION matint(pat,text,npat,ntext)
     !GF      IF(NPAT.GT.100) STOP 'MATINT: string PAT too long!   '
     IF(npat > npatma) THEN
         WRITE(*,*) 'too long PAT (', pat,'):', npat, ' >', npatma
+        CALL peend(34,'Aborted, pattern string too long')
         STOP 'MATINT: string PAT too long!   '
     END IF
     !GF end

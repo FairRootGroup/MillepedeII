@@ -101,7 +101,8 @@ MODULE mpmod
     REAL(mps)    :: deltim !< cpu time difference
     INTEGER(mpi) :: npresg !< number of pre-sigmas
     INTEGER(mpi) :: nrecal !< number of records
-    INTEGER(mpi) :: nmiss1 !< rank deficit for constraints
+    INTEGER(mpi) :: ndefec=0 !< rank deficit for global matrix (from inversion)
+    INTEGER(mpi) :: nmiss1=0 !< rank deficit for constraints
     INTEGER(mpi) :: lcalcm !< last calclation mode
     INTEGER(mpi) :: nspc   !< number of precision for sparse global matrix (1=D, 2=D+F)
     INTEGER(mpi) :: nencdb !< encoding info (number bits for column counter)

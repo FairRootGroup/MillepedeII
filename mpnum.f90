@@ -494,6 +494,7 @@ SUBROUTINE devrot(n,diag,u,v,work,iwork)   ! diagonalization
         !      next iteration
 20      IF(j == itmax) THEN
             WRITE(*,*) 'DEVROT: Iteration limit reached'
+            CALL peend(32,'Aborted, iteration limit reached in diagonalization')
             STOP
         END IF
         j=j+1
@@ -1553,7 +1554,10 @@ SUBROUTINE sort1k(a,n)
             a(j)=at
             GO TO 20
         END IF
-        IF(lev+2 > nlev) STOP 'SORT1K (quicksort): stack overflow'
+        IF(lev+2 > nlev) THEN
+            CALL peend(33,'Aborted, stack overflow in quicksort')
+            STOP 'SORT1K (quicksort): stack overflow'
+        END IF
         IF(r-i < j-l) THEN
             lr(lev+1)=l
             lr(lev+2)=j
@@ -1643,7 +1647,10 @@ SUBROUTINE sort2k(a,n)
             a(2,j)=at
             GO TO 20
         END IF
-        IF(lev+2 > nlev) STOP 'SORT2K (quicksort): stack overflow'
+        IF(lev+2 > nlev) THEN
+            CALL peend(33,'Aborted, stack overflow in quicksort')
+          STOP 'SORT2K (quicksort): stack overflow'
+        END IF
         IF(r-i < j-l) THEN
             lr(lev+1)=l
             lr(lev+2)=j

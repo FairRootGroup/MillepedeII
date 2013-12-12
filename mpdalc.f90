@@ -136,6 +136,7 @@ CONTAINS
             print *, ' MPALLOC failed to allocate ', numwords, ' words for : ', text
             print *, ' MPALLOC words used ', numwordsalloc, maxwordsalloc
             print *, ' MPALLOC stat = ', ifail
+            CALL peend(30,'Aborted, memory allocation failed')
             STOP
         ENDIF
     END SUBROUTINE mpalloccheck
@@ -243,6 +244,7 @@ CONTAINS
             print *, ' MPDEALLOC failed to deallocate ', numwords, ' words'
             print *, ' MPDEALLOC words used ', numwordsalloc, maxwordsalloc
             print *, ' MPDEALLOC stat = ', ifail
+            CALL peend(31,'Aborted, memory deallocation failed')
             STOP
         ENDIF
     END SUBROUTINE mpdealloccheck

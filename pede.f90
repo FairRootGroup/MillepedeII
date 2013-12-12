@@ -58,6 +58,8 @@
 !!
 !! \subpage option_page
 !!
+!! \subpage exit_code_page
+!!
 !! \section Contact
 !!
 !! For information exchange the **Millepede** mailing list
@@ -391,6 +393,33 @@
 !! set parameter \ref mpmod::wolfc1 "wolfc1" to \a number1, \ref mpmod::wolfc2
 !! "wolfc2" to \a number2.
 
+!> \page exit_code_page List of exit codes
+!! The exit code and message of the **Pede** executable can be found in the
+!! file <tt>millepede.end</tt> :
+!!    + <b>-1</b>   Still running or crashed
+!!    + **00**   Ended normally
+!!    + **01**   Ended with warnings (bad measurements)
+!!    + **02**   Ended with severe warnings (bad global matrix)
+!!    + **10**   Aborted, no steering file
+!!    + **11**   Aborted, open error for steering file
+!!    + **12**   Aborted, second text file in command line
+!!    + **13**   Aborted, unknown keywords in steering file
+!!    + **14**   Aborted, no binary files
+!!    + **15**   Aborted, open error(s) for binary files
+!!    + **16**   Aborted, open error(s) for text files
+!!    + **17**   Aborted, file name too long
+!!    + **20**   Aborted, bad binary records
+!!    + **21**   Aborted, no labels/parameters defined
+!!    + **22**   Aborted, no variable global parameters
+!!    + **23**   Aborted, bad matrix index
+!!    + **24**   Aborted, vector/matrix size mismatch
+!!    + **25**   Aborted, result vector contains NaNs
+!!    + **26**   Aborted, too many rejects
+!!    + **30**   Aborted, memory allocation failed
+!!    + **31**   Aborted, memory deallocation failed
+!!    + **32**   Aborted, iteration limit reached in diagonalization
+!!    + **33**   Aborted, stack overflow in quicksort
+
 !> Millepede II main program \ref sssec-stalone "Pede".
 PROGRAM mptwo
     USE mpmod
@@ -466,7 +495,7 @@ PROGRAM mptwo
     WRITE(8,*) ' '
     WRITE(8,*) 'Log-file Millepede II-P                        ', chdate
     WRITE(8,*) '                                               ', chost
-
+    CALL peend(-1,'Still running or crashed')
     !     read command line and text files
 
     CALL filetc   ! command line and steering file analysis
@@ -1699,7 +1728,10 @@ SUBROUTINE peprep(mode)
                 END DO
             END IF
         END DO
-        IF(nbad > 0) STOP 'PEREAD: stopping due to bad records'
+        IF(nbad > 0) THEN
+            CALL peend(20,'Aborted, bad binary records')
+            STOP 'PEREAD: stopping due to bad records'
+        END IF
     END IF
     !$POMP INST END(peprep)
 
@@ -2505,7 +2537,10 @@ SUBROUTINE mupdat(i,j,add)       !
                 ij=indPreCond(ia)-ia+ja
                 IF(ia > 1.AND.ij <= indPreCond(ia-1)) ij=0
                 IF(ij /= 0) matPreCond(ij)=matPreCond(ij)+add
-                IF(ij < 0.OR.ij > size(matPreCond)) STOP 'mupdat: bad index'
+                IF(ij < 0.OR.ij > size(matPreCond)) THEN
+                    CALL peend(23,'Aborted, bad matrix index')
+                    STOP 'mupdat: bad index'
+                END IF
             ELSE                  ! Lagrange multiplier
                 ij=indPreCond(nvgb)+(ia-nvgb-1)*nvgb+ja
                 IF(ij /= 0) matPreCond(ij)=matPreCond(ij)+add
@@ -3649,7 +3684,10 @@ SUBROUTINE avprod(n,x,b)
        !$OMP END PARALLEL DO
     ELSE
           ! sparse, compressed matrix
-        IF(sparseMatrixOffsets(2,1) /= n+1) STOP 'AVPROD: mismatched vector and matrix'
+        IF(sparseMatrixOffsets(2,1) /= n+1) THEN
+            CALL peend(24,'Aborted, vector/matrix size mismatch')
+            STOP 'AVPROD: mismatched vector and matrix'
+        END IF
         iencdb=nencdb
         iencdm=ishft(1,iencdb)-1
         ! parallelize row loop
@@ -4146,7 +4184,10 @@ SUBROUTINE loop1
     CALL hmpwrt(1)
     CALL hmpwrt(8)
     ntgb = globalParHeader(-1)     ! total number of labels/parameters
-    IF (ntgb == 0) STOP 'LOOP1: no labels/parameters defined'
+    IF (ntgb == 0) THEN
+        CALL peend(21,'Aborted, no labels/parameters defined')
+        STOP 'LOOP1: no labels/parameters defined'
+    END IF
     CALL upone ! finalize the global label table
     WRITE(lunlog,*) 'LOOP1:',ntgb,  &
         ' is total number NTGB of labels/parameters'
@@ -4228,7 +4269,10 @@ SUBROUTINE loop1
         WRITE(*,*) 'Regularization will be done, using factor',regula
     END IF
 112 FORMAT(a,e9.2,a)
-    IF (nvgb <= 0) STOP '... no variable global parameters'
+    IF (nvgb <= 0) THEN
+        CALL peend(22,'Aborted, no variable global parameters')
+        STOP '... no variable global parameters'
+    ENDIF
 
     DO ivgbi=1,nvgb         ! IVGBI     = variable parameter index
         itgbi=globalParVarToTotal(ivgbi)     ! ITGBI = global parameter index
@@ -5047,7 +5091,6 @@ SUBROUTINE minver
 
     IMPLICIT NONE
     INTEGER(mpi) :: lun
-    INTEGER(mpi) :: ndefec
     INTEGER(mpi) :: nrank
 
     SAVE
@@ -5061,9 +5104,9 @@ SUBROUTINE minver
             workspaceD,workspaceI)
         ndefec=nagb-nrank   ! rank defect
         IF(ndefec /= 0) THEN
-            WRITE(*,*)   'The rank defect of the symmetric',nagb,  &
+            WRITE(*,*)   'Warning: the rank defect of the symmetric',nagb,  &
                 '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
-            WRITE(lun,*) 'The rank defect of the symmetric',nagb,  &
+            WRITE(lun,*) 'Warning: the rank defect of the symmetric',nagb,  &
                 '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
             IF (iforce == 0) THEN
                 isubit=1
@@ -5476,6 +5519,7 @@ SUBROUTINE xloopn                !
     REAL(mpd) :: db2
     REAL(mpd) :: dbdot
     LOGICAL :: warner
+    LOGICAL :: warners
     LOGICAL :: lsflag
     SAVE
     !     ...
@@ -5686,6 +5730,7 @@ SUBROUTINE xloopn                !
                     nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
                     nrejec(2), ' (huge)   ',nrejec(3),' (large)'
                 WRITE(*,*) 'Too many rejects (>33.3%) - stop'
+                CALL peend(26,'Aborted, too many rejects')
                 STOP
             END IF
         END IF
@@ -5813,6 +5858,7 @@ SUBROUTINE xloopn                !
 
         IF (nan > 0) THEN
             WRITE(*,*) 'Result vector containes ', nan,' NaNs - stop'
+            CALL peend(25,'Aborted, result vector contains NaNs')
             STOP
         END IF
 
@@ -5912,13 +5958,15 @@ SUBROUTINE xloopn                !
     dratio=0.01_mpd*REAL(mrati,mpd)
     dfacin=0.01_mpd*REAL(nfaci,mpd)
 
-    warner=.FALSE.
+    warner=.FALSE. ! warnings
     IF(mrati < 90.OR.mrati > 110) warner=.TRUE.
-    IF(nrati > 1) warner=.TRUE.
-    IF(nmiss1 /= 0) warner=.TRUE.
-    IF(iagain /= 0) warner=.TRUE.
+    IF(nrati > 100) warner=.TRUE.
+    warners = .FALSE. ! severe warnings
+    IF(nmiss1 /= 0) warners=.TRUE.
+    IF(iagain /= 0) warners=.TRUE.
+    IF(ndefec /= 0) warners=.TRUE.
 
-    IF(warner) THEN
+    IF(warner.OR.warners) THEN
         WRITE(*,199) ' '
         WRITE(*,199) ' '
         WRITE(*,199) 'WarningWarningWarningWarningWarningWarningWarningWarningWar'
@@ -5936,7 +5984,7 @@ SUBROUTINE xloopn                !
                 'deviations by factor',dfacin
         END IF
 
-        IF(nrati > 1) THEN
+        IF(nrati > 100) THEN
             WRITE(*,199) ' '
             WRITE(*,*) '        Fraction of rejects =',djrat,' %',  &
                 '  (should be far below 1 %)'
@@ -5947,6 +5995,13 @@ SUBROUTINE xloopn                !
             WRITE(*,199) ' '
             WRITE(*,*) '        Matrix not positiv definite '//  &
                 '(function not decreasing)'
+            WRITE(*,*) '        => please provide correct mille data'
+        END IF
+
+        IF(ndefec /= 0) THEN
+            WRITE(*,199) ' '
+            WRITE(*,*) '        Rank defect =',ndefec,  &
+                '  for global matrix, should be 0'
             WRITE(*,*) '        => please provide correct mille data'
         END IF
 
@@ -6000,6 +6055,14 @@ SUBROUTINE xloopn                !
     END IF
 
     CALL prtglo              ! print result
+
+    IF (warners) THEN
+        CALL peend(2,'Ended with severe warnings (bad global matrix)')
+    ELSE IF (warner) THEN
+        CALL peend(1,'Ended with warnings (bad measurements)')
+    ELSE
+        CALL peend(0,'Ended normally')
+    END IF
 
 102 FORMAT(' Call FEASIB with cut=',g10.3)
     ! 103  FORMAT(1X,A,G12.4)
@@ -6089,12 +6152,14 @@ SUBROUTINE filetc
             IF(nu == 2) THEN         ! existing text file
                 IF(filnam /= ' ') THEN
                     WRITE(*,*) 'Second text file in command line - stop'
+                    CALL peend(12,'Aborted, second text file in command line')
                     STOP
                 ELSE
                     filnam=text
                 END IF
             ELSE
                 WRITE(*,*) 'Open error for file:',text(ia:ib),' - stop'
+                CALL peend(16,'Aborted, open error for file')
                 STOP
             END IF
         ELSE
@@ -6143,6 +6208,7 @@ SUBROUTINE filetc
         IF(nu > 0) THEN
             filnam=text
         ELSE
+            CALL peend(10,'Aborted, no steering file')
             STOP 'in FILETC: no steering file.                      .'
         END IF
     END IF
@@ -6161,6 +6227,7 @@ SUBROUTINE filetc
     OPEN(10,FILE=filnam(1:nfnam),IOSTAT=ios)
     IF(ios /= 0) THEN
         WRITE(*,*) 'Open error for steering file - stop'
+        CALL peend(11,'Aborted, open error for steering file')
         STOP
     END IF
     ifile =0
@@ -6377,9 +6444,11 @@ SUBROUTINE filetc
     END DO
 
     IF(iosum /= 0) THEN
+        CALL peend(15,'Aborted, open error(s) for binary files')
         STOP 'FILETC: open error                                      '
     END IF
     IF(nfilb == 0) THEN
+        CALL peend(14,'Aborted, no binary files')
         STOP 'FILETC: no binary files                                 '
     END IF
     WRITE(*,*) nfilb,' binary files opened' ! corrected by GF
@@ -6539,6 +6608,7 @@ SUBROUTINE filetx ! ---------------------------------------------------
     END DO
 
     IF(iosum /= 0) THEN
+        CALL peend(16,'Aborted, open error(s) for text files')
         STOP 'FILETX: open error(s) in text files                     '
     END IF
 
@@ -6552,6 +6622,7 @@ SUBROUTINE filetx ! ---------------------------------------------------
         WRITE(*,*) '   see above!'
         WRITE(*,*) '------------>    stop'
         WRITE(*,*) ' '
+        CALL peend(13,'Aborted, unknown keywords in steering file')
         STOP
     END IF
 
@@ -7459,7 +7530,10 @@ SUBROUTINE mvopen(lun,fname)
     SAVE
     !     ...
     l=LEN(fname)
-    IF(l > 32) STOP 'File name too long                    '
+    IF(l > 32) THEN
+        CALL peend(17,'Aborted, file name too long')
+        STOP 'File name too long                    '
+    END IF
     nafile=fname
     nafile(l+1:l+1)='~'
 
@@ -7522,6 +7596,27 @@ SUBROUTINE petime
 101 FORMAT(i4,' h',i3,' min',f5.1,' sec total',18X,'elapsed',  &
         i4,' h',i3,' min',f5.1,' sec')
 END SUBROUTINE petime                          ! print
+
+!> Print exit code.
+!!
+!! Print exit code and message.
+!!
+!! \param[in]  icode     exit code
+!! \param[in]  cmessage  exit massage
+
+SUBROUTINE peend(icode, cmessage)
+    USE mpdef
+
+    IMPLICIT NONE
+    INTEGER(mpi), INTENT(IN) :: icode
+    CHARACTER (LEN=*), INTENT(IN) :: cmessage
+
+    CALL mvopen(9,'millepede.end')
+    WRITE(9,101) icode, cmessage
+101 FORMAT(1X,I4,3X,A)
+    RETURN
+
+END SUBROUTINE peend
 
 ! ----- accurate summation ----(from mpnum) ---------------------------------
 
