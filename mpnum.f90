@@ -95,8 +95,11 @@ SUBROUTINE sqminv(v,b,n,nrank,diag,next)   ! matrix inversion
     REAL(mpd) :: vkk
     REAL(mpd) :: vjk
 
-    REAL(mpd), PARAMETER :: eps=1.0E-10_mpd
+    !REAL(mpd), PARAMETER :: eps=1.0E-10_mpd
+    REAL(mpd) eps
     !     ...
+    eps = 16.0_mpd * epsilon(eps) ! 16 * precision(mpd)
+
     next0=1
     l=1
     DO i=1,n

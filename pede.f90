@@ -2899,6 +2899,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
   
         nter=1                         ! first loop without down-weighting
         IF(nloopn /= 1.AND.lhuber /= 0) nter=lhuber
+        localCorrections(1:neq) = 0._mpd
   
         !      check matrix for bordered band structure (MBDR+MBND+1 <= NALC)
         mbnd=-1

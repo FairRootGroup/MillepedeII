@@ -1,6 +1,6 @@
 #!/usr/bin32/python
 #
-import array
+import array, sys
 ### read millepede binary file #################
 #   print information (tested with SL4)
 #   for C files
@@ -12,8 +12,8 @@ intfmt = 'i'
 # SL4, gcc-3
 #intfmt = 'l'
 #
-# input file
-f = open("milleBinaryISN.dat","rb")
+# input file name
+fname = "milleBinaryISN.dat"
 #
 # number of records (tracks) to show
 mrec = 10
@@ -21,6 +21,22 @@ mrec = 10
 skiprec = 0
 #
 ### C. Kleinwort - DESY ########################
+
+### use command line arguments ?
+narg = len(sys.argv)
+if narg > 1:
+  if narg < 3:
+    print " usage: readMilleBinary.py <file name> <number of records> [<number of records to skip>]" 
+    sys.exit(2)
+  else:
+    fname = sys.argv[1]
+    mrec = int(sys.argv[2])
+    if narg > 3:
+      skiprec = int(sys.argv[3])
+
+#print " input ", fname, mrec, skiprec
+  
+f = open(fname,"rb")
 
 nrec=0
 try:
@@ -30,12 +46,15 @@ try:
            lenf=array.array(intfmt)
            lenf.fromfile(f,2)
            
-        len=array.array(intfmt)
-        len.fromfile(f,1)
-        nr=len[0]/2
+        length=array.array(intfmt)
+        length.fromfile(f,1)
+        nr=abs(length[0]/2)
         nrec+=1
 
-        glder=array.array('f')
+        if length[0]>0: 
+            glder=array.array('f')
+        else:
+            glder=array.array('d')          
         glder.fromfile(f,nr)
 
         inder=array.array(intfmt)
@@ -45,10 +64,10 @@ try:
            lenf=array.array(intfmt)
            lenf.fromfile(f,2)
 
-        if (nrec < skiprec): # must be after last fromfile
+        if (nrec <= skiprec): # must be after last fromfile
             continue
 
-        print " === NR ", nrec, nr
+        print " === NR ", nrec, length[0]/2
 
         i=0
         nh=0
