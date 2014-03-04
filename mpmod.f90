@@ -86,7 +86,8 @@ MODULE mpmod
     INTEGER(mpi) :: nagbn !< max number of global paramters per record
     INTEGER(mpi) :: nalcn !< max number of local paramters per record
     INTEGER(mpi) :: naeqn !< max number of equations (measurements) per record
-    INTEGER(mpi) :: nrec  !< (current) record number
+    INTEGER(mpi) :: nrec  !< number of records read
+    INTEGER(mpi) :: nrecd !< number of records read containing doubles
     REAL(mps)    :: dflim !< convergence limit
     INTEGER(mpi), DIMENSION(0:3) :: nrejec !< rejected events
     REAL(mps), DIMENSION(0:8) :: times !< cpu time counters
@@ -172,7 +173,8 @@ MODULE mpmod
     INTEGER(mpi), DIMENSION(:,:), ALLOCATABLE :: readBufferInfo !< buffer management (per thread)
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: readBufferPointer !< pointer to used buffers
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: readBufferDataI !< integer data
-    REAL(mps), DIMENSION(:), ALLOCATABLE :: readBufferDataF !< float data
+    REAL(mpr4), DIMENSION(:), ALLOCATABLE :: readBufferDataF !< float data
+    REAL(mpr8), DIMENSION(:), ALLOCATABLE :: readBufferDataD !< double data
     ! global parameter usage in record
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalIndexUsage !< indices of global par in record
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: backIndexUsage   !< list of global par in record
@@ -188,7 +190,7 @@ MODULE mpmod
     REAL(mpd), DIMENSION(:), ALLOCATABLE::vzru !< local fit 'border solution'
     REAL(mpd), DIMENSION(:), ALLOCATABLE::scdiag !< local fit workspace (D)
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE:: scflag         !< local fit workspace (I)
-    REAL(mps), DIMENSION(:), ALLOCATABLE :: localCorrections !< local fit corrections (to residuals)
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: localCorrections !< local fit corrections (to residuals)
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: localGlobalMatrix !< matrix correlating local and global par
     ! update of global matrix
     INTEGER(mpi), DIMENSION(:,:), ALLOCATABLE :: writeBufferInfo  !< write buffer management (per thread)
