@@ -2840,13 +2840,14 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
         END IF
         nalg=0                         ! count number of global derivatives
         nalc=0                         ! count number of local derivatives
-        imeas=0
+        neq=0
         ist=isfrst(ibuf)
         nst=islast(ibuf)
         DO ! loop over measurements
             CALL isjajb(nst,ist,ja,jb,jsp)
             IF(ja == 0) EXIT
             rmeas=glder(ja)               ! data
+            neq=neq+1
             !         subtract global ... from measured value
             DO j=1,ist-jb                 ! global parameter loop
                 itgbi=inder(jb+j)            ! global parameter label
@@ -2864,8 +2865,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                 END IF
             END DO
             IF(lprnt) THEN
-                imeas=imeas+1
-                IF (jb < ist) WRITE(1,102) imeas,glder(ja),rmeas,glder(jb)
+                IF (jb < ist) WRITE(1,102) neq,glder(ja),rmeas,glder(jb)
             END IF
             readBufferDataF(ja)=rmeas   ! global contribution subtracted
             DO j=1,jb-ja-1              ! local parameter loop
