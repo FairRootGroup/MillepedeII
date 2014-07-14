@@ -2629,8 +2629,8 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
     INTEGER(mpi) :: ib
     INTEGER(mpi) :: ibuf
     INTEGER(mpi) :: ichunk
-    INTEGER(mpi) :: icmn
-    INTEGER(mpi) :: icost
+    INTEGER(mpl) :: icmn
+    INTEGER(mpl) :: icost
     INTEGER(mpi) :: id
     INTEGER(mpi) :: idiag
     INTEGER(mpi) :: iext
@@ -3006,11 +3006,11 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                 kx=-1
                 kbdr=0
                 kbdrx=0
-                icmn=nalc**3 ! cost (*6) should improve by at least factor 2
+                icmn=INT(nalc,mpl)**3 ! cost (*6) should improve by at least factor 2
                 DO k=nalc,2,-1
                     kbnd=k-2
                     kbdr=MAX(kbdr,ibandh(k))
-                    icost=6*(nalc-kbdr)*(kbnd+kbdr+1)**2+2*kbdr**3
+                    icost=6*INT(nalc-kbdr,mpl)*INT(kbnd+kbdr+1,mpl)**2+2*INT(kbdr,mpl)**3
                     IF (icost < icmn) THEN
                         icmn=icost
                         kx=k
