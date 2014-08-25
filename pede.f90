@@ -25,7 +25,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-01-02 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-01-04 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -366,6 +366,9 @@
 !! Set default pre-sigma \ref mpmod::regpre "regpre" to \a number1 [1].
 !! \subsection cmd-print print
 !! Set print level \ref mpmod::mprint "mprint" to \a number1 [1].
+!! \subsection cmd-printcounts printcounts
+!! Set flag \ref mpmod::ipcntr "ipcntr" to 1 (true),
+!! The counters for the global parameters in the binary files will be printed in the result file.
 !! \subsection cmd-printrecord printrecord
 !! \ref an-recpri "Record" numbers with printout.
 !! \subsection cmd-pullrange pullrange
@@ -3561,19 +3564,29 @@ SUBROUTINE prtglo
         ELSE IF(itgbi == iprlim+1) THEN
             WRITE(*  ,*) '... (further printout suppressed, but see log file)'
         END IF
-  
+
         !      file output
         IF(ivgbi <= 0) THEN
-            WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi)
+            IF (ipcntr /= 0) THEN
+                WRITE(lup,110) itgbl,par,globalParPreSigma(itgbi),globalParCounts(itgbi)
+            ELSE
+                WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi)
+            END IF               
         ELSE
             IF(metsol == 1.OR.metsol == 2) THEN
-                IF (igcorr == 0) THEN
-                    WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR
-                ELSE
+                IF (ipcntr /= 0) THEN
+                    WRITE(lup,112) itgbl,par,globalParPreSigma(itgbi),dpa,ERR,globalParCounts(itgbi)            
+                ELSE IF (igcorr /= 0) THEN
                     WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR,gcor
+                ELSE
+                    WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR
                 END IF
             ELSE
-                WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi),dpa
+                IF (ipcntr /= 0) THEN
+                    WRITE(lup,111) itgbl,par,globalParPreSigma(itgbi),dpa,globalParCounts(itgbi)
+                ELSE
+                    WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi),dpa
+                END IF    
             END IF
         END IF
     END DO
@@ -3628,6 +3641,9 @@ SUBROUTINE prtglo
         '         error'/ 1X,'-----------',4X,4('-------------'))
 102 FORMAT(i10,2X,4G14.5,f8.3)
 103 FORMAT(3(i11,f11.7,2X))
+110 FORMAT(i10,2X,2G14.5,28X,i12)
+111 FORMAT(i10,2X,3G14.5,14X,i12)
+112 FORMAT(i10,2X,4G14.5,i12)
 END SUBROUTINE prtglo    ! print final log file
 
 
@@ -4223,6 +4239,7 @@ SUBROUTINE loop1
     CALL mpalloc(globalParStart,length,'global parameters at start')
     globalParStart=0.
     CALL mpalloc(globalParCopy,length,'copy of global parameters')
+    CALL mpalloc(globalParCounts,length,'global parameter counts')
 
     DO i=1,lenParameters                  ! parameter start values
         param=listParameters(i)%value
@@ -4250,6 +4267,7 @@ SUBROUTINE loop1
 
     indab=0
     DO i=1,ntgb
+        globalParCounts(i) = globalParLabelIndex(2,i)
         IF(globalParLabelIndex(2,i) >= mreqen.AND.globalParPreSigma(i) >= 0.0) THEN
             indab=indab+1
             globalParLabelIndex(2,i)=indab  ! variable, used in matrix (active)
@@ -7128,7 +7146,14 @@ SUBROUTINE intext(text,nline)
             igcorr=1
             RETURN
         END IF
-  
+
+        keystx='printcounts'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            ipcntr=1
+            RETURN
+        END IF
+          
         keystx='threads'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN

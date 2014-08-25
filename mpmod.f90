@@ -76,6 +76,7 @@ MODULE mpmod
     REAL(mps)    :: prange=0.0!< range (-PRANGE..PRANGE) for histograms of pulls, norm. residuals
     INTEGER(mpi) :: lsearch=2 !< iterations (solutions) with line search:
                          !! >2: all, =2: all with (next) Chi2 cut scaling factor =1., =1: last, <1: none
+    INTEGER(mpi) :: ipcntr=0  !< flag for output of global parameter counts (entries), =0: none
     ! variables
     INTEGER(mpi) :: lunlog !< unit for logfile
     INTEGER(mpi) :: lvllog !< log level
@@ -133,6 +134,7 @@ MODULE mpmod
     REAL(mps), DIMENSION(:), ALLOCATABLE :: globalParStart     !< start value for global parameters
     REAL(mps), DIMENSION(:), ALLOCATABLE :: globalParPreSigma  !< pre-sigma for global parameters
     REAL(mps), DIMENSION(:), ALLOCATABLE :: globalParPreWeight !< weight from pre-sigma
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalParCounts !< global parameters counts (from binary files)
     ! global matrix, vector
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalMatD !< global matrix 'A' (double, full or sparse)
     REAL(mps), DIMENSION(:), ALLOCATABLE :: globalMatF !< global matrix 'A' (float part for compressed sparse)
