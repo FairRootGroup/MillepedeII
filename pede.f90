@@ -412,6 +412,7 @@
 !!    + **15**   Aborted, open error(s) for binary files
 !!    + **16**   Aborted, open error(s) for text files
 !!    + **17**   Aborted, file name too long
+!!    + **18**   Aborted, read error(s) for binary files
 !!    + **20**   Aborted, bad binary records
 !!    + **21**   Aborted, no labels/parameters defined
 !!    + **22**   Aborted, no variable global parameters
@@ -1487,6 +1488,10 @@ SUBROUTINE peread(more)
                 ierrc=0
 #endif
                 eof=(ierrc <= 0.AND.ierrc /= -4) ! allow buffer overruns -> skip record
+                IF(eof.AND.ierrc < 0) THEN
+                    CALL peend(18,'Aborted, read error(s) for binary files')
+                    STOP 'PEREAD: stopping due to read errors'
+                END IF
             END IF
             IF(eof) EXIT records   ! end-of-files or error
 
