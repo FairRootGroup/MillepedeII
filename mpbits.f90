@@ -271,7 +271,7 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
                 !              keep pair ?
                 IF (icount >= mnpair) THEN
                     next=1 ! double
-                    IF (icount <= icmprs.AND.icmprs > 0) next=2 ! single
+                    IF (icount < icmprs.AND.icmprs > 0) next=2 ! single
                     inr(next)=inr(next)+1
                     bitFieldCounters(lb)=ibset(bitFieldCounters(lb),mb+next-1)
                     IF (next /= last.OR.lrgn >= nencdm) THEN

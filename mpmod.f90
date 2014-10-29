@@ -58,7 +58,7 @@ MODULE mpmod
     INTEGER(mpi) :: nrec3 = huge(nrec3) !< (1.) record number with error
     INTEGER(mpi) :: mreqpe=1  !< min number of pair entries
     INTEGER(mpi) :: mhispe=0  !< upper bound for pair entry histogrammimg
-    INTEGER(mpi) :: msngpe=0  !< upper bound for pair entry single precision storage
+    INTEGER(mpi) :: msngpe=-1 !< upper bound for pair entry single precision storage
     INTEGER(mpi) :: mcmprs=0  !< compression flag for sparsity (column indices)
     INTEGER(mpi) :: mthrd =1  !< number of (OpenMP) threads
     INTEGER(mpi) :: mxrec =0  !< max number of records
@@ -131,9 +131,9 @@ MODULE mpmod
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalParameter !< global parameters (start values + sum(x_i))
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalParCopy !< copy of global parameters
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalCorrections !< correction x_i (from A*x_i=b_i in iteration i)
-    REAL(mps), DIMENSION(:), ALLOCATABLE :: globalParStart     !< start value for global parameters
-    REAL(mps), DIMENSION(:), ALLOCATABLE :: globalParPreSigma  !< pre-sigma for global parameters
-    REAL(mps), DIMENSION(:), ALLOCATABLE :: globalParPreWeight !< weight from pre-sigma
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalParStart     !< start value for global parameters
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalParPreSigma  !< pre-sigma for global parameters
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalParPreWeight !< weight from pre-sigma
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalParCounts !< global parameters counts (from binary files)
     ! global matrix, vector
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalMatD !< global matrix 'A' (double, full or sparse)

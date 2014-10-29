@@ -25,7 +25,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-01-04 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-02-01 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -41,6 +41,7 @@
 !! * 131008: New solution method \ref ch-minresqlp "MINRES-QLP"
 !! [\ref ref_sec "ref 9"] implemented.
 !! * 140226: Reading of C binary files containing *doubles* implemented.
+!! * 141020: Storage of values read from text files as *doubles* implemented.
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -838,10 +839,10 @@ SUBROUTINE solglo(ivgbi)
     USE minresModule, ONLY: minres
 
     IMPLICIT NONE
+    REAL(mps) :: par
     REAL(mps) :: dpa
     REAL(mps) :: err
     REAL(mps) :: gcor2
-    REAL(mps) :: par
     INTEGER(mpi) :: iph
     INTEGER(mpi) :: istop
     INTEGER(mpi) :: itgbi
@@ -900,7 +901,7 @@ SUBROUTINE solglo(ivgbi)
     END IF
 
     par=REAL(globalParameter(itgbi),mps)
-    dpa=par-globalParStart(itgbi)
+    dpa=REAL(par-globalParStart(itgbi),mps)
     gmati=globalCorrections(ivgbi)
     ERR=SQRT(ABS(REAL(gmati,mps)))
     IF(gmati < 0.0_mpd) ERR=-ERR
@@ -916,7 +917,7 @@ SUBROUTINE solglo(ivgbi)
         diag=REAL(globalMatF(-jk),mpd)
     END IF
     gcor2=REAL(1.0_mpd-1.0_mpd/(gmati*diag),mps) ! global correlation (squared)
-    WRITE(*,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR,gcor2,itn
+    WRITE(*,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR,gcor2,itn
 101 FORMAT(1X,'    label     parameter    presigma      differ',  &
         '       Error gcor^2   iit'/ 1X,'---------',2X,5('-----------'),2X,'----')
 102 FORMAT(i10,2X,4G12.4,f7.4,i6,i4)
@@ -934,10 +935,10 @@ SUBROUTINE solgloqlp(ivgbi)
     USE minresqlpModule, ONLY: minresqlp
 
     IMPLICIT NONE
+    REAL(mps) :: par
     REAL(mps) :: dpa
     REAL(mps) :: err
     REAL(mps) :: gcor2
-    REAL(mps) :: par
     INTEGER(mpi) :: iph
     INTEGER(mpi) :: istop
     INTEGER(mpi) :: itgbi
@@ -1001,7 +1002,7 @@ SUBROUTINE solgloqlp(ivgbi)
     END IF
 
     par=REAL(globalParameter(itgbi),mps)
-    dpa=par-globalParStart(itgbi)
+    dpa=REAL(par-globalParStart(itgbi),mps)
     gmati=globalCorrections(ivgbi)
     ERR=SQRT(ABS(REAL(gmati,mps)))
     IF(gmati < 0.0_mpd) ERR=-ERR
@@ -1017,7 +1018,7 @@ SUBROUTINE solgloqlp(ivgbi)
         diag=REAL(globalMatF(-jk),mpd)
     END IF
     gcor2=REAL(1.0_mpd-1.0_mpd/(gmati*diag),mps) ! global correlation (squared)
-    WRITE(*,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR,gcor2,itn
+    WRITE(*,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR,gcor2,itn
 101 FORMAT(1X,'    label     parameter    presigma      differ',  &
         '       Error gcor^2   iit'/ 1X,'---------',2X,5('-----------'),2X,'----')
 102 FORMAT(i10,2X,4G12.4,f7.4,i6,i4)
@@ -1028,10 +1029,10 @@ SUBROUTINE addcst
     USE mpmod
 
     IMPLICIT NONE
-    REAL(mps) :: climit
-    REAL(mps) :: factr
-    REAL(mps) :: hugeVal
-    REAL(mps) :: sgm
+    REAL(mpd) :: climit
+    REAL(mpd) :: factr
+    REAL(mpd) :: hugeVal
+    REAL(mpd) :: sgm
 
     INTEGER(mpi) :: i
     INTEGER(mpi) :: icgb
@@ -1066,7 +1067,7 @@ SUBROUTINE addcst
             ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
   
             IF(icalcm == 1.AND.ivgb > 0) THEN
-                CALL mupdat(nvgb+icgb,ivgb,REAL(hugeVal*factr,mpd)) ! add to matrix
+                CALL mupdat(nvgb+icgb,ivgb,hugeVal*factr) ! add to matrix
             END IF
   
             rhs=rhs-factr*globalParameter(itgbi)     ! reduce residuum
@@ -1106,8 +1107,8 @@ SUBROUTINE feasma
     USE mpdalc
 
     IMPLICIT NONE
-    REAL(mps) :: factr
-    REAL(mps) :: sgm
+    REAL(mpd) :: factr
+    REAL(mpd) :: sgm
     INTEGER(mpi) :: i
     INTEGER(mpi) :: icgb
     INTEGER(mpi) :: ij
@@ -1211,8 +1212,8 @@ SUBROUTINE feasib(concut,iact)
     USE mpdalc
 
     IMPLICIT NONE
-    REAL(mps) :: factr
-    REAL(mps) :: sgm
+    REAL(mpd) :: factr
+    REAL(mpd) :: sgm
     INTEGER(mpi) :: i
     INTEGER(mpi) :: icgb
     INTEGER(mpi) :: iter
@@ -1917,20 +1918,20 @@ SUBROUTINE loopn
     USE mpmod
 
     IMPLICIT NONE
-    REAL(mps) :: dsum
+    REAL(mpd) :: dsum
     REAL(mps) :: elmt
-    REAL(mps) :: factrj
-    REAL(mps) :: factrk
+    REAL(mpd) :: factrj
+    REAL(mpd) :: factrk
     REAL(mpr8) :: glder
     REAL(mps) :: peakd
     REAL(mps) :: peaki
     REAL(mps) :: ratae
-    REAL(mps) :: rhs
+    REAL(mpd) :: rhs
     REAL(mps) :: rloop
-    REAL(mps) :: sgm
+    REAL(mpd) :: sgm
     REAL(mps) :: used
     REAL(mps) :: usei
-    REAL(mps) :: weight
+    REAL(mpd) :: weight
     INTEGER(mpi) :: i
     INTEGER(mpi) :: ia
     INTEGER(mpi) :: ib
@@ -2115,7 +2116,7 @@ SUBROUTINE loopn
         DO ivgb=1,nvgb                        ! add evtl. pre-sigma
             !          WRITE(*,*) 'Index ',IVGB,IVGB,QM(IND6+IVGB)
             IF(globalParPreWeight(ivgb) /= 0.0) THEN
-                IF(ivgb > 0) CALL mupdat(ivgb,ivgb,REAL(globalParPreWeight(ivgb),mpd))
+                IF(ivgb > 0) CALL mupdat(ivgb,ivgb,globalParPreWeight(ivgb))
             END IF
         END DO
     END IF
@@ -2166,7 +2167,7 @@ SUBROUTINE loopn
             factrj=listMeasurements(j)%value
             itgbij=inone(listMeasurements(j)%label) ! total parameter index
             IF(itgbij /= 0) THEN
-                dsum=dsum+factrj*REAL(globalParameter(itgbij),mps)     ! residuum
+                dsum=dsum+factrj*globalParameter(itgbij)     ! residuum
             END IF
             !      add to vector
             ivgbij=0
@@ -2183,7 +2184,7 @@ SUBROUTINE loopn
                     ivgbik=0
                     IF(itgbik /= 0) ivgbik=globalParLabelIndex(2,itgbik) ! variable-parameter index
                     IF(ivgbij > 0.AND.ivgbik > 0) THEN    !
-                        CALL mupdat(ivgbij,ivgbik,REAL(weight*factrj*factrk,mpd))
+                        CALL mupdat(ivgbij,ivgbik,weight*factrj*factrk)
                     END IF
                 END DO
             END IF
@@ -3537,7 +3538,7 @@ SUBROUTINE prtglo
         ivgbi=globalParLabelIndex(2,itgbi)
         par=REAL(globalParameter(itgbi),mps)      ! initial value
         IF(ivgbi > 0) THEN
-            dpa=par-globalParStart(itgbi)       ! difference
+            dpa=REAL(globalParameter(itgbi)-globalParStart(itgbi),mps)       ! difference
             IF(metsol == 1.OR.metsol == 2) THEN
                 ii=ivgbi
                 ii=(ii*ii+ii)/2
@@ -3554,16 +3555,16 @@ SUBROUTINE prtglo
         END IF
         IF(itgbi <= iprlim) THEN
             IF(ivgbi <= 0) THEN
-                WRITE(*  ,102) itgbl,par,globalParPreSigma(itgbi)
+                WRITE(*  ,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps)
             ELSE
                 IF(metsol == 1.OR.metsol == 2) THEN
                     IF (igcorr == 0) THEN
-                        WRITE(*,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR
+                        WRITE(*,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR
                     ELSE
-                        WRITE(*,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR,gcor
+                        WRITE(*,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR,gcor
                     END IF
                 ELSE
-                    WRITE(*,102) itgbl,par,globalParPreSigma(itgbi),dpa
+                    WRITE(*,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa
                 END IF
             END IF
         ELSE IF(itgbi == iprlim+1) THEN
@@ -3573,24 +3574,24 @@ SUBROUTINE prtglo
         !      file output
         IF(ivgbi <= 0) THEN
             IF (ipcntr /= 0) THEN
-                WRITE(lup,110) itgbl,par,globalParPreSigma(itgbi),globalParCounts(itgbi)
+                WRITE(lup,110) itgbl,par,REAL(globalParPreSigma(itgbi),mps),globalParCounts(itgbi)
             ELSE
-                WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi)
+                WRITE(lup,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps)
             END IF               
         ELSE
             IF(metsol == 1.OR.metsol == 2) THEN
                 IF (ipcntr /= 0) THEN
-                    WRITE(lup,112) itgbl,par,globalParPreSigma(itgbi),dpa,ERR,globalParCounts(itgbi)            
+                    WRITE(lup,112) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR,globalParCounts(itgbi)            
                 ELSE IF (igcorr /= 0) THEN
-                    WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR,gcor
+                    WRITE(lup,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR,gcor
                 ELSE
-                    WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi),dpa,ERR
+                    WRITE(lup,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR
                 END IF
             ELSE
                 IF (ipcntr /= 0) THEN
-                    WRITE(lup,111) itgbl,par,globalParPreSigma(itgbi),dpa,globalParCounts(itgbi)
+                    WRITE(lup,111) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,globalParCounts(itgbi)
                 ELSE
-                    WRITE(lup,102) itgbl,par,globalParPreSigma(itgbi),dpa
+                    WRITE(lup,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa
                 END IF    
             END IF
         END IF
@@ -4139,13 +4140,10 @@ SUBROUTINE loop1
     INTEGER(mpi) :: nr
     INTEGER(mpi) :: nwrd
     INTEGER(mpi) :: inone
-    REAL(mps) :: param
-    REAL(mps) :: presg
-    REAL(mps) :: prewt
+    REAL(mpd) :: param
+    REAL(mpd) :: presg
+    REAL(mpd) :: prewt
 
-    REAL(mps) :: plvs(3)    ! vector array: real and ...
-    INTEGER(mpi) :: lpvs(3)    ! ... integer
-    EQUIVALENCE (plvs(1),lpvs(1))
     INTEGER(mpl) :: length
     SAVE
     !     ...
@@ -4317,9 +4315,9 @@ SUBROUTINE loop1
         presg=globalParPreSigma(itgbi)   ! get pre-sigma
         prewt=0.0              ! pre-weight
         IF(presg > 0.0) THEN
-            prewt=1.0/presg**2           ! 1/presigma^2
+            prewt=1.0/presg**2            ! 1/presigma^2
         ELSE IF(presg == 0.0.AND.regpre > 0.0) THEN
-            prewt=1.0/regpre**2          ! default 1/presigma^2
+            prewt=1.0/REAL(regpre**2,mpd) ! default 1/presigma^2
         END IF
         globalParPreWeight(ivgbi)=regula*prewt    ! weight = factor / presigma^2
     END DO
@@ -4459,6 +4457,7 @@ SUBROUTINE loop2
     INTEGER(mpi) :: nst
     INTEGER(mpi) :: nwrd
     INTEGER(mpi) :: inone
+    INTEGER(mpi) :: inc
     REAL(mps) :: wgh
     REAL(mps) :: wolfc3
     REAL(mps) :: wrec
@@ -4714,7 +4713,7 @@ SUBROUTINE loop2
                         '(float)       [%]       [GB]'
                 END IF
                 nmatmo=nmatmo+1
-                jcmprs=MAX(mcmprs,msngpe)
+                jcmprs=MAX(mcmprs,msngpe+1)
                 CALL ckbits(ndimsa,mreqpe,jcmprs)
                 gbc=1.0E-9*REAL((mpi*ndimsa(2)+mpd*ndimsa(3)+mps*ndimsa(4))/mpi*(BIT_SIZE(1_mpi)/8),mps) ! GB compressed
                 gbu=1.0E-9*REAL(((mpi+mpd)*(ndimsa(3)+ndimsa(4)))/mpi*(BIT_SIZE(1_mpi)/8),mps)             ! GB uncompressed
@@ -4758,6 +4757,7 @@ SUBROUTINE loop2
         i=0
         icgb=0
         last=-1
+        inc=MAX(mreqpe, msngpe+1) !  keep constraints in double precision
         !        find next constraint header
         DO WHILE(i < lenConstraints)
             i=i+1
@@ -4767,7 +4767,7 @@ SUBROUTINE loop2
                 itgbi=inone(label)
                 ij=globalParLabelIndex(2,itgbi)         ! change to variable parameter
                 IF(ij > 0) THEN
-                    CALL inbits(nvgb+icgb,ij,mreqpe)
+                    CALL inbits(nvgb+icgb,ij,inc)
                 END IF
             END IF
             last=label
@@ -4824,7 +4824,7 @@ SUBROUTINE loop2
             ihis=15
             CALL hmpdef(ihis,0.0,REAL(mhispe,mps), 'NDBITS: #off-diagonal elements')
         END IF
-        jcmprs=MAX(mcmprs,msngpe)
+        jcmprs=MAX(mcmprs,msngpe+1)
         IF (jcmprs > 0.AND.numbit > 1) nspc=2 ! mixed precision storage
         length=nagb*nspc
         CALL mpalloc(sparseMatrixCompression,length,'INBITS: row compression')
@@ -5460,7 +5460,7 @@ SUBROUTINE mvsolv(n,x,y)         !  solve M*y = x
     USE mpmod
 
     IMPLICIT NONE
-    REAL(mps) :: factr
+    REAL(mpd) :: factr
     INTEGER(mpi) :: i
     INTEGER(mpi) :: icgb
     INTEGER(mpi) :: itgbi
@@ -6875,9 +6875,8 @@ SUBROUTINE intext(text,nline)
     CHARACTER (LEN=32) :: keywrd
     CHARACTER (LEN=32) :: keystx
     REAL(mpd) :: dnum(100)
-    REAL(mps) :: plvs(3)    ! vector array: real and ...
-    INTEGER(mpi) :: lpvs(3)    ! ... integer
-    EQUIVALENCE (plvs(1),lpvs(1))
+    INTEGER(mpi) :: lpvs    ! ... integer
+    REAL(mpd)    :: plvs    ! ... float
 
     INTERFACE
         SUBROUTINE addItem(length,list,label,value)
@@ -6885,7 +6884,7 @@ SUBROUTINE intext(text,nline)
             INTEGER(mpi), INTENT(IN OUT) :: length
             TYPE(listItem), DIMENSION(:), INTENT(IN OUT), ALLOCATABLE :: list
             INTEGER(mpi), INTENT(IN) :: label
-            REAL(mps), INTENT(IN) :: value
+            REAL(mpd), INTENT(IN) :: value
         END SUBROUTINE addItem
     END INTERFACE
 
@@ -7319,15 +7318,12 @@ SUBROUTINE intext(text,nline)
         lkey=nkey
         IF(lkey == 2) THEN                                 ! parameter
             IF(nums == 3) THEN
-                lpvs(1)=NINT(dnum(1),mpi) ! label
-                plvs(2)=REAL(dnum(2),mps)   ! start value
-                plvs(3)=REAL(dnum(3),mps)   ! pre-sigma
-                IF(lpvs(1) /= 0) THEN
-                    !                   CALL megvec('7',plvs,3,0)      ! always 3 words
-                    CALL addItem(lenParameters,listParameters,lpvs(1),plvs(2))
-                    CALL addItem(lenPreSigmas,listPresigmas,lpvs(1),plvs(3))
+                lpvs=NINT(dnum(1),mpi) ! label
+                IF(lpvs /= 0) THEN
+                    CALL addItem(lenParameters,listParameters,lpvs,dnum(2)) ! start value
+                    CALL addItem(lenPreSigmas,listPresigmas,lpvs,dnum(3))   ! pre-sigma
                 ELSE
-                    WRITE(*,*) 'Line',nline,' error, label=',lpvs(1)
+                    WRITE(*,*) 'Line',nline,' error, label=',lpvs
                 END IF
             ELSE IF(nums /= 0) THEN
                 kkey=1   ! switch to "unknown"  ?
@@ -7338,20 +7334,13 @@ SUBROUTINE intext(text,nline)
         ELSE IF(lkey == 3.OR.lkey == 4) THEN               ! constraint
             !            WRITE(*,*) 'Keyword is constraint!',NUMS,' numerical data'
             IF(nums >= 1.AND.nums <= 2) THEN ! start constraint
-                !               WRITE(*,*) 'NUMs is ',NUMS
-                lpvs(1)=0
-                plvs(2)=REAL(dnum(1),mps)         ! r = r.h.s. value
-                !               CALL megvec('8',plvs,2,0)
-                CALL addItem(lenConstraints,listConstraints,lpvs(1),plvs(2))
-                !               WRITE(*,*) 'LPVS PLVS ',LPVS,PLVS
-                lpvs(1)=-1                    ! constraint
-                IF(lkey == 4) lpvs(1)=-2      ! wconstraint (weighted)
-                plvs(2)=0.0
-                !               WRITE(*,*) 'LPVS PLVS ',LPVS,PLVS
-                IF(nums == 2) plvs(2)=REAL(dnum(2),mps) ! sigma
-                !               CALL megvec('8',plvs,2,0)
-                CALL addItem(lenConstraints,listConstraints,lpvs(1),plvs(2))
-            !               WRITE(*,*) 'LPVS PLVS ',LPVS,PLVS
+                lpvs=0   ! r = r.h.s. value
+                CALL addItem(lenConstraints,listConstraints,lpvs,dnum(1))
+                lpvs=-1                    ! constraint
+                IF(lkey == 4) lpvs=-2      ! wconstraint (weighted)
+                plvs=0.0
+                IF(nums == 2) plvs=dnum(2) ! sigma
+                CALL addItem(lenConstraints,listConstraints,lpvs,plvs)
             ELSE
                 kkey=1   ! switch to "unknown"
                 WRITE(*,*) 'Wrong text in line',nline
@@ -7360,14 +7349,10 @@ SUBROUTINE intext(text,nline)
             END IF
         ELSE IF(lkey == 5) THEN                           ! measurement
             IF(nums == 2) THEN ! start measurement
-                lpvs(1)=0
-                plvs(2)=REAL(dnum(1),mps)         ! r = r.h.s. value
-                !               CALL megvec('9',plvs,2,0)
-                CALL addItem(lenMeasurements,listMeasurements,lpvs(1),plvs(2))
-                lpvs(1)=-1                    ! constraint
-                plvs(2)=REAL(dnum(2),mps)         ! sigma
-                !               CALL megvec('9',plvs,2,0)
-                CALL addItem(lenMeasurements,listMeasurements,lpvs(1),plvs(2))
+                lpvs=0   ! r = r.h.s. value
+                CALL addItem(lenMeasurements,listMeasurements,lpvs,dnum(1))
+                lpvs=-1  ! sigma
+                CALL addItem(lenMeasurements,listMeasurements,lpvs,dnum(2))
             ELSE
                 kkey=1   ! switch to "unknown"
                 WRITE(*,*) 'Wrong text in line',nline
@@ -7410,15 +7395,12 @@ SUBROUTINE intext(text,nline)
     ELSE IF(nkey == 0) THEN  ! data for continuation
         IF(lkey == 2) THEN                                  ! parameter
             IF(nums >= 3) THEN   ! store data from this line
-                lpvs(1)=NINT(dnum(1),mpi) ! label
-                plvs(2)=REAL(dnum(2),mps)   ! start value
-                plvs(3)=REAL(dnum(3),mps)   ! pre-sigma
-                IF(lpvs(1) /= 0) THEN
-                    !                   CALL megvec('7',plvs,3,0)      ! always 3 words
-                    CALL addItem(lenParameters,listParameters,lpvs(1),plvs(2))
-                    CALL addItem(lenPreSigmas,listPresigmas,lpvs(1),plvs(3))
+                lpvs=NINT(dnum(1),mpi) ! label
+                IF(lpvs /= 0) THEN
+                    CALL addItem(lenParameters,listParameters,lpvs,dnum(2))  ! start value
+                    CALL addItem(lenPreSigmas,listPresigmas,lpvs,dnum(3))    ! pre-sigma
                 ELSE
-                    WRITE(*,*) 'Line',nline,' error, label=',lpvs(1)
+                    WRITE(*,*) 'Line',nline,' error, label=',lpvs
                 END IF
             ELSE IF(nums > 1.AND.nums < 3) THEN
                 kkey=1   ! switch to "unknown"  ?
@@ -7436,10 +7418,9 @@ SUBROUTINE intext(text,nline)
             IF(MOD(nums,2) /= 0) ier=1 ! reject odd number
             IF(ier == 0) THEN
                 DO i=1,nums,2
-                    lpvs(1)=NINT(dnum(i),mpi) ! label
-                    plvs(2)=REAL(dnum(i+1),mps) ! factor
-                    !                   CALL megvec('8',plvs,2,0)
-                    CALL addItem(lenConstraints,listConstraints,lpvs(1),plvs(2))
+                    lpvs=NINT(dnum(i),mpi) ! label
+                    plvs=dnum(i+1)         ! factor
+                    CALL addItem(lenConstraints,listConstraints,lpvs,plvs)
                 END DO
             ELSE
                 kkey=0
@@ -7459,10 +7440,9 @@ SUBROUTINE intext(text,nline)
             !            WRITE(*,*) 'IER NUMS ',IER,NUMS
             IF(ier == 0) THEN
                 DO i=1,nums,2
-                    lpvs(1)=NINT(dnum(i),mpi) ! label
-                    plvs(2)=REAL(dnum(i+1),mps) ! factor
-                    !                   CALL megvec('9',plvs,2,0)
-                    CALL addItem(lenMeasurements,listMeasurements,lpvs(1),plvs(2))
+                    lpvs=NINT(dnum(i),mpi) ! label
+                    plvs=dnum(i+1)         ! factor
+                    CALL addItem(lenMeasurements,listMeasurements,lpvs,plvs)
                 END DO
             ELSE
                 kkey=0
@@ -7489,7 +7469,7 @@ SUBROUTINE addItem(length,list,label,value)
     INTEGER(mpi), INTENT(IN OUT) :: length
     TYPE(listItem), DIMENSION(:), INTENT(IN OUT), ALLOCATABLE :: list
     INTEGER(mpi), INTENT(IN) :: label
-    REAL(mps), INTENT(IN) :: value
+    REAL(mpd), INTENT(IN) :: value
 
     INTEGER(mpl) :: newSize
     INTEGER(mpl) :: oldSize

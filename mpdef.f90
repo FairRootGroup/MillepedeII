@@ -20,6 +20,6 @@ MODULE mpdef
     !> list items from steering file
     TYPE listItem
         INTEGER(mpi) :: label
-        REAL(mps) :: value
+        REAL(mpd) :: value
     END TYPE listItem
 END MODULE mpdef
