@@ -17,7 +17,8 @@ MODULE mpmod
     INTEGER(mpi) :: mprint=1  !< print flag (0: minimal, 1: normal, >1: more)
     INTEGER(mpi) :: mdebug=0  !< debug flag (number of records to print)
     INTEGER(mpi) :: mdebg2=10 !< number of measurements for record debug printout
-    INTEGER(mpi) :: mreqen=10 !< required number of entries (for variable global parameter)
+    INTEGER(mpi) :: mreqenf=10 !< required number of entries (for variable global parameter from binary Files)
+    INTEGER(mpi) :: mreqena=10 !< required number of entries (for variable global parameter from Accepted local fits)
     INTEGER(mpi) :: mitera=1  !< number of iterations
     INTEGER(mpi) :: nloopn=0  !< number of data reading, fitting loops
     INTEGER(mpi) :: mbandw=0  !< band width of preconditioner matrix
@@ -76,7 +77,7 @@ MODULE mpmod
     REAL(mps)    :: prange=0.0!< range (-PRANGE..PRANGE) for histograms of pulls, norm. residuals
     INTEGER(mpi) :: lsearch=2 !< iterations (solutions) with line search:
                          !! >2: all, =2: all with (next) Chi2 cut scaling factor =1., =1: last, <1: none
-    INTEGER(mpi) :: ipcntr=0  !< flag for output of global parameter counts (entries), =0: none
+    INTEGER(mpi) :: ipcntr=0  !< flag for output of global parameter counts (entries), =0: none, =1: local fits, >1: binary files
     ! variables
     INTEGER(mpi) :: lunlog !< unit for logfile
     INTEGER(mpi) :: lvllog !< log level
@@ -105,6 +106,7 @@ MODULE mpmod
     INTEGER(mpi) :: nrecal !< number of records
     INTEGER(mpi) :: ndefec=0 !< rank deficit for global matrix (from inversion)
     INTEGER(mpi) :: nmiss1=0 !< rank deficit for constraints
+    INTEGER(mpi) :: nalow=0 !< (sum of) global parameters with too few accepted entries
     INTEGER(mpi) :: lcalcm !< last calclation mode
     INTEGER(mpi) :: nspc   !< number of precision for sparse global matrix (1=D, 2=D+F)
     INTEGER(mpi) :: nencdb !< encoding info (number bits for column counter)
@@ -139,6 +141,7 @@ MODULE mpmod
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalMatD !< global matrix 'A' (double, full or sparse)
     REAL(mps), DIMENSION(:), ALLOCATABLE :: globalMatF !< global matrix 'A' (float part for compressed sparse)
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalVector !< global vector 'x' (in A*x=b)
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalCounter !< global counter (entries in 'x')
     ! preconditioning
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matPreCond !< preconditioner (band) matrix
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: indPreCond !< preconditioner pointer array

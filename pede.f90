@@ -42,6 +42,8 @@
 !! [\ref ref_sec "ref 9"] implemented.
 !! * 140226: Reading of C binary files containing *doubles* implemented.
 !! * 141020: Storage of values read from text files as *doubles* implemented.
+!! * 141125: Dynamic entries (from accepted local fits) check implemented.
+!!   (Rejection of local fits may lead to the loss of degrees of freedom.)
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -288,8 +290,9 @@
 !! Set \ref an-dwcut "down-weighting fraction" cut \ref mpmod::dwcut "dwcut"
 !! to \a number1 (max. 0.5).
 !! \subsection cmd-entries entries
-!! Set \ref an-entries "entries" cut for variable global parameter
-!! \ref mpmod::mreqen "mreqen" to \a number1 [0].
+!! Set \ref an-entries "entries" cuts for variable global parameter
+!! \ref mpmod::mreqenf "mreqenf" to \a number1 [10] and
+!! \ref mpmod::mreqena "mreqena" to \a number2 [mreqenf].
 !! \subsection cmd-errlabels errlabels
 !! Define (up to 100 in total) global labels \a number1 .. \a numberN
 !! for which the parameter errors are calculated for method MINRES too
@@ -368,8 +371,9 @@
 !! \subsection cmd-print print
 !! Set print level \ref mpmod::mprint "mprint" to \a number1 [1].
 !! \subsection cmd-printcounts printcounts
-!! Set flag \ref mpmod::ipcntr "ipcntr" to 1 (true),
-!! The counters for the global parameters in the binary files will be printed in the result file.
+!! Set flag \ref mpmod::ipcntr "ipcntr" to \a number1 [1].
+!! The counters for the global parameters from the accepted local fits (=1)
+!! or from the binary files (>1) will be printed in the result file.
 !! \subsection cmd-printrecord printrecord
 !! \ref an-recpri "Record" numbers with printout.
 !! \subsection cmd-pullrange pullrange
@@ -404,7 +408,8 @@
 !!    + <b>-1</b>   Still running or crashed
 !!    + **00**   Ended normally
 !!    + **01**   Ended with warnings (bad measurements)
-!!    + **02**   Ended with severe warnings (bad global matrix)
+!!    + **02**   Ended with severe warnings (insufficient measurements)
+!!    + **03**   Ended with severe warnings (bad global matrix)
 !!    + **10**   Aborted, no steering file
 !!    + **11**   Aborted, open error for steering file
 !!    + **12**   Aborted, second text file in command line
@@ -1958,6 +1963,9 @@ SUBROUTINE loopn
     INTEGER(mpi) :: nr
     INTEGER(mpi) :: nrej
     INTEGER(mpi) :: inone
+    INTEGER(mpi) :: ilow
+    INTEGER(mpi) :: nlow
+    INTEGER(mpi) :: nzero
 
     REAL(mpd):: adder
     REAL(mpd)::funref
@@ -2012,6 +2020,7 @@ SUBROUTINE loopn
     !     reset
 
     globalVector=0.0_mpd ! reset rhs vector              IGVEC
+    globalCounter=0
     IF(icalcm == 1) THEN
         globalMatD=0.0_mpd
         globalMatF=0.
@@ -2070,6 +2079,7 @@ SUBROUTINE loopn
         ioffb=ioffb+lenGlobalVec
         DO k=1,lenGlobalVec
             globalVector(k)=globalVector(k)+globalVector(ioffb+k)
+            globalCounter(k)=globalCounter(k)+globalCounter(ioffb+k)
         END DO
     END DO
 
@@ -2084,6 +2094,39 @@ SUBROUTINE loopn
         WRITE(*,111) nparl,ncrit,usei,used,peaki,peakd
 111     FORMAT(' Write cache usage (#flush,#overrun,<levels>,',  &
             'peak(levels))'/2I7,',',4(f6.1,'%'))
+    END IF
+
+    ! check entries/counters
+    nlow=0
+    ilow=1
+    nzero=0
+    DO i=1,nvgb
+        IF(globalCounter(i) == 0) nzero=nzero+1
+        IF(globalCounter(i) < mreqena) THEN
+            nlow=nlow+1
+            IF(globalCounter(i) < globalCounter(ilow)) ilow=i
+        END IF
+    END DO
+    IF(nlow > 0) THEN
+        nalow=nalow+nlow
+        itgbi=globalParVarToTotal(ilow)
+        print *
+        print *, " ... warning ..." 
+        print *, " global parameters with too few (< MREQENA) accepted entries: ", nlow
+        print *, " minimum entries: ", globalCounter(ilow), " for label ", globalParLabelIndex(1,itgbi)
+        print *
+    END IF   
+    IF(icalcm == 1 .AND. nzero > 0) THEN
+        ndefec = nzero ! rank defect
+        WRITE(*,*)   'Warning: the rank defect of the symmetric',nagb,  &
+            '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
+        WRITE(lun,*) 'Warning: the rank defect of the symmetric',nagb,  &
+            '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
+        IF (iforce == 0) THEN
+            isubit=1
+            WRITE(*,*)   '         --> enforcing SUBITO mode'
+            WRITE(lun,*) '         --> enforcing SUBITO mode'
+        END IF
     END IF
 
     !     ----- after end-of-data add contributions from pre-sigma ---------
@@ -2174,6 +2217,7 @@ SUBROUTINE loopn
             IF(itgbij /= 0) ivgbij=globalParLabelIndex(2,itgbij) ! variable-parameter index
             IF(ivgbij > 0) THEN
                 globalVector(ivgbij)=globalVector(ivgbij) -weight*dsum*factrj ! vector
+                globalCounter(ivgbij)=globalCounter(ivgbij)+1
             END IF
   
             IF(icalcm == 1.AND.ivgbij > 0) THEN
@@ -2276,7 +2320,7 @@ SUBROUTINE loopn
 
     lastit=iterat
 
-101 FORMAT(1X,a6,' =',i10,' = ',a)
+101 FORMAT(1X,a8,' =',i10,' = ',a)
 ! 101  FORMAT(' LOOPN',I6,' Function value',F22.8,10X,I6,' records')
 ! 102  FORMAT('   incl. constraint penalty',F22.8)
 ! 103  FORMAT(I13,3X,A,G12.4)
@@ -2749,7 +2793,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
     !$OMP   DEFAULT(PRIVATE) &
     !$OMP   SHARED(numReadBuffer,readBufferPointer,readBufferDataI, &
     !$OMP      readBufferDataD,writeBufferHeader,writeBufferInfo, &
-    !$OMP      writeBufferData,writeBufferIndices,writeBufferUpdates,globalVector, &
+    !$OMP      writeBufferData,writeBufferIndices,writeBufferUpdates,globalVector,globalCounter, &
     !$OMP      globalParameter,globalParLabelIndex,globalIndexUsage,backIndexUsage, &
     !$OMP      NAGB,NVGB,NAGBN,ICALCM,ICHUNK,NLOOPN,NRECER,NPRDBG,IPRDBG, &
     !$OMP      NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,MTHRD, &
@@ -3301,6 +3345,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                 IF(ivgbj > 0) THEN
                     globalVector(ioffb+ivgbj)=globalVector(ioffb+ivgbj)  &
                         +dw1*wght*rmeas*REAL(glder(jb+j),mpd) ! vector  !!! reverse
+                    globalCounter(ioffb+ivgbj)=globalCounter(ioffb+ivgbj)+1    
                     IF(icalcm == 1) THEN
                         ije=backIndexUsage(ioffe+ivgbj)        ! get index of index, non-zero
                         DO k=1,j
@@ -3497,6 +3542,7 @@ SUBROUTINE prtglo
     REAL(mps):: err
     REAL(mps):: gcor
     INTEGER(mpi) :: i
+    INTEGER(mpi) :: icount
     INTEGER(mpi) :: ie
     INTEGER(mpi) :: iev
     INTEGER(mpi) :: ij
@@ -3537,7 +3583,9 @@ SUBROUTINE prtglo
         itgbl=globalParLabelIndex(1,itgbi)
         ivgbi=globalParLabelIndex(2,itgbi)
         par=REAL(globalParameter(itgbi),mps)      ! initial value
+        icount=0 ! counts
         IF(ivgbi > 0) THEN
+            icount=globalCounter(ivgbi) ! used in last iteration
             dpa=REAL(globalParameter(itgbi)-globalParStart(itgbi),mps)       ! difference
             IF(metsol == 1.OR.metsol == 2) THEN
                 ii=ivgbi
@@ -3553,6 +3601,7 @@ SUBROUTINE prtglo
                 END IF
             END IF
         END IF
+        IF(ipcntr > 1) icount=globalParCounts(itgbi) ! from binary files 
         IF(itgbi <= iprlim) THEN
             IF(ivgbi <= 0) THEN
                 WRITE(*  ,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps)
@@ -3574,14 +3623,14 @@ SUBROUTINE prtglo
         !      file output
         IF(ivgbi <= 0) THEN
             IF (ipcntr /= 0) THEN
-                WRITE(lup,110) itgbl,par,REAL(globalParPreSigma(itgbi),mps),globalParCounts(itgbi)
+                WRITE(lup,110) itgbl,par,REAL(globalParPreSigma(itgbi),mps),icount
             ELSE
                 WRITE(lup,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps)
             END IF               
         ELSE
             IF(metsol == 1.OR.metsol == 2) THEN
                 IF (ipcntr /= 0) THEN
-                    WRITE(lup,112) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR,globalParCounts(itgbi)            
+                    WRITE(lup,112) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR,icount            
                 ELSE IF (igcorr /= 0) THEN
                     WRITE(lup,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,ERR,gcor
                 ELSE
@@ -3589,7 +3638,7 @@ SUBROUTINE prtglo
                 END IF
             ELSE
                 IF (ipcntr /= 0) THEN
-                    WRITE(lup,111) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,globalParCounts(itgbi)
+                    WRITE(lup,111) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa,icount
                 ELSE
                     WRITE(lup,102) itgbl,par,REAL(globalParPreSigma(itgbi),mps),dpa
                 END IF    
@@ -4271,7 +4320,7 @@ SUBROUTINE loop1
     indab=0
     DO i=1,ntgb
         globalParCounts(i) = globalParLabelIndex(2,i)
-        IF(globalParLabelIndex(2,i) >= mreqen.AND.globalParPreSigma(i) >= 0.0) THEN
+        IF(globalParLabelIndex(2,i) >= mreqenf.AND.globalParPreSigma(i) >= 0.0) THEN
             indab=indab+1
             globalParLabelIndex(2,i)=indab  ! variable, used in matrix (active)
         ELSE
@@ -4343,7 +4392,8 @@ SUBROUTINE loop1
         WRITE(*,*) ' '
         WRITE(*,101) '  NREC',nrec,'number of records'
         IF (nrecd > 0) WRITE(*,101) ' NRECD',nrec,'number of records containing doubles'
-        WRITE(*,101) 'MREQEN',mreqen,'required number of entries'
+        WRITE(*,101) 'MREQENF',mreqenf,'required number of entries (from binary files)'
+        WRITE(*,101) 'MREQENA',mreqena,'required number of entries (from accepted fits)'
         IF (mreqpe > 1) WRITE(*,101)  &
             'MREQPE',mreqpe,'required number of pair entries'
         IF (msngpe >= 1) WRITE(*,101)  &
@@ -4369,13 +4419,14 @@ SUBROUTINE loop1
     WRITE(8,*)   ' '
     WRITE(8,101) '  NREC',nrec,'number of records'
     IF (nrecd > 0) WRITE(8,101) ' NRECD',nrec,'number of records containing doubles'
-    WRITE(8,101) 'MREQEN',mreqen,'required number of entries'
+    WRITE(8,101) 'MREQENF',mreqenf,'required number of entries (from binary files)'
+    WRITE(8,101) 'MREQENA',mreqena,'required number of entries (from accepted fits)'
 
     WRITE(lunlog,*) 'LOOP1: ending'
     WRITE(lunlog,*) ' '
     CALL mend
 
-101 FORMAT(1X,a6,' =',i10,' = ',a)
+101 FORMAT(1X,a8,' =',i10,' = ',a)
 END SUBROUTINE loop1
 
 !> Second data \ref sssec-loop2 "loop" (number of derivatives, global label pairs).
@@ -5037,7 +5088,7 @@ SUBROUTINE loop2
     WRITE(lunlog,*) 'LOOP2: ending'
     WRITE(lunlog,*) ' '
     CALL mend
-101 FORMAT(1X,a6,' =',i10,' = ',a)
+101 FORMAT(1X,a8,' =',i10,' = ',a)
 102 FORMAT(22X,a)
 103 FORMAT(1X,a,g12.4)
 106 FORMAT(i6,2(3X,f9.3,f12.1,3X))
@@ -5062,6 +5113,7 @@ SUBROUTINE vmprep(msize)
     !                         Vector/matrix storage
     length=nagb*mthrd
     CALL mpalloc(globalVector,length,'rhs vector') ! double precision vector
+    CALL mpalloc(globalCounter,length,'rhs counter') ! integer vector
     lenGlobalVec=nagb
     length=naeqn
     CALL mpalloc(localCorrections,length,'residual vector of one record')
@@ -5149,20 +5201,20 @@ SUBROUTINE minver
     IF(icalcm == 1) THEN
         CALL sqminl(globalMatD, globalCorrections,nagb,nrank,  &
             workspaceD,workspaceI)
-        ndefec=nagb-nrank   ! rank defect
-        IF(ndefec /= 0) THEN
+        IF(nagb /= nrank) THEN
             WRITE(*,*)   'Warning: the rank defect of the symmetric',nagb,  &
-                '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
+                '-by-',nagb,' matrix is ',nagb-nrank,' (should be zero).'
             WRITE(lun,*) 'Warning: the rank defect of the symmetric',nagb,  &
-                '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
-            IF (iforce == 0) THEN
+                '-by-',nagb,' matrix is ',nagb-nrank,' (should be zero).'
+            IF (iforce == 0 .AND. isubit == 0) THEN
                 isubit=1
                 WRITE(*,*)   '         --> enforcing SUBITO mode'
                 WRITE(lun,*) '         --> enforcing SUBITO mode'
             END IF
-        ELSE
+        ELSE IF(ndefec == 0) THEN
             WRITE(lun,*) 'No rank defect of the symmetric matrix'
         END IF
+        ndefec=max(nagb-nrank, ndefec)   ! rank defect
   
     ELSE             ! multiply gradient by inverse matrix
         CALL dbsvxl(globalMatD,globalVector,globalCorrections,nagb)
@@ -5567,6 +5619,7 @@ SUBROUTINE xloopn                !
     REAL(mpd) :: dbdot
     LOGICAL :: warner
     LOGICAL :: warners
+    LOGICAL :: warnerss
     LOGICAL :: lsflag
     SAVE
     !     ...
@@ -6009,11 +6062,13 @@ SUBROUTINE xloopn                !
     IF(mrati < 90.OR.mrati > 110) warner=.TRUE.
     IF(nrati > 100) warner=.TRUE.
     warners = .FALSE. ! severe warnings
-    IF(nmiss1 /= 0) warners=.TRUE.
-    IF(iagain /= 0) warners=.TRUE.
-    IF(ndefec /= 0) warners=.TRUE.
+    IF(nalow /= 0) warners=.TRUE.
+    warnerss = .FALSE. ! more severe warnings
+    IF(nmiss1 /= 0) warnerss=.TRUE.
+    IF(iagain /= 0) warnerss=.TRUE.
+    IF(ndefec /= 0) warnerss=.TRUE.
 
-    IF(warner.OR.warners) THEN
+    IF(warner.OR.warners.OR.warnerss) THEN
         WRITE(*,199) ' '
         WRITE(*,199) ' '
         WRITE(*,199) 'WarningWarningWarningWarningWarningWarningWarningWarningWar'
@@ -6051,7 +6106,7 @@ SUBROUTINE xloopn                !
                 '  for global matrix, should be 0'
             WRITE(*,*) '        => please provide correct mille data'
         END IF
-
+        
         IF(nmiss1 /= 0) THEN
             WRITE(*,199) ' '
             WRITE(*,*) '        Rank defect =',nmiss1,  &
@@ -6059,6 +6114,13 @@ SUBROUTINE xloopn                !
             WRITE(*,*) '        => please correct constraint definition'
         END IF
 
+        IF(nalow /= 0) THEN
+            WRITE(*,199) ' '
+            WRITE(*,*) '        Possible rank defects =',nalow,  &
+                '  for global vector (too few entries)'
+            WRITE(*,*) '        => please check mille data and ENTRIES cut'
+        END IF
+        
         WRITE(*,199) ' '
         WRITE(*,199) 'WarningWarningWarningWarningWarningWarningWarningWarningWar'
         WRITE(*,199) 'arningWarningWarningWarningWarningWarningWarningWarningWarn'
@@ -6103,8 +6165,10 @@ SUBROUTINE xloopn                !
 
     CALL prtglo              ! print result
 
-    IF (warners) THEN
-        CALL peend(2,'Ended with severe warnings (bad global matrix)')
+    IF (warnerss) THEN
+        CALL peend(3,'Ended with severe warnings (bad global matrix)')
+    ELSE IF (warners) THEN
+        CALL peend(2,'Ended with severe warnings (insufficient measurements)')
     ELSE IF (warner) THEN
         CALL peend(1,'Ended with warnings (bad measurements)')
     ELSE
@@ -6948,9 +7012,9 @@ SUBROUTINE intext(text,nline)
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
             !         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
-            mreqen=0
-            IF(nums > 0) mreqen=NINT(dnum(1),mpi)
-            IF (mreqen <= 0) mreqen=1
+            IF(nums > 0 .AND. dnum(1) > 0.5) mreqenf=NINT(dnum(1),mpi)
+            mreqena=mreqenf
+            IF(nums > 1 .AND. dnum(2) > 0.5) mreqena=NINT(dnum(2),mpi)
             RETURN
         END IF
 
@@ -7155,6 +7219,7 @@ SUBROUTINE intext(text,nline)
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
             ipcntr=1
+            IF (nums > 0.AND.dnum(1) > 0.0) ipcntr=NINT(dnum(1),mpi)
             RETURN
         END IF
           
