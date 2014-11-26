@@ -4583,7 +4583,6 @@ SUBROUTINE loop2
         IF(last == 0.AND.label < 0) THEN
             ncgb=ncgb+1
             itype=-label
-            print *, " constraint ", ncgb, itype
             IF(itype == 2) ncgbw=ncgbw+1
         END IF
         last=label
