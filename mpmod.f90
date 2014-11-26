@@ -17,7 +17,7 @@ MODULE mpmod
     INTEGER(mpi) :: mprint=1  !< print flag (0: minimal, 1: normal, >1: more)
     INTEGER(mpi) :: mdebug=0  !< debug flag (number of records to print)
     INTEGER(mpi) :: mdebg2=10 !< number of measurements for record debug printout
-    INTEGER(mpi) :: mreqenf=10 !< required number of entries (for variable global parameter from binary Files)
+    INTEGER(mpi) :: mreqenf=25 !< required number of entries (for variable global parameter from binary Files)
     INTEGER(mpi) :: mreqena=10 !< required number of entries (for variable global parameter from Accepted local fits)
     INTEGER(mpi) :: mitera=1  !< number of iterations
     INTEGER(mpi) :: nloopn=0  !< number of data reading, fitting loops
@@ -78,6 +78,7 @@ MODULE mpmod
     INTEGER(mpi) :: lsearch=2 !< iterations (solutions) with line search:
                          !! >2: all, =2: all with (next) Chi2 cut scaling factor =1., =1: last, <1: none
     INTEGER(mpi) :: ipcntr=0  !< flag for output of global parameter counts (entries), =0: none, =1: local fits, >1: binary files
+    INTEGER(mpi) :: iwcons=0  !< flag for weighting of constraints (>0: weighting with \ref globalparcounts "globalParCounts", else: none)
     ! variables
     INTEGER(mpi) :: lunlog !< unit for logfile
     INTEGER(mpi) :: lvllog !< log level

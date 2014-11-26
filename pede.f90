@@ -25,7 +25,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-02-01 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-02-02 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -44,6 +44,8 @@
 !! * 141020: Storage of values read from text files as *doubles* implemented.
 !! * 141125: Dynamic entries (from accepted local fits) check implemented.
 !!   (Rejection of local fits may lead to the loss of degrees of freedom.)
+!!   Printout of global parameter counters with new command \ref cmd-printcounts.
+!! * 141126: Weighted constraints implemented (with new command \ref cmd-weightedcons).
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -291,8 +293,8 @@
 !! to \a number1 (max. 0.5).
 !! \subsection cmd-entries entries
 !! Set \ref an-entries "entries" cuts for variable global parameter
-!! \ref mpmod::mreqenf "mreqenf" to \a number1 [10] and
-!! \ref mpmod::mreqena "mreqena" to \a number2 [mreqenf].
+!! \ref mpmod::mreqenf "mreqenf" to \a number1 [25] and
+!! \ref mpmod::mreqena "mreqena" to \a number2 [10].
 !! \subsection cmd-errlabels errlabels
 !! Define (up to 100 in total) global labels \a number1 .. \a numberN
 !! for which the parameter errors are calculated for method MINRES too
@@ -395,8 +397,9 @@
 !! to \a number1,
 !! number \ref mpmod::mthrdr "mthrdr" of threads for reading
 !! binary files to \a number2 [\a number1].
-!! \subsection cmd-wconstraint wconstraint
-!! Define \ref sssec_consinf "weighted constraints" for global parameters.
+!! \subsection cmd-weightedcons weightedcons
+!! Set flag \ref mpmod::iwcons "iwcons" to \a number1 [1].
+!! Implements \ref sssec_consinf "weighted constraints" for global parameters.
 !! \subsection cmd-wolfe wolfe
 !! For strong Wolfe condition in \ref par-linesearch "line search"
 !! set parameter \ref mpmod::wolfc1 "wolfc1" to \a number1, \ref mpmod::wolfc2
@@ -4509,6 +4512,8 @@ SUBROUTINE loop2
     INTEGER(mpi) :: nwrd
     INTEGER(mpi) :: inone
     INTEGER(mpi) :: inc
+    INTEGER(mpi) :: itype
+    INTEGER(mpi) :: ncgbw
     REAL(mps) :: wgh
     REAL(mps) :: wolfc3
     REAL(mps) :: wrec
@@ -4568,16 +4573,30 @@ SUBROUTINE loop2
 
     !     constraints - determine number of constraints NCGB
     ncgb=0
+    ncgbw=0
     i=0
     last=-1
     !        find next constraint header and count nr of constraints
     DO WHILE(i < lenConstraints)
         i=i+1
         label=listConstraints(i)%label
-        IF(last == 0.AND.label == (-1)) ncgb=ncgb+1
+        IF(last == 0.AND.label < 0) THEN
+            ncgb=ncgb+1
+            itype=-label
+            print *, " constraint ", ncgb, itype
+            IF(itype == 2) ncgbw=ncgbw+1
+        END IF
         last=label
-    END DO
-    WRITE(*,*) 'LOOP2:',ncgb,' constraints'
+        IF(label > 0.AND.itype == 2) THEN  ! weighted constraints
+            itgbi=inone(label) ! -> ITGBI= index of parameter label
+            listConstraints(i)%value=listConstraints(i)%value*globalParCounts(itgbi)
+        END IF
+    END DO   
+    IF (ncgbw == 0) THEN
+        WRITE(*,*) 'LOOP2:',ncgb,' constraints'
+    ELSE    
+        WRITE(*,*) 'LOOP2:',ncgb,' constraints,',ncgbw, 'weighted'
+    END IF    
 
     nagb=nvgb+ncgb ! total number of fit parameters
     noff8=int8(nagb)*int8(nagb-1)/2
@@ -6593,11 +6612,11 @@ END SUBROUTINE filetc
 !!     ...  ...
 !!     (number of words is multiple of 3)
 !!
-!! Constraint and Wconstrained data, format:
+!! Constraint data, format:
 !!
 !!       1  0                 ! constraint header of four words:
 !!       2  right-hand-side   ! 0 and -1 ...
-!!       3  -1; -2            ! ... indicate ...
+!!       3  -1; -2            ! ... indicate (weighting) ...
 !!       4  sigma             ! ... header
 !!       5  label
 !!       6  factor
@@ -6933,7 +6952,7 @@ SUBROUTINE intext(text,nline)
     CHARACTER (LEN=*), INTENT(IN) :: text
     INTEGER(mpi), INTENT(IN) :: nline
 
-    PARAMETER (nkeys=9,nmeth=6)
+    PARAMETER (nkeys=5,nmeth=6)
     CHARACTER (LEN=16) :: methxt(nmeth)
     CHARACTER (LEN=16) :: keylst(nkeys)
     CHARACTER (LEN=32) :: keywrd
@@ -6952,13 +6971,7 @@ SUBROUTINE intext(text,nline)
         END SUBROUTINE addItem
     END INTERFACE
 
-    DATA keylst/'unknown','parameter','constraint','wconstraint',  &
-        'measurement', 'method',  &
-        'mestimate', 'atleast','option'/
-
-    !add  number of iterations
-    !     wconstraint like constraint
-    !     measured   r sigma label factor ...(more)
+    DATA keylst/'unknown','parameter','constraint','measurement','method'/
 
     SAVE
     DATA methxt/'diagonalization','inversion','fullMINRES', 'sparseMINRES', &
@@ -6978,7 +6991,7 @@ SUBROUTINE intext(text,nline)
   
         !        compare keywords
   
-        DO nkey=2,nkeys-1         ! loop over all pede keywords
+        DO nkey=2,nkeys           ! loop over all pede keywords
             keystx=keylst(nkey)   ! copy NKEY.th pede keyword
             mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
             IF(mat >= ntext-ntext/5) GO TO 10
@@ -7013,7 +7026,6 @@ SUBROUTINE intext(text,nline)
         IF(mat >= (npat-npat/5)) THEN
             !         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             IF(nums > 0 .AND. dnum(1) > 0.5) mreqenf=NINT(dnum(1),mpi)
-            mreqena=mreqenf
             IF(nums > 1 .AND. dnum(2) > 0.5) mreqena=NINT(dnum(2),mpi)
             RETURN
         END IF
@@ -7222,7 +7234,15 @@ SUBROUTINE intext(text,nline)
             IF (nums > 0.AND.dnum(1) > 0.0) ipcntr=NINT(dnum(1),mpi)
             RETURN
         END IF
-          
+
+        keystx='weightedcons'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            iwcons=1
+            IF (nums > 0) iwcons=NINT(dnum(1),mpi)
+            RETURN
+        END IF
+                    
         keystx='threads'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
@@ -7374,16 +7394,15 @@ SUBROUTINE intext(text,nline)
     !      unknown          1
     !      parameter        2
     !      constraint       3
-    !      method           4
-    !      atleast          5
-    !      option           6
-    !      cut              7
+    !      measurement      4 
+    !      method           5
+
 
 10  IF(nkey > 0) THEN     ! new keyword
         lkey=nkey
-        IF(lkey == 2) THEN                                 ! parameter
+        IF(lkey == 2) THEN              ! parameter
             IF(nums == 3) THEN
-                lpvs=NINT(dnum(1),mpi) ! label
+                lpvs=NINT(dnum(1),mpi)  ! label
                 IF(lpvs /= 0) THEN
                     CALL addItem(lenParameters,listParameters,lpvs,dnum(2)) ! start value
                     CALL addItem(lenPreSigmas,listPresigmas,lpvs,dnum(3))   ! pre-sigma
@@ -7396,23 +7415,23 @@ SUBROUTINE intext(text,nline)
                 WRITE(*,*) 'Status: new parameter'
                 WRITE(*,*) '> ',text(1:nab)
             END IF
-        ELSE IF(lkey == 3.OR.lkey == 4) THEN               ! constraint
+        ELSE IF(lkey == 3) THEN         ! constraint
             !            WRITE(*,*) 'Keyword is constraint!',NUMS,' numerical data'
             IF(nums >= 1.AND.nums <= 2) THEN ! start constraint
                 lpvs=0   ! r = r.h.s. value
                 CALL addItem(lenConstraints,listConstraints,lpvs,dnum(1))
                 lpvs=-1                    ! constraint
-                IF(lkey == 4) lpvs=-2      ! wconstraint (weighted)
+                IF(iwcons > 0) lpvs=-2     ! weighted constraint 
                 plvs=0.0
                 IF(nums == 2) plvs=dnum(2) ! sigma
                 CALL addItem(lenConstraints,listConstraints,lpvs,plvs)
             ELSE
                 kkey=1   ! switch to "unknown"
                 WRITE(*,*) 'Wrong text in line',nline
-                WRITE(*,*) 'Status: new keyword (w)constraint'
+                WRITE(*,*) 'Status: new keyword constraint'
                 WRITE(*,*) '> ',text(1:nab)
             END IF
-        ELSE IF(lkey == 5) THEN                           ! measurement
+        ELSE IF(lkey == 4) THEN         ! measurement
             IF(nums == 2) THEN ! start measurement
                 lpvs=0   ! r = r.h.s. value
                 CALL addItem(lenMeasurements,listMeasurements,lpvs,dnum(1))
@@ -7425,7 +7444,7 @@ SUBROUTINE intext(text,nline)
                 WRITE(*,*) '> ',text(1:nab)
             END IF
     
-        ELSE IF(lkey == 6) THEN                                ! method
+        ELSE IF(lkey == 5) THEN         ! method
             miter=mitera
             IF(nums >= 1) miter=NINT(dnum(1),mpi)
             IF(miter >= 1) mitera=miter
@@ -7458,7 +7477,7 @@ SUBROUTINE intext(text,nline)
             END DO
         END IF
     ELSE IF(nkey == 0) THEN  ! data for continuation
-        IF(lkey == 2) THEN                                  ! parameter
+        IF(lkey == 2) THEN              ! parameter
             IF(nums >= 3) THEN   ! store data from this line
                 lpvs=NINT(dnum(1),mpi) ! label
                 IF(lpvs /= 0) THEN
@@ -7474,7 +7493,7 @@ SUBROUTINE intext(text,nline)
                 WRITE(*,*) '> ',text(1:nab)
             END IF
     
-        ELSE IF(lkey == 3.OR.lkey == 4) THEN            ! (w)constraint
+        ELSE IF(lkey == 3) THEN         ! constraint
             ier=0
             DO i=1,nums,2
                 label=NINT(dnum(i),mpi)
@@ -7490,11 +7509,11 @@ SUBROUTINE intext(text,nline)
             ELSE
                 kkey=0
                 WRITE(*,*) 'Wrong text in line',nline
-                WRITE(*,*) 'Status continuation (w)constraint'
+                WRITE(*,*) 'Status continuation constraint'
                 WRITE(*,*) '> ',text(1:nab)
             END IF
     
-        ELSE IF(lkey == 5) THEN                           ! measurement
+        ELSE IF(lkey == 4) THEN         ! measurement
             !            WRITE(*,*) 'continuation                          < ',NUMS
             ier=0
             DO i=1,nums,2
