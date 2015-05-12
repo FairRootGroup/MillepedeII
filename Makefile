@@ -1,6 +1,9 @@
 # #################################################################
 # Makefile for MillePede II (Fortran90) with possible input from C
 # 
+# Author Volker Blobel, University Hamburg, 2005-2009
+# Updates by Gero Flucke, CERN, Claus Kleinwort, DESY 
+#
 # Tested on - 64-bit SL5          with gcc version 4.4.4.
 #           - 64 bit Ubuntu 11.10 with gcc version 4.6.1.
 #

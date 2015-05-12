@@ -2,6 +2,30 @@
 ! Code converted using TO_F90 by Alan Miller
 ! Date: 2012-03-16  Time: 11:06:00
 
+!> \file
+!! Millepede II program, subroutines.
+!!
+!! \author Volker Blobel, University Hamburg, 2005-2009 (initial Fortran77 version)
+!! \author Gero Flucke, University Hamburg (support of C-type binary files)
+!! \author Claus Kleinwort, DESY (maintenance and developement)
+!!
+!! \copyright
+!! Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
+!! Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY \n\n
+!! This library is free software; you can redistribute it and/or modify
+!! it under the terms of the GNU Library General Public License as
+!! published by the Free Software Foundation; either version 2 of the
+!! License, or (at your option) any later version. \n\n
+!! This library is distributed in the hope that it will be useful,
+!! but WITHOUT ANY WARRANTY; without even the implied warranty of
+!! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!! GNU Library General Public License for more details. \n\n
+!! You should have received a copy of the GNU Library General Public
+!! License along with this program (see the file COPYING.LIB for more
+!! details); if not, write to the Free Software Foundation, Inc.,
+!! 675 Mass Ave, Cambridge, MA 02139, USA.
+!!
+
 !> \mainpage Overview
 !!
 !! \section intro_sec Introduction
@@ -19,6 +43,9 @@
 !! Meanwhile the code is maintained at DESY by the statistics tools group of the
 !! analysis center of the Helmholtz Terascale alliance
 !! ([www.terascale.de](https://www.wiki.terascale.de/index.php/Millepede_II)).
+!!
+!! The Millepede II software is provided by DESY under the terms of the
+!! [LGPLv2 license](http://www.gnu.org/licenses/old-licenses/lgpl-2.0-standalone.html).
 !!
 !! \section install_sec Installation
 !! To install **Millepede** (on a linux system):
@@ -108,8 +135,6 @@
 !!    symmetric systems, SIAM Journal of Scientific Computing 33:4, 1810-1836, 2011,
 !!    [doi:10.1137/100787921](http://dx.doi.org/10.1137/100787921)
 !!
-!! \file
-!! Millepede II program, subroutines.
 
 !> \page changes_page Major changes
 !! Major changes with respect to the \ref draftman_page "draft manual".
