@@ -76,6 +76,16 @@
 !! * 150210: Solution by elimination for problems with linear equality constraints
 !!   has been implemented (as default, new command \ref cmd-withelim) in addition to the
 !!   Lagrange multiplier method (new command \ref cmd-withmult).
+!! * 150218: Skipping *empty* constraints (without variable parameters).
+!!   With new command \ref cmd-checkinput detailed check of input data (binary files,
+!!   constraints) is performed, but no solution will be determined.
+!!   Some input statistics is available in the output file <tt>millepede.res</tt>.
+!! * 150226: Iteration of entries cut with new command \ref cmd-iterateentries.
+!!   In the second iteration measurements with any parameters fixed by the 
+!!   previous entries cut are skipped. Useful if parameters of measurements have
+!!   different number of entries. 
+!! * 150420: Skipping of empty constraints has to be enabled by new command \ref
+!!   cmd-skipemptycons.
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -287,6 +297,8 @@
 !! Automatically switched on in case of rank deficits for constraints.
 !! \subsection opt-f -f
 !! Force iterating of solution (in case of rank deficits for constraints).
+!! \subsection opt-c -c
+!! Check input (binary files, constraints). No solution is determined.
 !!
 !! \section sec-cmd Steering file commands:
 !! In general the commands are defined by a single line:
@@ -312,6 +324,9 @@
 !! Define cache size and average fill level.
 !! \subsection cmd-cfiles Cfiles
 !! Following binaries are C files.
+!! \subsection cmd-checkinput checkinput
+!! Set check input flag \ref mpmod::icheck "icheck" to 1 (true).
+!! Same as \ref opt-c "-c".
 !! \subsection cmd-chisqcut chisqcut
 !! For local fit \ref an-chisq "setChi^2" cut \ref mpmod::chicut "chicut" to \a number1 [1.],
 !! \ref mpmod::chirem "chirem" to \a number2 [1.].
@@ -328,8 +343,9 @@
 !! to \a number1 (max. 0.5).
 !! \subsection cmd-entries entries
 !! Set \ref an-entries "entries" cuts for variable global parameter
-!! \ref mpmod::mreqenf "mreqenf" to \a number1 [25] and
-!! \ref mpmod::mreqena "mreqena" to \a number2 [10].
+!! \ref mpmod::mreqenf "mreqenf" to \a number1 [25],
+!! \ref mpmod::mreqena "mreqena" to \a number2 [10] and
+!! \ref mpmod::iteren "iteren" to the product of \a number1 and \a number3 [0].
 !! \subsection cmd-errlabels errlabels
 !! Define (up to 100 in total) global labels \a number1 .. \a numberN
 !! for which the parameter errors are calculated for method MINRES too
@@ -347,6 +363,11 @@
 !! \subsection cmd-hugecut hugecut
 !! For local fit set Chi^2 cut \ref mpmod::chhuge "chhuge"
 !! for \ref sssec-outlierdeb "unreasonable data" to \a number1 [1.].
+!! \subsection cmd-iterateentries iterateentries
+!! Set maximum value \ref mpmod::iteren "iteren" for iteration of entries cut to
+!! \a number1 [maxint]. Can alternatively be set by the \ref cmd-entries command.
+!! For parameters with less entries the cut will be iterated ignoring measurements with
+!! at least one parameter below \ref mpmod::mreqenf "mreqenf".
 !! \subsection cmd-linesearch linesearch
 !! The mode \ref mpmod::lsearch "lsearch" of the \ref par-linesearch "line search"
 !! to improve the solution is set to \a number1.
@@ -424,6 +445,9 @@
 !! Set flag \ref mpmod::nregul "nregul" for regularization to 1 (true),
 !! regularization parameter \ref mpmod::regula "regula" to \a number2,
 !! default pre-sigma \ref mpmod::regpre "regpre" to \a number3.
+!! \subsection cmd-skipemptycons skipemptycons
+!! Set flag \ref mpmod::iskpec "iskpec" to 1 (true).
+!! Empty constraints (without variable parameters) will be skipped.
 !! \subsection cmd-subito subito
 !! Set subito (no iterations) flag \ref mpmod::isubit "isubit" to 1 (true).
 !! Same as \ref opt-s "-s".
@@ -556,6 +580,10 @@ PROGRAM mptwo
 
     CALL filetc   ! command line and steering file analysis
     CALL filetx   ! read text files
+    IF (icheck > 0) THEN
+        WRITE(*,*) '!!!   Checking input only, no calculation of a solution   !!!'
+        WRITE(8,*) '!!!   Checking input only, no calculation of a solution   !!!'
+    END IF
     lvllog=mprint ! export print level
     IF (memdbg > 0) printflagalloc=1 ! debug memory management
     !$    WRITE(*,*)
@@ -609,6 +637,12 @@ PROGRAM mptwo
 
     CALL etime(ta,rloop2)
     times(2)=rloop2-rloop1 ! time for LOOP2
+
+    IF(icheck > 0) THEN
+        CALL prtstat
+        CALL peend(0,'Ended normally')
+        GOTO 99 ! only checking input
+    END IF
 
     !     use different solution methods
 
@@ -825,8 +859,12 @@ PROGRAM mptwo
     IF(nrec3 < huge(nrec3)) THEN
         WRITE(8,*) 'Record',nrec3, ' is first with error (rank deficit/NaN)'
     END IF
-    WRITE(8,*) ' '
-    WRITE(8,*) 'In total 2 +',nloopn,' loops through the data files'
+99  WRITE(8,*) ' '
+    IF (iteren > mreqenf) THEN
+        WRITE(8,*) 'In total 3 +',nloopn,' loops through the data files'
+    ELSE
+        WRITE(8,*) 'In total 2 +',nloopn,' loops through the data files'
+    ENDIF   
     IF (mnrsit > 0) THEN
         WRITE(8,*) ' '
         WRITE(8,*) 'In total    ',mnrsit,' internal MINRES iterations'
@@ -834,6 +872,7 @@ PROGRAM mptwo
 
     WRITE(8,103) times(0),times(1),times(2),times(4),times(7),  &
         times(5),times(8),times(3),times(6)
+
     CALL etime(ta,rst)
     deltat=rst-rstp
     ntsec=nint(deltat,mpi)
@@ -857,7 +896,7 @@ PROGRAM mptwo
             nrejec(2), ' (huge)   ',nrejec(3),' (large)'
         WRITE(8,*) ' '
     END IF
-    CALL explfc(8)
+    IF (icheck <= 0) CALL explfc(8)
 
     WRITE(*,*) ' '
     WRITE(*,*) '  <  Millepede II-P ending   ... ', chdate ! with exit code',ITEXIT,' >'
@@ -1203,6 +1242,7 @@ SUBROUTINE feasma
             itgbi=inone(label) ! -> ITGBI= index of parameter label
             ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
             IF(ivgb > 0) matConstraintsT(ivgb+(icgb-1)*nvgb)=factr ! matrix element
+            globalParCons(itgbi)=globalParCons(itgbi)+1
             rhs=rhs-factr*globalParameter(itgbi)     ! reduce residuum
             i=i+1
             IF(i > lenConstraints) EXIT
@@ -2392,7 +2432,7 @@ SUBROUTINE ploopa(lunp)
     WRITE(lunp,101) ! header line
     WRITE(lunp,102) ! header line
 101 FORMAT(' it fc','   fcn_value dfcn_exp  slpr costh  iit st',  &
-        ' ls  step cutf',1X,'rejects hmmsec FMS')
+        ' ls  step cutf',1X,'rejects hhmmss FMS')
 102 FORMAT(' -- --',' ----------- --------  ---- -----  --- --',  &
         ' -- ----- ----',1X,'------- ------ ---')
     RETURN
@@ -2446,11 +2486,11 @@ SUBROUTINE ploopb(lunp)
                 iitera,istopa,lsinfo,stepl, chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
         ENDIF
     END IF
-103 FORMAT(i3,i3,e12.5,38X,f5.1, 1X,i7,  i2,i2,i3,a4)
+103 FORMAT(i3,i3,e12.5,38X,f5.1, 1X,i7,  i3,i2.2,i2.2,a4)
 104 FORMAT(i3,i3,e12.5,1X,e8.2,f6.3,f6.3,i5,2I3,f6.3,f5.1,  &
-        1X,i7,  i2,i2,i3,a4)
+        1X,i7,  i3,i2.2,i2.2,a4)
 105 FORMAT(i3,i3,e12.5,1X,e8.2,12X,i5,I3,9X,f5.1,  &
-        1X,i7,  i2,i2,i3,a4)
+        1X,i7,  i3,i2.2,i2.2,a4)
     RETURN
 END SUBROUTINE ploopb ! iteration line
 
@@ -2491,7 +2531,7 @@ SUBROUTINE ploopc(lunp)
     stepl=steps(2)
     WRITE(lunp,105) nloopn,fvalue, ratae,lsinfo,  &
         stepl,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
-105 FORMAT(3X,i3,e12.5,9X,     f6.3,14X,i3,f6.3,6X, i7,  i2,i2,i3,a4)
+105 FORMAT(3X,i3,e12.5,9X,     f6.3,14X,i3,f6.3,6X, i7,  i3,i2.2,i2.2,a4)
     RETURN
 
 END SUBROUTINE ploopc                   ! sub-iteration line
@@ -2521,7 +2561,7 @@ SUBROUTINE ploopd(lunp)
     nsecnd=NINT(secnd,mpi)
 
     WRITE(lunp,106) nhour,minut,nsecnd,ccalcm(lcalcm)
-106 FORMAT(69X,i2,i2,i3,a4)
+106 FORMAT(69X,i3,i2.2,i2.2,a4)
     RETURN
 END SUBROUTINE ploopd
 
@@ -3584,6 +3624,7 @@ END SUBROUTINE loopbf
 !! - difference at last iteration (G14.5)
 !! - error (standard deviation) (G14.5)
 !! - global correlation (F8.3), on request only
+!! - Entries from binary files or during iterations
 !!
 SUBROUTINE prtglo
     USE mpmod
@@ -3753,6 +3794,60 @@ SUBROUTINE prtglo
 111 FORMAT(i10,2X,3G14.5,14X,i12)
 112 FORMAT(i10,2X,4G14.5,i12)
 END SUBROUTINE prtglo    ! print final log file
+
+!***********************************************************************
+
+!> Print input statistic
+!!
+!! For each global parameter:
+!! - label (I10)
+!! - parameter value (G14.5)
+!! - presigma (G14.5)
+!! - difference of parameters values (G14.5), = 0.
+!! - Entries from binary files
+!!
+SUBROUTINE prtstat
+    USE mpmod
+
+    IMPLICIT NONE
+    REAL(mps):: par
+    REAL(mps):: presig
+    INTEGER(mpi) :: icount
+    INTEGER(mpi) :: itgbi
+    INTEGER(mpi) :: itgbl
+    INTEGER(mpi) :: ivgbi
+    INTEGER(mpi) :: lup
+    INTEGER(mpi) :: ncon
+
+    SAVE
+    !     ...
+
+    lup=09
+    CALL mvopen(lup,'millepede.res')
+    WRITE(lup,*) '*** Results of checking input only, no solution performed ***'
+    WRITE(lup,*) '! fixed-1: by pre-sigma, -2: by entries cut, -3: by iterated entries cut'
+    WRITE(lup,*) '!      Label       Value     Pre-sigma         Entries Constraints  Status '
+    !iprlim=10
+    DO itgbi=1,ntgb  ! all parameter variables
+        itgbl=globalParLabelIndex(1,itgbi)
+        ivgbi=globalParLabelIndex(2,itgbi)
+        par=REAL(globalParameter(itgbi),mps)      ! initial value
+        presig=REAL(globalParPreSigma(itgbi),mps) ! initial presigma
+        icount=globalParCounts(itgbi) ! from binary files
+        ncon=globalParCons(itgbi) ! number of active constraints
+
+        IF (ivgbi <= 0) THEN
+            WRITE(lup,110) itgbl,par,presig,icount,ncon,ivgbi
+        ELSE
+            WRITE(lup,111) itgbl,par,presig,icount,ncon
+        END IF
+    END DO
+    REWIND lup
+    CLOSE(UNIT=lup)
+
+110 FORMAT(' ! ',i10,2X,2G14.5,2i12,'  fixed',I2)
+111 FORMAT(' ! ',i10,2X,2G14.5,2i12,'  variable')
+END SUBROUTINE prtstat    ! print input statistics
 
 
 !> Product symmetric matrix times vector.
@@ -4385,6 +4480,8 @@ SUBROUTINE loop1
     globalParStart=0.
     CALL mpalloc(globalParCopy,length,'copy of global parameters')
     CALL mpalloc(globalParCounts,length,'global parameter counts')
+    CALL mpalloc(globalParCons,length,'global parameter constraints')
+    globalParCons=0
 
     DO i=1,lenParameters                  ! parameter start values
         param=listParameters(i)%value
@@ -4413,16 +4510,19 @@ SUBROUTINE loop1
     indab=0
     DO i=1,ntgb
         globalParCounts(i) = globalParLabelIndex(2,i)
-        IF(globalParLabelIndex(2,i) >= mreqenf.AND.globalParPreSigma(i) >= 0.0) THEN
-            indab=indab+1
-            globalParLabelIndex(2,i)=indab  ! variable, used in matrix (active)
+        IF (globalParPreSigma(i) < 0.0) THEN
+            globalParLabelIndex(2,i)=-1     ! fixed (pre-sigma), not used in matrix (not active)
+        ELSE IF(globalParCounts(i) < mreqenf) THEN
+            globalParLabelIndex(2,i)=-2     ! fixed (entries cut), not used in matrix (not active)        
         ELSE
-            globalParLabelIndex(2,i)=-1     ! fixed, not used in matrix (not active)
+            indab=indab+1
+            globalParLabelIndex(2,i)=indab  ! variable, used in matrix (active)        
         END IF
     END DO
     globalParHeader(-6)=indab ! counted variable
     nvgb=indab  ! nr of variable parameters
     WRITE(lunlog,*) 'LOOP1:',nvgb, ' is number NVGB of variable parameters'
+    IF(iteren > mreqenf) CALL loop1i ! iterate entries cut
 
     !     translation table of length NVGB of total global indices ---------
     length=nvgb
@@ -4486,7 +4586,9 @@ SUBROUTINE loop1
         WRITE(*,101) '  NREC',nrec,'number of records'
         IF (nrecd > 0) WRITE(*,101) ' NRECD',nrec,'number of records containing doubles'
         WRITE(*,101) 'MREQENF',mreqenf,'required number of entries (from binary files)'
-        WRITE(*,101) 'MREQENA',mreqena,'required number of entries (from accepted fits)'
+        IF(iteren > mreqenf) &
+            WRITE(*,101) 'ITEREN',iteren,'iterate cut for parameters with less entries'
+        WRITE(*,101) 'MREQENA',mreqena,'required number of entries (from accepted fits)'            
         IF (mreqpe > 1) WRITE(*,101)  &
             'MREQPE',mreqpe,'required number of pair entries'
         IF (msngpe >= 1) WRITE(*,101)  &
@@ -4513,6 +4615,8 @@ SUBROUTINE loop1
     WRITE(8,101) '  NREC',nrec,'number of records'
     IF (nrecd > 0) WRITE(8,101) ' NRECD',nrec,'number of records containing doubles'
     WRITE(8,101) 'MREQENF',mreqenf,'required number of entries (from binary files)'
+    IF(iteren > mreqenf) &
+        WRITE(8,101) 'ITEREN',iteren,'iterate cut for parameters with less entries'
     WRITE(8,101) 'MREQENA',mreqena,'required number of entries (from accepted fits)'
 
     WRITE(lunlog,*) 'LOOP1: ending'
@@ -4521,6 +4625,122 @@ SUBROUTINE loop1
 
 101 FORMAT(1X,a8,' =',i10,' = ',a)
 END SUBROUTINE loop1
+
+!> Iteration of first data \ref sssec-loop1 "loop".
+!!
+!! Read all data files again skipping measurements with any parameter below the
+!! entries cut to update the number of entries.
+!!
+!! Redefine variable and fixed global parameters (depending on updated entries).
+!!
+SUBROUTINE loop1i
+    USE mpmod
+    USE mpdalc
+
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ibuf
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: indab
+    INTEGER(mpi) :: inder
+    INTEGER(mpi) :: isfrst
+    INTEGER(mpi) :: islast
+    INTEGER(mpi) :: ist
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: ja
+    INTEGER(mpi) :: jb
+    INTEGER(mpi) :: jsp
+    INTEGER(mpi) :: nc31
+    INTEGER(mpi) :: nr
+    INTEGER(mpi) :: nlow
+    INTEGER(mpi) :: nst
+    INTEGER(mpi) :: nwrd
+    REAL(mpr8) :: glder
+
+    INTEGER(mpl) :: length
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: newCounter
+    SAVE
+
+    isfrst(ibuf)=readBufferPointer(ibuf)+1
+    islast(ibuf)=readBufferDataI(readBufferPointer(ibuf))
+    inder(i)=readBufferDataI(i)
+    glder(i)=readBufferDataD(i)
+    !     ...
+    WRITE(lunlog,*) ' '
+    WRITE(lunlog,*) 'LOOP1: iterating'
+    WRITE(*,*) ' '
+    WRITE(*,*) 'LOOP1: iterating'
+
+    length=ntgb
+    CALL mpalloc(newCounter,length,'new entries counter')
+    newCounter=0
+
+    !     define read buffer
+    nc31=ncache/(31*mthrdr) ! split read cache 1 : 10 : 10*2 for pointers, ints, floats
+    nwrd=nc31+1
+    length=nwrd*mthrdr
+    CALL mpalloc(readBufferPointer,length,'read buffer, pointer')
+    nwrd=nc31*10+2+ndimbuf
+    length=nwrd*mthrdr
+    CALL mpalloc(readBufferDataI,length,'read buffer, integer')
+    CALL mpalloc(readBufferDataD,length,'read buffer, double')
+    ! to read (old) float binary files
+    length=(ndimbuf+2)*mthrdr
+    CALL mpalloc(readBufferDataF,length,'read buffer, float')
+
+    DO
+        CALL peread(nr)  ! read records
+        CALL peprep(1)  ! prepare records
+        DO ibuf=1,numReadBuffer           ! buffer for current record        
+            ist=isfrst(ibuf)
+            nst=islast(ibuf)
+            nwrd=nst-ist+1
+            DO ! loop over measurements
+                CALL isjajb(nst,ist,ja,jb,jsp)
+                IF(ja == 0.AND.jb == 0) EXIT
+                IF(ja /= 0) THEN
+                    nlow=0
+                    DO j=1,ist-jb
+                        ij=inder(jb+j)                      ! index of global parameter
+                        ij=globalParLabelIndex(2,ij)        ! change to variable parameter
+                        IF(ij == -2) nlow=nlow+1            ! fixed by entries cut
+                    END DO
+                    IF(nlow == 0) THEN
+                        DO j=1,ist-jb
+                            ij=inder(jb+j)                  ! index of global parameter
+                            newCounter(ij)=newCounter(ij)+1 ! count again
+                        END DO
+                    ENDIF
+                END IF
+            END DO
+            ! end-of-event  
+        END DO
+        IF(nr <= 0) EXIT ! end of data?
+    END DO
+
+    !     release read buffer
+    CALL mpdealloc(readBufferDataF)
+    CALL mpdealloc(readBufferDataD)
+    CALL mpdealloc(readBufferDataI)
+    CALL mpdealloc(readBufferPointer)
+
+    indab=0
+    DO i=1,ntgb
+        IF(globalParLabelIndex(2,i) > 0) THEN
+            IF(newCounter(i) >= mreqenf .OR. globalParCounts(i) >= iteren) THEN
+                indab=indab+1
+                globalParLabelIndex(2,i)=indab  ! variable, used in matrix (active)
+            ELSE
+                globalParLabelIndex(2,i)=-3     ! fixed (iterated entries cut), not used in matrix (not active)
+            END IF
+        END IF
+    END DO
+    globalParHeader(-6)=indab ! counted variable
+    nvgb=indab  ! nr of variable parameters
+    WRITE(lunlog,*) 'LOOP1:',nvgb, ' is number NVGB of variable parameters'
+    CALL mpdealloc(newCounter)
+
+END SUBROUTINE loop1i
 
 !> Second data \ref sssec-loop2 "loop" (number of derivatives, global label pairs).
 !!
@@ -4603,7 +4823,11 @@ SUBROUTINE loop2
     INTEGER(mpi) :: inone
     INTEGER(mpi) :: inc
     INTEGER(mpi) :: itype
+    INTEGER(mpi) :: ivgb
     INTEGER(mpi) :: ncgbw
+    INTEGER(mpi) :: newlen
+    INTEGER(mpi) :: nvar
+    INTEGER(mpi) :: lastlen
     REAL(mps) :: wgh
     REAL(mps) :: wolfc3
     REAL(mps) :: wrec
@@ -4664,28 +4888,62 @@ SUBROUTINE loop2
     !     constraints - determine number of constraints NCGB
     ncgb=0
     ncgbw=0
+    ncgbe=0
+    newlen=0
+    lastlen=0
+    nvar=-1
     i=0
     last=-1
     !        find next constraint header and count nr of constraints
-    DO WHILE(i < lenConstraints)
-        i=i+1
-        label=listConstraints(i)%label
-        IF(last == 0.AND.label < 0) THEN
-            ncgb=ncgb+1
-            itype=-label
-            IF(itype == 2) ncgbw=ncgbw+1
-        END IF
-        last=label
-        IF(label > 0.AND.itype == 2) THEN  ! weighted constraints
-            itgbi=inone(label) ! -> ITGBI= index of parameter label
-            listConstraints(i)%value=listConstraints(i)%value*globalParCounts(itgbi)
-        END IF
-    END DO   
+    IF (lenConstraints > 0) THEN
+        DO WHILE(i < lenConstraints)
+            i=i+1
+            label=listConstraints(i)%label
+            IF(last == 0.AND.label < 0) THEN
+                IF (ncgb > 0 .AND. icheck>0) WRITE(*,113) ncgb, newlen-lastlen-3, nvar
+                IF (nvar == 0) ncgbe=ncgbe+1
+                IF (nvar == 0 .AND. iskpec > 0) THEN 
+                    ! overwrite
+                    newlen=lastlen                    
+                    ! copy previous value (for label 0)
+                    newlen=newlen+1
+                    listConstraints(newlen)%value=listConstraints(i-1)%value
+                ELSE
+                    lastlen=newlen-1 ! end of last accepted constraint
+                END IF
+                ncgb=ncgb+1
+                itype=-label
+                IF(itype == 2) ncgbw=ncgbw+1
+                nvar=0
+            END IF
+            last=label
+            IF(label > 0) THEN
+                itgbi=inone(label) ! -> ITGBI= index of parameter label
+                ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
+                IF (ivgb > 0) nvar=nvar+1
+            END IF
+            IF(label > 0.AND.itype == 2) THEN  ! weighted constraints
+                itgbi=inone(label) ! -> ITGBI= index of parameter label
+                listConstraints(i)%value=listConstraints(i)%value*globalParCounts(itgbi)
+            END IF
+            newlen=newlen+1
+            listConstraints(newlen)%label=listConstraints(i)%label ! copy label
+            listConstraints(newlen)%value=listConstraints(i)%value ! copy value
+        END DO
+        IF (ncgb > 0 .AND. icheck>0) WRITE(*,113) ncgb, newlen-lastlen-3, nvar
+        IF (nvar == 0) ncgbe=ncgbe+1
+        IF (nvar == 0 .AND. iskpec > 0) newlen=lastlen
+    END IF
+    lenConstraints=newlen
+    IF (ncgbe > 0) THEN
+        WRITE(*,*) 'LOOP2:',ncgbe,' empty constraints skipped'
+        ncgb=ncgb-ncgbe
+    END IF
     IF (ncgbw == 0) THEN
-        WRITE(*,*) 'LOOP2:',ncgb,' constraints'
-    ELSE    
-        WRITE(*,*) 'LOOP2:',ncgb,' constraints,',ncgbw, 'weighted'
-    END IF    
+        WRITE(*,*) 'LOOP2:',ncgb,' constraints accepted'
+    ELSE
+        WRITE(*,*) 'LOOP2:',ncgb,' constraints accepted,',ncgbw, 'weighted'
+    END IF
 
     IF (icelim > 0) THEN ! elimination
         nagb=nvgb         ! total number of parameters
@@ -5218,6 +5476,7 @@ SUBROUTINE loop2
 102 FORMAT(22X,a)
 103 FORMAT(1X,a,g12.4)
 106 FORMAT(i6,2(3X,f9.3,f12.1,3X))
+113 FORMAT(' constraint',i6,' : ',i9,' parameters,',i9,' variable') 
 END SUBROUTINE loop2
 
 !> Prepare storage for vectors and matrices.
@@ -5854,8 +6113,6 @@ SUBROUTINE xloopn                !
 
     REAL(mpd) :: stp
     REAL(mpd) :: dratio
-    REAL(mpd) :: dfacin
-    REAL(mpd) :: djrat
     REAL(mpd) :: dwmean
     REAL(mpd) :: db
     REAL(mpd) :: db1
@@ -5865,6 +6122,9 @@ SUBROUTINE xloopn                !
     LOGICAL :: warners
     LOGICAL :: warnerss
     LOGICAL :: lsflag
+    CHARACTER (LEN=7) :: cratio
+    CHARACTER (LEN=7) :: cfacin
+    CHARACTER (LEN=7) :: crjrat
     EXTERNAL avprd0
     SAVE
     !     ...
@@ -6297,15 +6557,16 @@ SUBROUTINE xloopn                !
 
 
     nrati=nint(10000.0*REAL(nrej,mps)/REAL(nrecal,mps),mpi)
-    djrat=0.01_mpd*REAL(nrati,mpd)
+    WRITE(crjrat,197) 0.01_mpd*REAL(nrati,mpd)
     nfaci=nint(100.0*SQRT(catio),mpi)
 
-    dratio=0.01_mpd*REAL(mrati,mpd)
-    dfacin=0.01_mpd*REAL(nfaci,mpd)
+    WRITE(cratio,197) 0.01_mpd*REAL(mrati,mpd)
+    WRITE(cfacin,197) 0.01_mpd*REAL(nfaci,mpd)
 
     warner=.FALSE. ! warnings
     IF(mrati < 90.OR.mrati > 110) warner=.TRUE.
     IF(nrati > 100) warner=.TRUE.
+    IF(ncgbe /= 0) warner=.TRUE.
     warners = .FALSE. ! severe warnings
     IF(nalow /= 0) warners=.TRUE.
     warnerss = .FALSE. ! more severe warnings
@@ -6326,14 +6587,14 @@ SUBROUTINE xloopn                !
 
         IF(mrati < 90.OR.mrati > 110) THEN
             WRITE(*,199) ' '
-            WRITE(*,*) '        Chi^2/Ndf = ',dratio, '  (should be close to 1)'
+            WRITE(*,*) '        Chi^2/Ndf = ',cratio, '  (should be close to 1)'
             WRITE(*,*) '        => multiply all input standard ',  &
-                'deviations by factor',dfacin
+                'deviations by factor',cfacin
         END IF
 
         IF(nrati > 100) THEN
             WRITE(*,199) ' '
-            WRITE(*,*) '        Fraction of rejects =',djrat,' %',  &
+            WRITE(*,*) '        Fraction of rejects =',crjrat,' %',  &
                 '  (should be far below 1 %)'
             WRITE(*,*) '        => please provide correct mille data'
         END IF
@@ -6357,6 +6618,12 @@ SUBROUTINE xloopn                !
             WRITE(*,*) '        Rank defect =',nmiss1,  &
                 '  for constraint equations, should be 0'
             WRITE(*,*) '        => please correct constraint definition'
+        END IF
+                
+        IF(ncgbe /= 0) THEN
+            WRITE(*,199) ' '
+            WRITE(*,*) '        Number of empty constraints =',ncgbe, ', should be 0'
+            WRITE(*,*) '        => please check constraint definition, mille data'
         END IF
 
         IF(nalow /= 0) THEN
@@ -6434,6 +6701,7 @@ SUBROUTINE xloopn                !
 
 102 FORMAT(' Call FEASIB with cut=',g10.3)
     ! 103  FORMAT(1X,A,G12.4)
+197 FORMAT(F7.2)    
 199 FORMAT(7X,a)
 END SUBROUTINE xloopn                ! standard solution
 
@@ -6549,6 +6817,7 @@ SUBROUTINE filetc
             END IF
             IF(INDEX(text(ia:ib),'s') /= 0) isubit=1  ! like "subito"
             IF(INDEX(text(ia:ib),'f') /= 0) iforce=1  ! like "force"
+            IF(INDEX(text(ia:ib),'c') /= 0) icheck=1  ! like "checkinput
         END IF
         IF(i == iargc()) WRITE(*,*) '--------------------- '
     END DO
@@ -7265,6 +7534,7 @@ SUBROUTINE intext(text,nline)
             !         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
             IF(nums > 0 .AND. dnum(1) > 0.5) mreqenf=NINT(dnum(1),mpi)
             IF(nums > 1 .AND. dnum(2) > 0.5) mreqena=NINT(dnum(2),mpi)
+            IF(nums > 2 .AND. dnum(3) > 0.5) iteren=NINT(dnum(1)*dnum(3),mpi)
             RETURN
         END IF
 
@@ -7481,6 +7751,13 @@ SUBROUTINE intext(text,nline)
             RETURN
         END IF
 
+        keystx='skipemptycons'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            iskpec=1
+            RETURN
+        END IF
+
         keystx='withelimination'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
@@ -7492,6 +7769,21 @@ SUBROUTINE intext(text,nline)
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
             icelim=0
+            RETURN
+        END IF
+
+        keystx='checkinput'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            icheck=1
+            RETURN
+        END IF
+
+        keystx='iterateentries'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            iteren=huge(iteren)
+            IF (nums > 0) iteren=NINT(dnum(1),mpi)
             RETURN
         END IF
 

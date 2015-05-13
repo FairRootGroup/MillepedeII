@@ -99,6 +99,9 @@ MODULE mpmod
     INTEGER(mpi) :: ipcntr=0  !< flag for output of global parameter counts (entries), =0: none, =1: local fits, >1: binary files
     INTEGER(mpi) :: iwcons=0  !< flag for weighting of constraints (>0: weighting with \ref globalparcounts "globalParCounts", else: none)
     INTEGER(mpi) :: icelim=1  !< flag for using elimination (instead of multipliers) for constraints
+    INTEGER(mpi) :: icheck=0  !< flag for checking input only (no solution determined)
+    INTEGER(mpi) :: iteren=0  !< entries cut is iterated for parameters with less entries (if > \ref mreqenf)
+    INTEGER(mpi) :: iskpec=0  !< flag for skipping empty constraints (no variable parameters)
     ! variables
     INTEGER(mpi) :: lunlog !< unit for logfile
     INTEGER(mpi) :: lvllog !< log level
@@ -107,6 +110,7 @@ MODULE mpmod
     INTEGER(mpi) :: nagb !< number of all parameters (global par. + Lagrange mult.)
     INTEGER(mpi) :: nfgb !< number of fit parameters
     INTEGER(mpi) :: ncgb !< number of constraints
+    INTEGER(mpi) :: ncgbe !< number of empty constraints (no variable parameters)
     INTEGER(mpi), DIMENSION(2) :: nprecond !< number of constraints, matrix size for preconditioner
     INTEGER(mpi) :: nagbn !< max number of global paramters per record
     INTEGER(mpi) :: nalcn !< max number of local paramters per record
@@ -160,6 +164,7 @@ MODULE mpmod
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalParPreSigma  !< pre-sigma for global parameters
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalParPreWeight !< weight from pre-sigma
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalParCounts !< global parameters counts (from binary files)
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalParCons !< global parameters (number of) constraints
     ! global matrix, vector
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalMatD !< global matrix 'A' (double, full or sparse)
     REAL(mps), DIMENSION(:), ALLOCATABLE :: globalMatF !< global matrix 'A' (float part for compressed sparse)
