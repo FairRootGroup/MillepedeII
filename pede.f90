@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-02-02 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-02-03 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -73,6 +73,9 @@
 !!   (Rejection of local fits may lead to the loss of degrees of freedom.)
 !!   Printout of global parameter counters with new command \ref cmd-printcounts.
 !! * 141126: Weighted constraints implemented (with new command \ref cmd-weightedcons).
+!! * 150210: Solution by elimination for problems with linear equality constraints
+!!   has been implemented (as default, new command \ref cmd-withelim) in addition to the
+!!   Lagrange multiplier method (new command \ref cmd-withmult).
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -123,12 +126,12 @@
 !! 7. Volker Blobel und Erich Lohrmann, Statistische und numerische Methoden der
 !!    Datenanalyse, Teubner Studienb&uuml;cher, B.G. Teubner, Stuttgart, 1998.
 !!    [Online-Ausgabe](http://www.desy.de/~blobel/eBuch.pdf).
-!! 8. [Systems Optimization Laboratory](http://www.stanford.edu/group/SOL/software/minres.html),
+!! 8. [Systems Optimization Laboratory](http://web.stanford.edu/group/SOL/software/minres),
 !!    Stanford University;\n
 !!    C. C. Paige and M. A. Saunders (1975),
 !!    Solution of sparse indefinite systems of linear equations,
 !!    SIAM J. Numer. Anal. 12(4), pp. 617-629.
-!! 9. [Systems Optimization Laboratory](http://www.stanford.edu/group/SOL/software/minresqlp.html),
+!! 9. [Systems Optimization Laboratory](http://web.stanford.edu/group/SOL/software/minresqlp),
 !!    Stanford University;\n
 !!    Sou-Cheng Choi, Christopher Paige, and Michael Saunders,
 !!    MINRES-QLP: A Krylov subspace method for indefinite or singular
@@ -167,7 +170,7 @@
 !! has been \ref ch-openmp "parallelized".
 !! Available are the value for all (and optionally error, global correlation
 !! for few) global parameters.
-!!\subsection ch-minresqlp Advanced Minimal Residual Method (MINRES-QLP)
+!! \subsection ch-minresqlp Advanced Minimal Residual Method (MINRES-QLP)
 !! The \ref minresqlpmodule::minresqlp "MINRES-QLP" implementation [\ref ref_sec "ref 9"]
 !! is a MINRES evolution with improved norm estimates and stopping conditions
 !! (leading potentially to different numbers of internal iterations).
@@ -179,6 +182,13 @@
 !! and to switch to QLP if the (estimated) matrix condition exceeds
 !! \ref cmd-mrestranscond "mrtcnd". Pure QR or QLP factorization can be enforced
 !! by \ref cmd-mresmode "mrmode".
+!!
+!! \subsection ch-elim-const Elimination of constraints
+!! As alternative to the Lagrange multiplier method the solution by elimination
+!! has been added for problems with linear equality constraints.
+!! A \ref mpqldec::qldec "QL factorization" (with Householder reflections) of the
+!! transposed constraints matrix is used to transform to an unconstrained problem.
+!! For sparse matrix storage the sparsity of the global matrix is preserved.
 !!
 !! \section ch-regul Regularization
 !! Optionally a term \f$\tau\cdot\Vert\Vek{x}\Vert\f$ can be added to the objective function
@@ -425,6 +435,12 @@
 !! \subsection cmd-weightedcons weightedcons
 !! Set flag \ref mpmod::iwcons "iwcons" to \a number1 [1].
 !! Implements \ref sssec_consinf "weighted constraints" for global parameters.
+!! \subsection cmd-withelim withelimination
+!! Set flag \ref mpmod::icelim "icelim" to 1 (true).
+!! Selects solution by elimination for linear equality constraints.
+!! \subsection cmd-withmult withmultipliers
+!! Set flag \ref mpmod::icelim "icelim" to 0 (false).
+!! Selects solution by Lagrange multipliers for linear equality constraints.
 !! \subsection cmd-wolfe wolfe
 !! For strong Wolfe condition in \ref par-linesearch "line search"
 !! set parameter \ref mpmod::wolfc1 "wolfc1" to \a number1, \ref mpmod::wolfc2
@@ -1064,7 +1080,6 @@ SUBROUTINE addcst
     IMPLICIT NONE
     REAL(mpd) :: climit
     REAL(mpd) :: factr
-    REAL(mpd) :: hugeVal
     REAL(mpd) :: sgm
 
     INTEGER(mpi) :: i
@@ -1083,7 +1098,6 @@ SUBROUTINE addcst
     SAVE
     !     ...
     nop=0
-    hugeVal=1.0 !  E6
     IF(lenConstraints == 0) RETURN  ! no constraints
     climit=1.0E-5         ! limit for printout
     irhs=0 ! number of values in DRHS(.), to be printed
@@ -1099,8 +1113,8 @@ SUBROUTINE addcst
             itgbi=inone(label) ! -> ITGBI= index of parameter label
             ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
   
-            IF(icalcm == 1.AND.ivgb > 0) THEN
-                CALL mupdat(nvgb+icgb,ivgb,hugeVal*factr) ! add to matrix
+            IF(icalcm == 1.AND.nagb > nvgb.AND.ivgb > 0) THEN
+                CALL mupdat(nvgb+icgb,ivgb,factr) ! add to matrix
             END IF
   
             rhs=rhs-factr*globalParameter(itgbi)     ! reduce residuum
@@ -1118,8 +1132,8 @@ SUBROUTINE addcst
                 irhs=0
             END IF
         END IF
-        IF(rhs == 0.0) rhs=1.0E-9
-        globalVector(nvgb+icgb)=rhs*hugeVal
+        vecConsResiduals(icgb)=rhs
+        IF (nagb > nvgb) globalVector(nvgb+icgb)=rhs
     END DO
 
     IF(irhs /= 0) THEN
@@ -1154,8 +1168,9 @@ SUBROUTINE feasma
     INTEGER(mpi) :: inone
 
     REAL(mpd):: rhs
+    REAL(mpd):: evmax
+    REAL(mpd):: evmin
     INTEGER(mpl):: length
-    REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecConstraints
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matConstraintsT
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: auxVectorD
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: auxVectorI
@@ -1163,12 +1178,13 @@ SUBROUTINE feasma
     !     ...
     IF(lenConstraints == 0) RETURN  ! no constraints
 
+    IF (nfgb < nvgb) CALL qlini(nvgb,ncgb)
     length=(ncgb*ncgb+ncgb)/2
     CALL mpalloc(matConsProduct, length, 'product matrix of constraints')
     matConsProduct=0.0_mpd
     length=ncgb
     CALL mpalloc(vecConsResiduals, length, 'residuals of constraints')
-    CALL mpalloc(vecConstraints,length,'rhs vector') ! double precision vector
+    CALL mpalloc(vecConsSolution, length, 'solution for constraints')
     CALL mpalloc(auxVectorI,length,'auxiliary array (I)')  ! int aux 1
     CALL mpalloc(auxVectorD,length,'auxiliary array (D)')  ! double aux 1
     !     constraint matrix A and product A A^T (A is stored as transposed)
@@ -1186,13 +1202,13 @@ SUBROUTINE feasma
             factr=listConstraints(i)%value
             itgbi=inone(label) ! -> ITGBI= index of parameter label
             ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
-            IF(ivgb > 0) matConstraintsT(icgb+(ivgb-1)*ncgb)=factr ! matrix element
+            IF(ivgb > 0) matConstraintsT(ivgb+(icgb-1)*nvgb)=factr ! matrix element
             rhs=rhs-factr*globalParameter(itgbi)     ! reduce residuum
             i=i+1
             IF(i > lenConstraints) EXIT
             IF(listConstraints(i)%label == 0) EXIT
         END DO
-        vecConstraints(icgb)=rhs        ! constraint discrepancy
+        vecConsResiduals(icgb)=rhs        ! constraint discrepancy
     END DO
 
     DO l=1,nvgb
@@ -1200,13 +1216,13 @@ SUBROUTINE feasma
         DO i=1,ncgb
             DO j=1,i
                 ij=ij+1
-                matConsProduct(ij)=matConsProduct(ij)+matConstraintsT((l-1)*ncgb+i)*matConstraintsT((l-1)*ncgb+j)
+                matConsProduct(ij)=matConsProduct(ij)+matConstraintsT((i-1)*nvgb+l)*matConstraintsT((j-1)*nvgb+l)
             END DO
         END DO
     END DO
 
     !     inversion of product matrix of constraints
-    CALL sqminv(matConsProduct,vecConstraints,ncgb,nrank, auxVectorD, auxVectorI)
+    CALL sqminv(matConsProduct,vecConsResiduals,ncgb,nrank, auxVectorD, auxVectorI)
 
     nmiss1=ncgb-nrank
 
@@ -1225,10 +1241,20 @@ SUBROUTINE feasma
         END IF
     END IF
 
+    ! QL decomposition
+    IF (nfgb < nvgb) THEN
+        print *
+        print *, 'QL decomposition of constraints matrix'
+        CALL qldec(matConstraintsT)
+        ! check eignevalues of L
+        CALL qlgete(evmin,evmax)
+        PRINT *, '   largest  eigenvalue of L: ', evmax
+        PRINT *, '   smallest eigenvalue of L: ', evmin
+    END IF
+
     CALL mpdealloc(matConstraintsT)
     CALL mpdealloc(auxVectorD)
     CALL mpdealloc(auxVectorI)
-    CALL mpdealloc(vecConstraints)
 
     RETURN
 END SUBROUTINE feasma ! matrix for feasible solution
@@ -1264,7 +1290,6 @@ SUBROUTINE feasib(concut,iact)
     REAL(mpd) ::sum3
 
     !                        ! acts on subarray "0"
-    REAL(mpd), DIMENSION(:), ALLOCATABLE :: auxVectorD
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecCorrections
     SAVE
 
@@ -1325,12 +1350,11 @@ SUBROUTINE feasib(concut,iact)
         WRITE(*,102) iter,sum1,sum2,sum3
 102     FORMAT(i6,'   rms',g12.4,'  avrg_abs',g12.4,'  max_abs',g12.4)
   
-        CALL mpalloc(auxVectorD,INT(ncgb,mpl),'auxiliary vector (D)')
         CALL mpalloc(vecCorrections,INT(nvgb,mpl),'constraint corrections')
         vecCorrections=0.0_mpd
 
         !      multiply inverse matrix and constraint vector
-        CALL dbsvx(matConsProduct,vecConsResiduals,auxVectorD,ncgb)
+        CALL dbsvx(matConsProduct,vecConsResiduals,vecConsSolution,ncgb)
 
         i=1
         DO icgb=1,ncgb
@@ -1343,7 +1367,7 @@ SUBROUTINE feasib(concut,iact)
                 itgbi=inone(label) ! -> ITGBI= index of parameter label
                 ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
                 IF(ivgb > 0) THEN
-                    vecCorrections(ivgb)=vecCorrections(ivgb)+auxVectorD(icgb)*factr
+                    vecCorrections(ivgb)=vecCorrections(ivgb)+vecConsSolution(icgb)*factr
                 END IF
                 i=i+1
                 IF(i > lenConstraints) EXIT
@@ -1357,7 +1381,6 @@ SUBROUTINE feasib(concut,iact)
         END DO
 
         CALL mpdealloc(vecCorrections)
-        CALL mpdealloc(auxVectorD)
 
     END DO ! iteration 1 and 2
 
@@ -3606,6 +3629,8 @@ SUBROUTINE prtglo
 
     WRITE(lup,*) 'Parameter   ! first 3 elements per line are',  &
         ' significant (if used as input)'
+
+
     iprlim=10
     DO itgbi=1,ntgb  ! all parameter variables
         itgbl=globalParLabelIndex(1,itgbi)
@@ -3621,7 +3646,7 @@ SUBROUTINE prtglo
                 gmati=globalMatD(ii)
                 ERR=SQRT(ABS(REAL(gmati,mps)))
                 IF(gmati < 0.0_mpd) ERR=-ERR
-                diag=workspaceD(ivgbi)
+                diag=workspaceDiag(ivgbi)
                 gcor=-1.0
                 IF(gmati*diag > 0.0_mpd) THEN   ! global correlation
                     gcor2=1.0_mpd-1.0_mpd/(gmati*diag)
@@ -3739,7 +3764,7 @@ END SUBROUTINE prtglo    ! print final log file
 !! \param [in]   x   vector X
 !! \param [in]   b   result vector B
 
-SUBROUTINE avprod(n,x,b)
+SUBROUTINE avprd0(n,x,b)
     USE mpmod
 
     IMPLICIT NONE
@@ -3753,7 +3778,7 @@ SUBROUTINE avprod(n,x,b)
     INTEGER(mpi) :: jj
     INTEGER(mpi) :: jn
 
-    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi), INTENT(IN)          :: n
     REAL(mpd), INTENT(IN)             :: x(n)
     REAL(mpd), INTENT(OUT)            :: b(n)
     INTEGER(mpl) :: k
@@ -3796,7 +3821,7 @@ SUBROUTINE avprod(n,x,b)
           ! sparse, compressed matrix
         IF(sparseMatrixOffsets(2,1) /= n+1) THEN
             CALL peend(24,'Aborted, vector/matrix size mismatch')
-            STOP 'AVPROD: mismatched vector and matrix'
+            STOP 'AVPRD0: mismatched vector and matrix'
         END IF
         iencdb=nencdb
         iencdm=ishft(1,iencdb)-1
@@ -3876,7 +3901,47 @@ SUBROUTINE avprod(n,x,b)
         !$OMP END PARALLEL DO
     ENDIF
 
+END SUBROUTINE avprd0
+
+!> Product symmetric matrix times vector.
+!!
+!! A(sym) * X => B. Used by \ref minresmodule::minres "MINRES" method (Is most CPU intensive part).
+!! The matrix A is the global matrix in full symmetric or (compressed) sparse storage.
+!! Allows for size of X and smaller than size of matrix in case of solution with constriants by elimination.
+!!
+!! \param [in]   n   size of matrix ( <= size of global matrix)
+!! \param [in]   x   vector X
+!! \param [in]   b   result vector B
+
+SUBROUTINE avprod(n,x,b)
+    USE mpmod
+
+    IMPLICIT NONE
+
+    INTEGER(mpi), INTENT(IN)          :: n
+    REAL(mpd), INTENT(IN)             :: x(n)
+    REAL(mpd), INTENT(OUT)            :: b(n)
+
+    SAVE
+    !     ...
+    IF(n > nagb) THEN
+        CALL peend(24,'Aborted, vector/matrix size mismatch')
+        STOP 'AVPROD: mismatched vector and matrix'
+    END IF
+    ! input to AVPRD0
+    vecXav(1:n)=x
+    vecXav(n+1:nagb)=0.0_mpd
+    !use elimination for constraints ?
+    IF(n < nagb) CALL qlmlq(vecXav,1,.false.) ! Q*x
+    ! calclulate vecBav=globalMat*vecXav
+    CALL AVPRD0(nagb,vecXav,vecBav)
+    !use elimination for constraints ?
+    IF(n < nagb) CALL qlmlq(vecBav,1,.true.) ! Q^t*x
+    ! output from AVPRD0
+    b=vecBav(1:n)
+
 END SUBROUTINE avprod
+
 
 !> Index for sparse storage.
 !!
@@ -4622,7 +4687,17 @@ SUBROUTINE loop2
         WRITE(*,*) 'LOOP2:',ncgb,' constraints,',ncgbw, 'weighted'
     END IF    
 
-    nagb=nvgb+ncgb ! total number of fit parameters
+    IF (icelim > 0) THEN ! elimination
+        nagb=nvgb         ! total number of parameters
+        nfgb=nvgb-ncgb    ! number of fit parameters
+        nprecond(1)=0     ! number of constraints for preconditioner
+        nprecond(2)=nfgb  ! matrix size for preconditioner
+    ELSE                 ! Lagrange multipliers
+        nagb=nvgb+ncgb    ! total number of parameters
+        nfgb=nagb         ! number of fit parameters
+        nprecond(1)=ncgb  ! number of constraints for preconditioner
+        nprecond(2)=nvgb  ! matrix size for preconditioner
+    ENDIF
     noff8=int8(nagb)*int8(nagb-1)/2
 
     !     read all data files and add all variable index pairs -------------
@@ -4860,7 +4935,7 @@ SUBROUTINE loop2
             IF(label > 0) THEN
                 itgbi=inone(label)
                 ij=globalParLabelIndex(2,itgbi)         ! change to variable parameter
-                IF(ij > 0) THEN
+                IF(ij > 0 .AND. nagb > nvgb) THEN
                     CALL inbits(nvgb+icgb,ij,inc)
                 END IF
             END IF
@@ -4999,8 +5074,9 @@ SUBROUTINE loop2
         WRITE(lu,102) '(all parameters, appearing in binary files)'
         WRITE(lu,101) 'NVGB',nvgb,'number of variable parameters'
         WRITE(lu,102) '(appearing in fit matrix/vectors)'
-        WRITE(lu,101) 'NAGB',nagb,'number of fit parameters'
+        WRITE(lu,101) 'NAGB',nagb,'number of all parameters'
         WRITE(lu,102) '(including Lagrange multiplier or reduced)'
+        WRITE(lu,101) 'NFGB',nfgb,'number of fit parameters'
         WRITE(lu,101) 'MBANDW',mbandw,'band width of band matrix'
         WRITE(lu,102) '(if =0, no band matrix)'
         IF (nagb >= 65536) THEN
@@ -5056,6 +5132,13 @@ SUBROUTINE loop2
         END IF
         IF(dflim /= 0.0) THEN
             WRITE(lu,103) 'Convergence assumed, if expected dF <',dflim
+        END IF
+        IF(ncgb > 0) THEN
+            IF(nfgb < nvgb) THEN
+                WRITE(lu,*) 'Constraints handled by elimination'
+            ELSE
+                WRITE(lu,*) 'Constraints handled by Lagrange multipliers'
+            ENDIF
         END IF
   
     END DO ! print loop
@@ -5206,45 +5289,82 @@ SUBROUTINE vmprep(msize)
     length=nagb
     CALL mpalloc(globalCorrections,length,'corrections')      ! double prec corrections
 
+    CALL mpalloc(workspaceD,length,'auxiliary array (D1)')  ! double aux 1
     CALL mpalloc(workspaceLinesearch,length,'auxiliary array (D2)')  ! double aux 2
     CALL mpalloc(workspaceI, length,'auxiliary array (I)')   ! int aux 1
 
     IF(metsol == 1) THEN
-        CALL mpalloc(workspaceD,length,'auxiliary array (D1)')  ! double aux 1
+        CALL mpalloc(workspaceDiag,length,'diagonal of global matrix)')  ! double aux 1
     !         CALL MEGARR('t D',2*NAGB,'auxiliary array')  ! double aux 8
     END IF
 
     IF(metsol == 2) THEN
-        CALL mpalloc(workspaceD,length,'auxiliary array (D1)')  ! double aux 1
+        CALL mpalloc(workspaceDiag,length,'diagonal of global matrix')  ! double aux 1
         CALL mpalloc(workspaceDiagonalization,length,'auxiliary array (D3)')  ! double aux 3
         CALL mpalloc(workspaceEigenValues,length,'auxiliary array (D6)')  ! double aux 6
         length=nagb*nagb
         CALL mpalloc(workspaceEigenVectors,length,'(rotation) matrix U')   ! rotation matrix
     END IF
 
+    IF(metsol >= 3) THEN
+        CALL mpalloc(vecXav,length,'vector X (AVPROD)')  ! double aux 1
+        CALL mpalloc(vecBav,length,'vector B (AVPROD)')  ! double aux 1
+    END IF
+
 END SUBROUTINE vmprep
 
 !> Solution by matrix inversion.
 !!
-!! Parallelized (SQMINL).
+!! Parallelized (SQMINL), solve A*x=b.
 
 SUBROUTINE minver
     USE mpmod
 
     IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpl) :: ioff1
+    INTEGER(mpi) :: j
     INTEGER(mpi) :: lun
     INTEGER(mpi) :: nrank
+    INTEGER(mpl) :: ii
+    EXTERNAL avprd0
 
     SAVE
     !     ...
     lun=lunlog                       ! log file
     IF(lunlog == 0) lunlog=6
 
-    !      WRITE(*,*) 'MINVER ICALCM=',ICALCM
+    ! save diagonal (for global correlation)
     IF(icalcm == 1) THEN
-        CALL sqminl(globalMatD, globalCorrections,nagb,nrank,  &
+        DO i=1,nagb 
+            ii=i
+            workspaceDiag(i)=globalMatD((ii*ii+ii)/2) ! save diagonal elements
+        END DO
+    ENDIF
+
+    !      WRITE(*,*) 'MINVER ICALCM=',ICALCM
+    !use elimination for constraints ?
+    IF(nfgb < nvgb) THEN
+        IF(icalcm == 1) CALL qlssq(avprd0,globalMatD,.true.) ! Q^t*A*Q
+        ! solve L^t*y=d by backward substitution
+        CALL qlbsub(vecConsResiduals,vecConsSolution)
+        ! transform, reduce rhs
+        CALL qlmlq(globalCorrections,1,.true.) ! Q^t*b
+        ! correction from eliminated part
+        DO i=1,nfgb
+            ioff1=((nfgb+1)*nfgb)/2+i
+            DO j=1,ncgb
+                globalCorrections(i)=globalCorrections(i)-globalMatD(ioff1)*vecConsSolution(j)
+                ioff1=ioff1+nfgb+j
+            END DO
+        END DO
+    END IF
+
+    IF(icalcm == 1) THEN
+        ! invert and solve
+        CALL sqminl(globalMatD, globalCorrections,nfgb,nrank,  &
             workspaceD,workspaceI)
-        IF(nagb /= nrank) THEN
+        IF(nfgb /= nrank) THEN
             WRITE(*,*)   'Warning: the rank defect of the symmetric',nagb,  &
                 '-by-',nagb,' matrix is ',nagb-nrank,' (should be zero).'
             WRITE(lun,*) 'Warning: the rank defect of the symmetric',nagb,  &
@@ -5257,11 +5377,20 @@ SUBROUTINE minver
         ELSE IF(ndefec == 0) THEN
             WRITE(lun,*) 'No rank defect of the symmetric matrix'
         END IF
-        ndefec=max(nagb-nrank, ndefec)   ! rank defect
-  
+        ndefec=max(nfgb-nrank, ndefec)   ! rank defect
+
     ELSE             ! multiply gradient by inverse matrix
-        CALL dbsvxl(globalMatD,globalVector,globalCorrections,nagb)
+        workspaceD(:nfgb)=globalCorrections(:nfgb)
+        CALL dbsvxl(globalMatD,workspaceD,globalCorrections,nfgb)
     END IF
+
+    !use elimination for constraints ?
+    IF(nfgb < nvgb) THEN  
+        ! extend, transform back solution
+        globalCorrections(nfgb+1:nvgb)=vecConsSolution(1:ncgb)
+        CALL qlmlq(globalCorrections,1,.false.) ! Q*x
+    END IF
+
 END SUBROUTINE minver
 
 !> Solution by diagonalization.
@@ -5274,28 +5403,51 @@ SUBROUTINE mdiags
     INTEGER(mpi) :: iast
     INTEGER(mpi) :: idia
     INTEGER(mpi) :: imin
+    INTEGER(mpl) :: ioff1
+    INTEGER(mpi) :: j
     INTEGER(mpi) :: lun
     INTEGER(mpi) :: nmax
     INTEGER(mpi) :: nmin
     INTEGER(mpi) :: ntop
-    INTEGER(mpi) :: nvar
                                        !
     INTEGER(mpl) :: ii
+    EXTERNAL avprd0
+
     SAVE
     !     ...
 
     lun=lunlog                       ! log file
     IF(lunlog == 0) lun=6
 
+    ! save diagonal (for global correlation)
     IF(icalcm == 1) THEN
-        nvar=nagb
-        DO i=1,nvar      ! used in FEASIB
+        DO i=1,nagb 
             ii=i
-            workspaceD(i)=globalMatD((ii*ii+ii)/2) ! save diagonal elements
+            workspaceDiag(i)=globalMatD((ii*ii+ii)/2) ! save diagonal elements
         END DO
-  
+    ENDIF
+
+    !use elimination for constraints ?
+    IF(nfgb < nvgb) THEN
+        IF(icalcm == 1) CALL qlssq(avprd0,globalMatD,.true.) ! Q^t*A*Q
+        ! solve L^t*y=d by backward substitution
+        CALL qlbsub(vecConsResiduals,vecConsSolution)
+        ! transform, reduce rhs
+        CALL qlmlq(globalCorrections,1,.true.) ! Q^t*b
+        ! correction from eliminated part
+        DO i=1,nfgb
+            ioff1=((nfgb+1)*nfgb)/2+i
+            DO j=1,ncgb
+                globalCorrections(i)=globalCorrections(i)-globalMatD(ioff1)*vecConsSolution(j)
+                ioff1=ioff1+nfgb+j
+            END DO
+        END DO
+    END IF
+
+    IF(icalcm == 1) THEN
         !                         eigenvalues   eigenvectors   symm_input
-        CALL devrot(nvar,workspaceEigenValues,workspaceEigenVectors,globalMatD,  &
+        workspaceEigenValues=0.0_mpd
+        CALL devrot(nfgb,workspaceEigenValues,workspaceEigenVectors,globalMatD,  &
             workspaceDiagonalization,workspaceI)
   
         !        histogram of positive eigenvalues
@@ -5333,7 +5485,7 @@ SUBROUTINE mdiags
         IF(nhistp /= 0) CALL gmprnt(3)
         CALL gmpwrt(3)
   
-        DO i=1,nvar
+        DO i=1,nfgb
             workspaceDiagonalization(i)=0.0_mpd
             IF(workspaceEigenValues(i) /= 0.0_mpd) THEN
                 workspaceDiagonalization(i)=MAX(0.0_mpd,LOG10(ABS(workspaceEigenValues(i)))+3.0_mpd)
@@ -5347,15 +5499,17 @@ SUBROUTINE mdiags
         WRITE(lun,*) 'The last eigenvalues ... up to',nvgb
         WRITE(lun,102) (workspaceEigenValues(i),i=MAX(1,nvgb-19),nvgb)
         WRITE(lun,*) ' '
-        WRITE(lun,*) 'The eigenvalues from',nvgb+1,' to',nagb
-        WRITE(lun,102) (workspaceEigenValues(i),i=nvgb+1,nagb)
-        WRITE(lun,*) ' '
+        IF(nagb > nvgb) THEN
+            WRITE(lun,*) 'The eigenvalues from',nvgb+1,' to',nagb
+            WRITE(lun,102) (workspaceEigenValues(i),i=nvgb+1,nagb)
+            WRITE(lun,*) ' '
+        ENDIF
         WRITE(lun,*) 'Log10 + 3 of ',nagb,' eigenvalues in decreasing', ' order'
         WRITE(lun,*) '(for Eigenvalue < 0.001 the value 0.0 is shown)'
         WRITE(lun,101) (workspaceDiagonalization(i),i=1,nagb)
-        IF(workspaceDiagonalization(nvar) < 0) WRITE(lun,*) 'Negative values are ',  &
+        IF(workspaceDiagonalization(nfgb) < 0) WRITE(lun,*) 'Negative values are ',  &
             'printed for negative eigenvalues'
-        CALL devsig(nagb,workspaceEigenValues,workspaceEigenVectors,globalVector,workspaceDiagonalization)
+        CALL devsig(nfgb,workspaceEigenValues,workspaceEigenVectors,globalVector,workspaceDiagonalization)
         WRITE(lun,*) ' '
         WRITE(lun,*) nvgb,' significances: insignificant if ',  &
             'compatible with  N(0,1)'
@@ -5368,19 +5522,48 @@ SUBROUTINE mdiags
     END IF
 
     !     solution ---------------------------------------------------------
-
+    workspaceD(:nfgb)=globalCorrections(:nfgb)
     !                      eigenvalues   eigenvectors
-    CALL devsol(nvar,workspaceEigenValues,workspaceEigenVectors,globalVector,globalCorrections,workspaceDiagonalization)
-    RETURN
+    CALL devsol(nfgb,workspaceEigenValues,workspaceEigenVectors,workspaceD,globalCorrections,workspaceDiagonalization)
+
+    !use elimination for constraints ?
+    IF(nfgb < nvgb) THEN  
+        ! extend, transform back solution
+        globalCorrections(nfgb+1:nvgb)=vecConsSolution(1:ncgb)
+        CALL qlmlq(globalCorrections,1,.false.) ! Q*x
+    END IF
+
 END SUBROUTINE mdiags
 
-!> Covariance matrix for diagonalization.
+!> Covariance matrix for diagonalization (,correction of eigenvectors).
 SUBROUTINE zdiags
     USE mpmod
 
     IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpl) :: ioff1
+    INTEGER(mpl) :: ioff2
+    INTEGER(mpi) :: j
+
     !                      eigenvalue    eigenvectors  cov.matrix
-    CALL devinv(nagb,workspaceEigenValues,workspaceEigenVectors,globalMatD)  ! inv
+    CALL devinv(nfgb,workspaceEigenValues,workspaceEigenVectors,globalMatD)  ! inv
+
+    !use elimination for constraints ?
+    IF(nfgb < nvgb) THEN  
+        ! extend, transform eigenvectors
+        ioff1=nfgb*nfgb
+        ioff2=nfgb*nvgb
+        workspaceEigenVectors(ioff2+1:)=0.0_mpd
+        DO i=nfgb,1,-1
+            ioff1=ioff1-nfgb
+            ioff2=ioff2-nvgb
+            DO j=nfgb,1,-1
+                workspaceEigenVectors(ioff2+j)=workspaceEigenVectors(ioff1+j)
+            END DO
+            workspaceEigenVectors(ioff2+nfgb+1:ioff2+nvgb)=0.0_mpd
+        END DO
+        CALL qlmlq(workspaceEigenVectors,nvgb,.false.) ! Q*U
+    END IF
 
 END SUBROUTINE zdiags
 
@@ -5411,7 +5594,7 @@ SUBROUTINE mminrs
     REAL(mpd) :: rnorm
     REAL(mpd) :: ynorm
     LOGICAL :: checka
-    EXTERNAL avprod, mvsolv, mcsolv
+    EXTERNAL avprd0, avprod, mvsolv, mcsolv
     SAVE
     !     ...
     lun=lunlog                       ! log file
@@ -5423,26 +5606,52 @@ SUBROUTINE mminrs
     rtol = mrestl ! from steering
     checka=.FALSE.
 
+    workspaceD = globalCorrections
+    !use elimination for constraints ?
+    IF(nfgb < nvgb) THEN
+        ! solve L^t*y=d by backward substitution
+        CALL qlbsub(vecConsResiduals,vecConsSolution)
+        ! input to AVPRD0
+        vecXav(1:nfgb)=0.0_mpd
+        vecXav(nfgb+1:nagb)=vecConsSolution
+        CALL qlmlq(vecXav,1,.false.) ! Q*x
+        ! calclulate vecBav=globalMat*vecXav
+        CALL AVPRD0(nagb,vecXav,vecBav)
+        ! correction from eliminated part
+        workspaceD=workspaceD-vecBav
+        ! transform, reduce rhs
+        CALL qlmlq(workspaceD,1,.true.) ! Q^t*b
+    END IF
+
     IF(mbandw == 0) THEN           ! default preconditioner
         IF(icalcm == 1) THEN
-            CALL precon(ncgb,nvgb,matPreCond,matPreCond, matPreCond(1+nvgb),  &
+            IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
+            CALL precon(nprecond(1),nprecond(2),matPreCond,matPreCond, matPreCond(1+nvgb),  &
                 matPreCond(1+nvgb+ncgb*nvgb))
         END IF
-        CALL minres(nagb,  avprod, mcsolv, globalVector, shift, checka ,.TRUE. , &
+        CALL minres(nfgb,  avprod, mcsolv, workspaceD, shift, checka ,.TRUE. , &
             globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
     ELSE IF(mbandw > 0) THEN                          ! band matrix preconditioner
         IF(icalcm == 1) THEN
+            IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
             WRITE(lun,*) 'MMINRS: EQUDEC started'
-            CALL equdec(nvgb,ncgb,matPreCond,indPreCond,nrkd,nrkd2)
+            CALL equdec(nprecond(2),nprecond(1),matPreCond,indPreCond,nrkd,nrkd2)
             WRITE(lun,*) 'MMINRS: EQUDEC ended'
         END IF
-        CALL minres(nagb,  avprod, mvsolv, globalVector, shift, checka ,.TRUE. , &
+        CALL minres(nfgb,  avprod, mvsolv, workspaceD, shift, checka ,.TRUE. , &
             globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
     ELSE
-
-        CALL minres(nagb,  avprod, mvsolv, globalVector, shift, checka ,.FALSE. , &
+        CALL minres(nfgb,  avprod, mvsolv, workspaceD, shift, checka ,.FALSE. , &
             globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
     END IF
+
+    !use elimination for constraints ?
+    IF(nfgb < nvgb) THEN  
+        ! extend, transform back solution
+        globalCorrections(nfgb+1:nvgb)=vecConsSolution(1:ncgb)
+        CALL qlmlq(globalCorrections,1,.false.) ! Q*x
+    END IF
+
     iitera=itn
     istopa=istop
     mnrsit=mnrsit+itn
@@ -5474,7 +5683,7 @@ SUBROUTINE mminrsqlp
     REAL(mpd) :: mxxnrm
     REAL(mpd) :: trcond
 
-    EXTERNAL avprod, mvsolv, mcsolv
+    EXTERNAL avprd0, avprod, mvsolv, mcsolv
     SAVE
     !     ...
     lun=lunlog                       ! log file
@@ -5492,29 +5701,56 @@ SUBROUTINE mminrsqlp
         trcond = mrtcnd ! QR followed by QLP
     END IF
 
+    workspaceD = globalCorrections
+    !use elimination for constraints ?
+    IF(nfgb < nvgb) THEN
+        ! solve L^t*y=d by backward substitution
+        CALL qlbsub(vecConsResiduals,vecConsSolution)
+        ! input to AVPRD0
+        vecXav(1:nfgb)=0.0_mpd
+        vecXav(nfgb+1:nagb)=vecConsSolution
+        CALL qlmlq(vecXav,1,.false.) ! Q*x
+        ! calclulate vecBav=globalMat*vecXav
+        CALL AVPRD0(nagb,vecXav,vecBav)
+        ! correction from eliminated part
+        workspaceD=workspaceD-vecBav
+        ! transform, reduce rhs
+        CALL qlmlq(workspaceD,1,.true.) ! Q^t*b
+    END IF
+
     IF(mbandw == 0) THEN           ! default preconditioner
         IF(icalcm == 1) THEN
-            CALL precon(ncgb,nvgb,matPreCond,matPreCond, matPreCond(1+nvgb),  &
+            IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
+            CALL precon(nprecond(1),nprecond(2),matPreCond,matPreCond, matPreCond(1+nvgb),  &
                 matPreCond(1+nvgb+ncgb*nvgb))
         END IF
-        CALL minresqlp( n=nagb, Aprod=avprod, b=globalVector,  Msolve=mcsolv, nout=nout, &
+        CALL minresqlp( n=nfgb, Aprod=avprod, b=workspaceD,  Msolve=mcsolv, nout=nout, &
             itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
             x=globalCorrections, istop=istop, itn=itn)
     ELSE IF(mbandw > 0) THEN                          ! band matrix preconditioner
         IF(icalcm == 1) THEN
+            IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
             WRITE(lun,*) 'MMINRS: EQUDEC started'
-            CALL equdec(nvgb,ncgb,matPreCond,indPreCond,nrkd,nrkd2)
+            CALL equdec(nprecond(2),nprecond(1),matPreCond,indPreCond,nrkd,nrkd2)
             WRITE(lun,*) 'MMINRS: EQUDEC ended'
         END IF
 
-        CALL minresqlp( n=nagb, Aprod=avprod, b=globalVector,  Msolve=mvsolv, nout=nout, &
+        CALL minresqlp( n=nfgb, Aprod=avprod, b=workspaceD,  Msolve=mvsolv, nout=nout, &
             itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
             x=globalCorrections, istop=istop, itn=itn)
     ELSE
-        CALL minresqlp( n=nagb, Aprod=avprod, b=globalVector, nout=nout, &
+        CALL minresqlp( n=nfgb, Aprod=avprod, b=workspaceD, nout=nout, &
             itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
             x=globalCorrections, istop=istop, itn=itn)
     END IF
+
+    !use elimination for constraints ?
+    IF(nfgb < nvgb) THEN  
+        ! extend, transform back solution
+        globalCorrections(nfgb+1:nvgb)=vecConsSolution(1:ncgb)
+        CALL qlmlq(globalCorrections,1,.false.) ! Q*x
+    END IF
+
     iitera=itn
     istopa=istop
     mnrsit=mnrsit+itn
@@ -5540,7 +5776,7 @@ SUBROUTINE mcsolv(n,x,y)         !  solve M*y = x
     REAL(mpd), INTENT(OUT) :: y(n)
     SAVE
     !     ...
-    CALL presol(ncgb,nvgb,matPreCond,matPreCond(1+nvgb),matPreCond(1+nvgb+ncgb*nvgb),y,x)
+    CALL presol(nprecond(1),nprecond(2),matPreCond,matPreCond(1+nvgb),matPreCond(1+nvgb+ncgb*nvgb),y,x)
 END SUBROUTINE mcsolv
 
 !> Solution for finite band width preconditioner.
@@ -5555,51 +5791,15 @@ SUBROUTINE mvsolv(n,x,y)         !  solve M*y = x
     USE mpmod
 
     IMPLICIT NONE
-    REAL(mpd) :: factr
-    INTEGER(mpi) :: i
-    INTEGER(mpi) :: icgb
-    INTEGER(mpi) :: itgbi
-    INTEGER(mpi) :: ivgb
-    INTEGER(mpi) :: label
-    INTEGER(mpi) :: last
-    INTEGER(mpi) :: inone
 
     INTEGER(mpi), INTENT(IN) :: n
     REAL(mpd), INTENT(IN)  :: x(n)
     REAL(mpd), INTENT(OUT) :: y(n)
     SAVE
     !     ...
-    DO i=1,n
-        y(i)=x(i)                    ! copy to output vector
-    END DO
+    y=x                    ! copy to output vector
 
-    DO icgb=1,ncgb                ! copy previous lambda values
-    !       Y(NVGB+ICGB)=DQ(ISOLV/2+NVGB+ICGB)
-    END DO
-
-    i=0
-    icgb=0
-    last=-1
-    DO WHILE(i < lenConstraints)
-        i=i+1
-        label=listConstraints(i)%label
-        IF(last == 0.AND.label == (-1)) icgb=icgb+1 ! next constraint header
-        IF(label > 0) THEN
-            factr=listConstraints(i)%value
-            itgbi=inone(label) ! -> ITGBI= index of parameter label
-            ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
-            !                   - A^T * lambda
-            IF(ivgb /= 0) THEN
-            !          Y(IVGB)=Y(IVGB) - DQ(ISOLV/2+NVGB+ICGB)*FACTR
-            END IF
-        END IF
-        last=label
-    END DO
-
-    !      CALL VABSLV(NVGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
-    !      CALL VABSLV(NAGB,DQ(INDV/2+1),MQ(INDU+1),Y) ! solve for Y
-
-    CALL equslv(nvgb,ncgb,matPreCond,indPreCond,y)
+    CALL equslv(nprecond(2),nprecond(1),matPreCond,indPreCond,y)
 END SUBROUTINE mvsolv
 
 
@@ -5632,6 +5832,7 @@ SUBROUTINE xloopn                !
     INTEGER(mpi) :: iagain
     INTEGER(mpi) :: idx
     INTEGER(mpi) :: info
+    INTEGER(mpl) :: ioff
     INTEGER(mpi) :: itgbi
     INTEGER(mpi) :: ivgbi
     INTEGER(mpi) :: jcalcm
@@ -5664,6 +5865,7 @@ SUBROUTINE xloopn                !
     LOGICAL :: warners
     LOGICAL :: warnerss
     LOGICAL :: lsflag
+    EXTERNAL avprd0
     SAVE
     !     ...
 
@@ -6204,6 +6406,18 @@ SUBROUTINE xloopn                !
   
     ELSE IF(metsol == 5) THEN
   
+    END IF
+
+    IF(metsol <= 2) THEN ! inversion or diagonalization ?
+        !use elimination for constraints ?
+        IF(nfgb < nvgb) THEN
+            ! extend, transform matrix
+            DO i=nvgb-ncgb+1,nvgb
+                ioff=((i-1)*i)/2
+                globalMatD(ioff+1:ioff+i)=0.0_mpd
+            END DO
+            CALL qlssq(avprd0,globalMatD,.false.) ! Q^t*A*Q
+        END IF
     END IF
 
     CALL prtglo              ! print result
@@ -7266,7 +7480,21 @@ SUBROUTINE intext(text,nline)
             IF (nums > 0) iwcons=NINT(dnum(1),mpi)
             RETURN
         END IF
-                    
+
+        keystx='withelimination'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            icelim=1
+            RETURN
+        END IF
+
+        keystx='withmultipliers'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            icelim=0
+            RETURN
+        END IF
+
         keystx='threads'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN

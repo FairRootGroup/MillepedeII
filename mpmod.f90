@@ -98,13 +98,16 @@ MODULE mpmod
                          !! >2: all, =2: all with (next) Chi2 cut scaling factor =1., =1: last, <1: none
     INTEGER(mpi) :: ipcntr=0  !< flag for output of global parameter counts (entries), =0: none, =1: local fits, >1: binary files
     INTEGER(mpi) :: iwcons=0  !< flag for weighting of constraints (>0: weighting with \ref globalparcounts "globalParCounts", else: none)
+    INTEGER(mpi) :: icelim=1  !< flag for using elimination (instead of multipliers) for constraints
     ! variables
     INTEGER(mpi) :: lunlog !< unit for logfile
     INTEGER(mpi) :: lvllog !< log level
     INTEGER(mpi) :: ntgb !< total number of global parameters
     INTEGER(mpi) :: nvgb !< number of variable global parameters
-    INTEGER(mpi) :: nagb !< number of fit parameters (global par. + Lagrange mult.)
+    INTEGER(mpi) :: nagb !< number of all parameters (global par. + Lagrange mult.)
+    INTEGER(mpi) :: nfgb !< number of fit parameters
     INTEGER(mpi) :: ncgb !< number of constraints
+    INTEGER(mpi), DIMENSION(2) :: nprecond !< number of constraints, matrix size for preconditioner
     INTEGER(mpi) :: nagbn !< max number of global paramters per record
     INTEGER(mpi) :: nalcn !< max number of local paramters per record
     INTEGER(mpi) :: naeqn !< max number of equations (measurements) per record
@@ -162,11 +165,15 @@ MODULE mpmod
     REAL(mps), DIMENSION(:), ALLOCATABLE :: globalMatF !< global matrix 'A' (float part for compressed sparse)
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: globalVector !< global vector 'x' (in A*x=b)
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalCounter !< global counter (entries in 'x')
+    ! AVPROD (A*x=b) by MINRES
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecXav !< vector x for AVPROD (A*x=b)
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecBav !< vector b for AVPROD (A*x=b)
     ! preconditioning
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matPreCond !< preconditioner (band) matrix
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: indPreCond !< preconditioner pointer array
     ! auxiliary vectors
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: workspaceD !< (general) workspace (D)
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: workspaceDiag !< diagonal of global matrix (for global corr.)
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: workspaceLinesearch !< workspace line search
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: workspaceDiagonalization !< workspace diag.
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: workspaceEigenValues !< workspace eigen values
@@ -175,6 +182,7 @@ MODULE mpmod
     ! constraint matrix, residuals
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matConsProduct !< product matrix of constraints
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecConsResiduals !< residuals of constraints
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecConsSolution !< solution for constraint elimination
     ! global parameter mapping
     INTEGER(mpi), DIMENSION(:,:), ALLOCATABLE :: globalParLabelIndex !< global parameters label, total -> var. index
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalParHashTable    !< global parameters hash table

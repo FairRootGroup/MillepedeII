@@ -2,7 +2,7 @@
 # Makefile for MillePede II (Fortran90) with possible input from C
 # 
 # Author Volker Blobel, University Hamburg, 2005-2009
-# Updates by Gero Flucke, CERN, Claus Kleinwort, DESY 
+# Updates by Gero Flucke, CERN, Claus Kleinwort, DESY
 #
 # Tested on - 64-bit SL5          with gcc version 4.4.4.
 #           - 64 bit Ubuntu 11.10 with gcc version 4.6.1.
@@ -84,7 +84,7 @@ L_FLAGS = -Wall -O3
 #
 # objects for this project
 #
-USER_OBJ_PEDE = mpdef.o mpdalc.o mpmod.o mpbits.o mptest1.o mptest2.o mille.o mpnum.o mptext.o mphistab.o \
+USER_OBJ_PEDE = mpdef.o mpdalc.o mpmod.o mpbits.o mpqldec.o mptest1.o mptest2.o mille.o mpnum.o mptext.o mphistab.o \
 	minresDataModule.o minresModule.o minresqlpDataModule.o minresqlpBlasModule.o minresqlpModule.o \
         randoms.o vertpr.o linesrch.o Dbandmatrix.o pede.o
 #
@@ -138,6 +138,7 @@ mpbits.o:  mpdef.o mpdalc.o
 mpdalc.o:  mpdef.o
 mpmod.o:   mpdef.o
 mpnum.o:   mpdef.o
+mpqldec.o: mpdef.o mpdalc.o
 pede.o:    mpdef.o mpmod.o mpdalc.o mptest1.o mptest2.o mptext.o
 # ##################################################################
 # END
