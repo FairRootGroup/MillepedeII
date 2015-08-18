@@ -3,7 +3,7 @@
 ## \file
 # Read millepede binary file and print records
 #
-# \author Claus Kleinwort, DESY, 2009 (Claus.Kleinwort@desy.de) 
+# \author Claus Kleinwort, DESY, 2009 (Claus.Kleinwort@desy.de)
 #
 #  \copyright
 #  Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
@@ -23,8 +23,9 @@
 #
 # Hardcoded defaults can be replaced by command line arguments for
 #    -  Name of binary file
-#    -  Number of records to print
+#    -  Number of records to print (-1: all)
 #    -  Number of records to skip (optional)
+#    -  Mininum value to print derivative
 #
 # Description of the output from readMilleBinary.py
 #    -  Records (tracks) start with \c '===' followed by record number and length 
@@ -60,6 +61,8 @@ fname = "milleBinaryISN.dat"
 mrec = 10
 ## number of records (track) to skip before 
 skiprec = 0
+## minimum value to print derivatives
+minval = 0.
 #
 # ## C. Kleinwort - DESY ########################
 
@@ -67,22 +70,25 @@ skiprec = 0
 narg = len(sys.argv)
 if narg > 1:
   if narg < 3:
-    print " usage: readMilleBinary.py <file name> <number of records> [<number of records to skip>]" 
+    print " usage: readMilleBinary.py <file name> <number of records> [<number of records to skip> <minimum value to print derivative>]" 
     sys.exit(2)
   else:
     fname = sys.argv[1]
     mrec = int(sys.argv[2])
     if narg > 3:
       skiprec = int(sys.argv[3])
-
+    if narg > 4:
+      minval = float(sys.argv[4])
+      
 #print " input ", fname, mrec, skiprec
   
 f = open(fname, "rb")
 
 nrec = 0
 try:
-    while (nrec < mrec + skiprec):
-# read 1 record    
+    while (nrec < mrec + skiprec) or (mrec < 0):
+# read 1 record
+        nr = 0   
         if (Cfiles == 0): 
            lenf = array.array(intfmt)
            lenf.fromfile(f, 2)
@@ -141,15 +147,31 @@ try:
 # measurement without global derivatives
                print ' -l- meas. ', nh, inder[ja + 1], jb - ja - 1, i - jb, glder[ja], glder[jb]            
             if (ja + 1 < jb):
-               print " local  ", inder[ja + 1:jb]
-               print " local  ", glder[ja + 1:jb]
+               lab = []
+               val = []
+               for k in range(ja+1, jb):
+                 if abs(glder[k]) >= minval:
+                    lab.append(inder[k])
+                    val.append(glder[k])
+               print " local  ", lab
+               print " local  ", val
             if (jb + 1 < i + 1):
-               print " global ", inder[jb + 1:i + 1]
-               print " global ", glder[jb + 1:i + 1]
+               lab = []
+               val = []
+               for k in range(jb+1, i+1):
+                 if abs(glder[k]) >= minval:
+                    lab.append(inder[k])
+                    val.append(glder[k])
+               print " global ", lab
+               print " global ", val
 
                
 except EOFError:
-     pass
-#    print "end of file"
+     print
+     if (nr > 0):
+        print " >>> error: end of file before end of record", nrec
+     else:
+        print " end of file after", nrec, "records"   
+
 
 f.close()

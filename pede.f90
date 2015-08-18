@@ -4935,7 +4935,7 @@ SUBROUTINE loop2
         IF (nvar == 0 .AND. iskpec > 0) newlen=lastlen
     END IF
     lenConstraints=newlen
-    IF (ncgbe > 0) THEN
+    IF (ncgbe > 0 .AND. iskpec > 0) THEN
         WRITE(*,*) 'LOOP2:',ncgbe,' empty constraints skipped'
         ncgb=ncgb-ncgbe
     END IF
@@ -5884,18 +5884,18 @@ SUBROUTINE mminrs
 
     IF(mbandw == 0) THEN           ! default preconditioner
         IF(icalcm == 1) THEN
-            IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
+            IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,1,.true.) ! transform preconditioner matrix
             CALL precon(nprecond(1),nprecond(2),matPreCond,matPreCond, matPreCond(1+nvgb),  &
-                matPreCond(1+nvgb+ncgb*nvgb))
+                matPreCond(1+nvgb+ncgb*nvgb),nrkd)
         END IF
         CALL minres(nfgb,  avprod, mcsolv, workspaceD, shift, checka ,.TRUE. , &
             globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
     ELSE IF(mbandw > 0) THEN                          ! band matrix preconditioner
         IF(icalcm == 1) THEN
             IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
-            WRITE(lun,*) 'MMINRS: EQUDEC started'
+            WRITE(lun,*) 'MMINRS: EQUDEC started', nprecond(2), nprecond(1)
             CALL equdec(nprecond(2),nprecond(1),matPreCond,indPreCond,nrkd,nrkd2)
-            WRITE(lun,*) 'MMINRS: EQUDEC ended'
+            WRITE(lun,*) 'MMINRS: EQUDEC ended  ', nrkd, nrkd2
         END IF
         CALL minres(nfgb,  avprod, mvsolv, workspaceD, shift, checka ,.TRUE. , &
             globalCorrections, itnlim, nout, rtol, istop, itn, anorm, acond, rnorm, arnorm, ynorm)
@@ -5979,9 +5979,9 @@ SUBROUTINE mminrsqlp
 
     IF(mbandw == 0) THEN           ! default preconditioner
         IF(icalcm == 1) THEN
-            IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
+            IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,1,.true.) ! transform preconditioner matrix
             CALL precon(nprecond(1),nprecond(2),matPreCond,matPreCond, matPreCond(1+nvgb),  &
-                matPreCond(1+nvgb+ncgb*nvgb))
+                matPreCond(1+nvgb+ncgb*nvgb),nrkd)
         END IF
         CALL minresqlp( n=nfgb, Aprod=avprod, b=workspaceD,  Msolve=mcsolv, nout=nout, &
             itnlim=itnlim, rtol=rtol, maxxnorm=mxxnrm, trancond=trcond, &
@@ -5989,9 +5989,9 @@ SUBROUTINE mminrsqlp
     ELSE IF(mbandw > 0) THEN                          ! band matrix preconditioner
         IF(icalcm == 1) THEN
             IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
-            WRITE(lun,*) 'MMINRS: EQUDEC started'
+            WRITE(lun,*) 'MMINRS: EQUDEC started', nprecond(2), nprecond(1)
             CALL equdec(nprecond(2),nprecond(1),matPreCond,indPreCond,nrkd,nrkd2)
-            WRITE(lun,*) 'MMINRS: EQUDEC ended'
+            WRITE(lun,*) 'MMINRS: EQUDEC ended  ', nrkd, nrkd2
         END IF
 
         CALL minresqlp( n=nfgb, Aprod=avprod, b=workspaceD,  Msolve=mvsolv, nout=nout, &
