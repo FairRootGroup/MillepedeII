@@ -318,7 +318,8 @@
 !!
 !! \subsection cmd-bandwidth bandwidth
 !! Set band width \ref mpmod::mbandw "mbandw" for
-!! \ref minresmodule::minres "MINRES" preconditioner to \a number1.
+!! \ref minresmodule::minres "MINRES" preconditioner to \a number1 [0]
+!! and additional flag \ref mpmod::lprecm "lprecm" to \number2 [0].
 !! \subsection cmd-cache cache
 !! Set (read+write) cache size \ref mpmod::ncache "ncache" to \a number1.
 !! Define cache size and average fill level.
@@ -5489,6 +5490,7 @@ SUBROUTINE vmprep(msize)
 
     IMPLICIT NONE
     INTEGER(mpi) :: i
+    INTEGER(mpi) :: ncon
                          !
     INTEGER(mpl), INTENT(IN) :: msize(2)
 
@@ -5524,6 +5526,7 @@ SUBROUTINE vmprep(msize)
         !           variable-width band matrix or diagonal matrix for parameters
         !           followed by rectangular matrix for constraints
         !           followed by symmetric matrix for constraints
+        ncon=nagb-nvgb
         IF(mbandw > 0) THEN               ! variable-width band matrix
             length=nagb
             CALL mpalloc(indPreCond,length,'pointer-array variable-band matrix')
@@ -5536,10 +5539,10 @@ SUBROUTINE vmprep(msize)
             DO i=nvgb+1,nagb                ! reset
                 indPreCond(i)=0
             END DO
-            length=indPreCond(nvgb)+ncgb*nvgb+(ncgb*ncgb+ncgb)/2
+            length=indPreCond(nvgb)+ncon*nvgb+(ncon*ncon+ncon)/2
             CALL mpalloc(matPreCond,length,'variable-band matrix')
         ELSE                               ! default preconditioner
-            length=nvgb+ncgb*nvgb+(ncgb*ncgb+ncgb)/2
+            length=nvgb+ncon*nvgb+(ncon*ncon+ncon)/2
             CALL mpalloc(matPreCond,length,'default preconditioner matrix')
         END IF
     END IF
@@ -5894,7 +5897,7 @@ SUBROUTINE mminrs
         IF(icalcm == 1) THEN
             IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
             WRITE(lun,*) 'MMINRS: EQUDEC started', nprecond(2), nprecond(1)
-            CALL equdec(nprecond(2),nprecond(1),matPreCond,indPreCond,nrkd,nrkd2)
+            CALL equdec(nprecond(2),nprecond(1),lprecm,matPreCond,indPreCond,nrkd,nrkd2)
             WRITE(lun,*) 'MMINRS: EQUDEC ended  ', nrkd, nrkd2
         END IF
         CALL minres(nfgb,  avprod, mvsolv, workspaceD, shift, checka ,.TRUE. , &
@@ -5990,7 +5993,7 @@ SUBROUTINE mminrsqlp
         IF(icalcm == 1) THEN
             IF(nfgb < nvgb) CALL qlpssq(avprd0,matPreCond,mbandw,.true.) ! transform preconditioner matrix
             WRITE(lun,*) 'MMINRS: EQUDEC started', nprecond(2), nprecond(1)
-            CALL equdec(nprecond(2),nprecond(1),matPreCond,indPreCond,nrkd,nrkd2)
+            CALL equdec(nprecond(2),nprecond(1),lprecm,matPreCond,indPreCond,nrkd,nrkd2)
             WRITE(lun,*) 'MMINRS: EQUDEC ended  ', nrkd, nrkd2
         END IF
 
@@ -6054,6 +6057,7 @@ SUBROUTINE mvsolv(n,x,y)         !  solve M*y = x
     INTEGER(mpi), INTENT(IN) :: n
     REAL(mpd), INTENT(IN)  :: x(n)
     REAL(mpd), INTENT(OUT) :: y(n)
+    
     SAVE
     !     ...
     y=x                    ! copy to output vector
@@ -6177,7 +6181,11 @@ SUBROUTINE xloopn                !
             ELSE IF(mbandw < 0) THEN
                 WRITE(lunp,121) 'pre-conditioning:','none!'
             ELSE IF(mbandw > 0) THEN
-                WRITE(lunp,121) 'pre-conditioning=','band-matrix'
+                IF(lprecm > 0) THEN
+                    WRITE(lunp,121) 'pre-conditioning=','skyline-matrix (rank preserving)'
+                ELSE
+                    WRITE(lunp,121) 'pre-conditioning=','band-matrix'
+                ENDIF
             END IF
         END IF
         IF(regpre == 0.0_mpd.AND.npresg == 0) THEN
@@ -6209,7 +6217,7 @@ SUBROUTINE xloopn                !
   
   
 121     FORMAT(1X,a40,3X,a)
-122     FORMAT(1X,a40,2X,i2,a)
+122     FORMAT(1X,a40,3X,i0,a)
 123     FORMAT(1X,a40,2X,e9.2)
 124     FORMAT(1X,a40,3X,f5.1,a)
     END DO
@@ -7658,6 +7666,7 @@ SUBROUTINE intext(text,nline)
         IF(mat >= (npat-npat/5)) THEN
             IF(nums > 0)   mbandw=NINT(dnum(1),mpi)
             IF(mbandw < 0) mbandw=-1
+            IF(nums > 1)   lprecm=NINT(dnum(2),mpi)
             RETURN
         END IF
   

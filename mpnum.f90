@@ -1750,6 +1750,7 @@ END FUNCTION chindl
 !! decomposition. No fill-in is created ahead in any row or ahead of the
 !! first entry in any column, but existing zero-values will become
 !! non-zero. The decomposition is done "in-place".
+!! (The diagonal will contain the inverse of the diaginal of L).
 !!
 !!  - NRKD = 0   no component removed
 !!
@@ -1763,13 +1764,16 @@ END FUNCTION chindl
 !! by about a word length (see line "test for linear dependence"),
 !! then the pivot is assumed as zero and the entire row/column is
 !! reset to zero, removing the corresponding element from the solution.
+!! Optionally use only diagonal element in this case to preserve rank
+!! (changing band to skyline matrix).
 !!
 !! \param [in]      n      size of matrix
 !! \param [in,out]  c      variable-band matrix, replaced by L
 !! \param [in]      india  pointer array
 !! \param [out]     nrkd   removed components
+!! \param [in]      iopt   >0: use diagonal to preserve rank ('skyline')
 
-SUBROUTINE lltdec(n,c,india,nrkd)
+SUBROUTINE lltdec(n,c,india,nrkd,iopt)
     USE mpdef
 
     IMPLICIT NONE
@@ -1785,11 +1789,12 @@ SUBROUTINE lltdec(n,c,india,nrkd)
     REAL(mpd), INTENT(IN OUT) :: c(*)
     INTEGER(mpi), INTENT(IN)              :: india(n)
     INTEGER(mpi), INTENT(OUT)             :: nrkd
+    INTEGER(mpi), INTENT(IN)              :: iopt
     REAL(mpd) eps
     !     ...
     eps = 16.0_mpd * epsilon(eps) ! 16 * precision(mpd) 
       
-    !     ...
+    !     ..
     nrkd=0
     diag=0.0_mpd
     IF(c(india(1)) > 0.0) THEN
@@ -1821,11 +1826,15 @@ SUBROUTINE lltdec(n,c,india,nrkd)
             DO j=mk,k                  ! reset row K
                 c(india(k)-k+j)=0.0_mpd
             END DO ! J
-            IF(nrkd == 0) THEN
-                nrkd=-k
+            IF (iopt > 0 .and. diag > 0.0) THEN ! skyline
+                c(india(k))=1.0_mpd/SQRT(diag) ! square root
             ELSE
-                IF(nrkd < 0) nrkd=1
-                nrkd=nrkd+1
+                IF(nrkd == 0) THEN
+                    nrkd=-k
+                ELSE
+                    IF(nrkd < 0) nrkd=1
+                    nrkd=nrkd+1
+                END IF
             END IF
         END IF
   
@@ -1915,12 +1924,13 @@ END SUBROUTINE lltbwd
 !!
 !! \param [in]      n      size of symmetric matrix
 !! \param [in]      m      number of constrains
+!! \param [in]      ls     flag for skyline decomposition
 !! \param [in,out]  c      combined variable-band + constraints matrix, replaced by decomposition
 !! \param [in,out]  india  pointer array
 !! \param [out]     nrkd   removed components
 !! \param [out]     nrkd2  removed components
 !!
-SUBROUTINE equdec(n,m,c,india,nrkd,nrkd2)
+SUBROUTINE equdec(n,m,ls,c,india,nrkd,nrkd2)
     USE mpdef
 
     IMPLICIT NONE
@@ -1931,6 +1941,7 @@ SUBROUTINE equdec(n,m,c,india,nrkd,nrkd2)
 
     INTEGER(mpi), INTENT(IN)              :: n
     INTEGER(mpi), INTENT(IN)              :: m
+    INTEGER(mpi), INTENT(IN)              :: ls    
     REAL(mpd), INTENT(IN OUT) :: c(*)
     INTEGER(mpi), INTENT(IN OUT)          :: india(n+m)
     INTEGER(mpi), INTENT(OUT)             :: nrkd
@@ -1938,7 +1949,10 @@ SUBROUTINE equdec(n,m,c,india,nrkd,nrkd2)
 
     !     ...
 
-    CALL lltdec(n,c,india,nrkd)                  ! decomposition G G^T
+    nrkd=0
+    nrkd2=0
+    
+    CALL lltdec(n,c,india,nrkd,ls)             ! decomposition G G^T
     
     IF (m>0) THEN
         DO i=1,m
@@ -1961,9 +1975,7 @@ SUBROUTINE equdec(n,m,c,india,nrkd,nrkd2)
             india(n+i)=india(n+i-1)+MIN(i,m)              ! pointer for K K^T
         END DO
 
-        CALL lltdec(m,c(india(n)+n*m+1),india(n+1),nrkd2)  ! decomp. H H^T
-    ELSE
-        nrkd2=0
+        CALL lltdec(m,c(india(n)+n*m+1),india(n+1),nrkd2,0)  ! decomp. H H^T
     ENDIF
 
     RETURN

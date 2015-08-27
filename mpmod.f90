@@ -41,6 +41,7 @@ MODULE mpmod
     INTEGER(mpi) :: mitera=1  !< number of iterations
     INTEGER(mpi) :: nloopn=0  !< number of data reading, fitting loops
     INTEGER(mpi) :: mbandw=0  !< band width of preconditioner matrix
+    INTEGER(mpi) :: lprecm=0  !< additional flag for preconditioner (band) matrix (>0: preserve rank by skyline matrix)
     INTEGER(mpi) :: lunkno=0  !< flag for unkown keywords
     INTEGER(mpi) :: lhuber=0  !< Huber down-weighting flag
     REAL(mps)    :: chicut=0.0  !< cut in terms of 3-sigma cut, first iteration
