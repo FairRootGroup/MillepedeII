@@ -1671,7 +1671,7 @@ SUBROUTINE sort2k(a,n)
         END IF
         IF(lev+2 > nlev) THEN
             CALL peend(33,'Aborted, stack overflow in quicksort')
-          STOP 'SORT2K (quicksort): stack overflow'
+            STOP 'SORT2K (quicksort): stack overflow'
         END IF
         IF(r-i < j-l) THEN
             lr(lev+1)=l

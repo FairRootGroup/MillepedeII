@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-02-03 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-01 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -86,6 +86,8 @@
 !!   different number of entries. 
 !! * 150420: Skipping of empty constraints has to be enabled by new command \ref
 !!   cmd-skipemptycons.
+!! * 150901: Preconditioning for MINRES with skyline matrix (avoiding rank deficits 
+!!   of band matrix) added (selected by second argument in \ref cmd-bandwidth >0). 
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -319,7 +321,7 @@
 !! \subsection cmd-bandwidth bandwidth
 !! Set band width \ref mpmod::mbandw "mbandw" for
 !! \ref minresmodule::minres "MINRES" preconditioner to \a number1 [0]
-!! and additional flag \ref mpmod::lprecm "lprecm" to \number2 [0].
+!! and additional flag \ref mpmod::lprecm "lprecm" to \a number2 [0].
 !! \subsection cmd-cache cache
 !! Set (read+write) cache size \ref mpmod::ncache "ncache" to \a number1.
 !! Define cache size and average fill level.
