@@ -103,7 +103,10 @@ MODULE mpmod
     INTEGER(mpi) :: icheck=0  !< flag for checking input only (no solution determined)
     INTEGER(mpi) :: iteren=0  !< entries cut is iterated for parameters with less entries (if > \ref mreqenf)
     INTEGER(mpi) :: iskpec=0  !< flag for skipping empty constraints (no variable parameters)
+    INTEGER(mpi) :: imonit=0  !< flag for monitoring residuals per local fit cycle (=0: none, <0: all, bit 0: first, bit 1: last)
+ 
     ! variables
+    INTEGER(mpi) :: lunmon !< unit for monitoring output file
     INTEGER(mpi) :: lunlog !< unit for logfile
     INTEGER(mpi) :: lvllog !< log level
     INTEGER(mpi) :: ntgb !< total number of global parameters
@@ -138,6 +141,8 @@ MODULE mpmod
     INTEGER(mpi) :: lcalcm !< last calclation mode
     INTEGER(mpi) :: nspc   !< number of precision for sparse global matrix (1=D, 2=D+F)
     INTEGER(mpi) :: nencdb !< encoding info (number bits for column counter)
+    INTEGER(mpi) :: numMeas !< number of measurement groups for monitoring
+    INTEGER(mpi), PARAMETER :: measBins=100 !< number of bins per measurement for monitoring
     INTEGER(mpi), DIMENSION(100) :: lbmnrs !< MINRES error labels
     REAL(mpd) :: fvalue !< function value (chi2 sum) solution
     REAL(mpd) :: flines !< function value line search
@@ -189,6 +194,10 @@ MODULE mpmod
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matConsProduct !< product matrix of constraints
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecConsResiduals !< residuals of constraints
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecConsSolution !< solution for constraint elimination
+    ! monitoring of input residuals
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: measIndex !< mapping of 1. global label to measurement index
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: measHists !< measurement histograms (100 bins per thread)
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: measRes !< average measurement error   
     ! global parameter mapping
     INTEGER(mpi), DIMENSION(:,:), ALLOCATABLE :: globalParLabelIndex !< global parameters label, total -> var. index
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalParHashTable    !< global parameters hash table

@@ -87,7 +87,11 @@
 !! * 150420: Skipping of empty constraints has to be enabled by new command \ref
 !!   cmd-skipemptycons.
 !! * 150901: Preconditioning for MINRES with skyline matrix (avoiding rank deficits 
-!!   of band matrix) added (selected by second argument in \ref cmd-bandwidth >0). 
+!!   of band matrix) added (selected by second argument in \ref cmd-bandwidth >0).
+!! * 150925: Monitoring of residuals per local fit cycle is selected by \ref cmd-monres.
+!!   The normalized residuals are grouped by the first global label and the median 
+!!   and the RMS (from the median of the absolute deviations) per group are
+!!   written to <tt>millepede.mon</tt>. 
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -403,6 +407,8 @@
 !! \c fullMINRES-QLP : (4,1) or \c sparseMINRES-QLP : (4,2)),
 !! (minimum) number of iterations \ref mpmod::mitera "mitera" to \a number1,
 !! convergence limit \ref mpmod::dflim "dflim" to \a number2.
+!! \subsection cmd-monres monitorresiduals
+!! Set flag \ref mpmod::imonit "imonit" for monitoring of residuals to \a number1 [3].
 !! \subsection cmd-mresmode mresmode
 !! Set \ref minresqlpmodule::minresqlp "MINRES-QLP" factorization mode
 !!  \ref mpmod::mrmode "mrmode" to \a number1.
@@ -558,6 +564,8 @@ PROGRAM mptwo
     CALL etime(ta,rstp)
     CALL fdate(chdate)
 
+    !     millepede monitoring file
+    lunmon=0
     !     millepede.log file
     lunlog=8
     lvllog=1
@@ -2060,6 +2068,7 @@ SUBROUTINE loopn
     INTEGER(mpi) :: ilow
     INTEGER(mpi) :: nlow
     INTEGER(mpi) :: nzero
+    LOGICAL :: btest
 
     REAL(mpd):: adder
     REAL(mpd)::funref
@@ -2154,6 +2163,9 @@ SUBROUTINE loopn
         cfd(i)=0.0
         dfd(i)=0
     END DO
+    
+    IF (imonit /= 0) measHists=0 ! reset monitoring histograms
+    
     !     ----- read next data ----------------------------------------------
     DO
         CALL peread(nr)  ! read records
@@ -2413,6 +2425,9 @@ SUBROUTINE loopn
     END IF
 
     lastit=iterat
+    
+    ! monitoring of residuals
+    IF (imonit < 0 .OR. (nloopn == 1 .AND. btest(imonit,0))) CALL monres
 
 101 FORMAT(1X,a8,' =',i10,' = ',a)
 ! 101  FORMAT(' LOOPN',I6,' Function value',F22.8,10X,I6,' records')
@@ -2799,6 +2814,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
     INTEGER(mpi) :: ioffi
     INTEGER(mpi) :: iprdbg
     INTEGER(mpi) :: iproc
+    INTEGER(mpi) :: irbin
     INTEGER(mpi) :: irow
     INTEGER(mpi) :: isfrst
     INTEGER(mpi) :: islast
@@ -2889,9 +2905,10 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
     !$OMP      readBufferDataD,writeBufferHeader,writeBufferInfo, &
     !$OMP      writeBufferData,writeBufferIndices,writeBufferUpdates,globalVector,globalCounter, &
     !$OMP      globalParameter,globalParLabelIndex,globalIndexUsage,backIndexUsage, &
+    !$OMP      numMeas,measIndex,measRes,measHists, &
     !$OMP      NAGB,NVGB,NAGBN,ICALCM,ICHUNK,NLOOPN,NRECER,NPRDBG,IPRDBG, &
     !$OMP      NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,MTHRD, &
-    !$OMP      DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB) &
+    !$OMP      DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB,IMONIT) &
     !$OMP   REDUCTION(+:NDFS,SNDF,DCHI2S,NREJ,NBNDR,NACCF,CHI2F,NDFF) &
     !$OMP   REDUCTION(MAX:NBNDX,NBDRX) &
     !$OMP   REDUCTION(MIN:NREC3) &
@@ -3248,6 +3265,15 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                                 CALL hmpent(14,REAL(pull,mps)) ! histogram pull
                             END IF
                         END IF
+                        !  monitoring
+                        IF (imonit /= 0) THEN
+                            IF (jb < ist) THEN
+                                ij=inder(jb+1) ! group by first global label
+                                irbin=MIN(measBins,max(1,INT((0.1*pull*rerr/measRes(ij)+0.5)*REAL(measBins,mpd))))
+                                irbin=irbin+measBins*(measIndex(ij)-1+numMeas*iproc)
+                                measHists(irbin)=measHists(irbin)+1
+                            ENDIF
+                        ENDIF
                     END IF
                 END IF
     
@@ -4837,6 +4863,7 @@ SUBROUTINE loop2
     REAL(mps) :: chindl
 
     REAL(mpd)::dstat(3)
+    REAL(mpd)::rerr
     INTEGER(mpl):: noff8
     INTEGER(mpl):: ndimbi
     INTEGER(mpl):: ndimsa(4)
@@ -4967,6 +4994,16 @@ SUBROUTINE loop2
         IF (mcmprs /= 0) numbit=MAX(numbit,2)  ! identify single entries for compression
         CALL clbits(nagb,ndimbi,nencdb,numbit) ! get dimension for bit storage, encoding info
     END IF
+    
+    IF (imonit /= 0) THEN
+        length=ntgb
+        CALL mpalloc(measIndex,length,'measurement counter/index')
+        measIndex=0
+        CALL mpalloc(measRes,length,'measurement resolution')
+        measRes=0.0_mps
+        lunmon=9
+        CALL mvopen(lunmon,'millepede.mon')
+    ENDIF
 
     !     reading events===reading events===reading events===reading events=
     nrecf =0  ! records with fixed global parameters
@@ -5055,7 +5092,16 @@ SUBROUTINE loop2
                 naeqn=naeqn+1
                 naeqna=naeqna+1
                 IF(ja /= 0) THEN
-                    IF (ist > jb) naeqng=naeqng+1
+                    IF (ist > jb) THEN
+                        naeqng=naeqng+1
+                        ! monitoring, group measurements, sum up entries and errors
+                        IF (imonit /= 0) THEN
+                            rerr =REAL(glder(jb),mpd)     ! the error
+                            ij=inder(jb+1)               ! index of first global parameter, used to group measurements
+                            measIndex(ij)=measIndex(ij)+1
+                            measRes(ij)=measRes(ij)+rerr
+                        END IF
+                    END IF    
                     nfixed=0
                     DO j=1,ist-jb
                         ij=inder(jb+j)                     ! index of global parameter
@@ -5238,6 +5284,18 @@ SUBROUTINE loop2
         END DO
     END IF
 
+    numMeas=0 ! number of measurement groups
+    IF (imonit /= 0) THEN
+        DO i=1,ntgb
+            IF (measIndex(i) > 0) THEN
+                numMeas=numMeas+1
+                measRes(i) = measRes(i)/REAL(measIndex(i),mpd)
+                measIndex(i) = numMeas
+            END IF
+        END DO
+        length=numMeas*mthrd*measBins
+        CALL mpalloc(measHists,length,'measurement counter')
+    END IF
     !     print numbers ----------------------------------------------------
 
     IF (nagb >= 65536) THEN
@@ -5481,6 +5539,96 @@ SUBROUTINE loop2
 106 FORMAT(i6,2(3X,f9.3,f12.1,3X))
 113 FORMAT(' constraint',i6,' : ',i9,' parameters,',i9,' variable') 
 END SUBROUTINE loop2
+
+!> Monitor input residuals.
+!!
+!! Read all data files again to monitor input residuals
+!!
+SUBROUTINE monres
+    USE mpmod
+    USE mpdalc
+
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: imed
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: nent
+    INTEGER(mpi), DIMENSION(measBins) :: isuml ! location
+    INTEGER(mpi), DIMENSION(measBins) :: isums ! scale
+    REAL(mps) :: amed
+    REAL(mps) :: amad
+    
+    INTEGER(mpl) :: ioff
+    LOGICAL :: lfirst
+    SAVE
+    DATA lfirst /.TRUE./
+
+    ! combine data from threads
+    ioff=0
+    DO i=2,mthrd
+        ioff=ioff+measBins*numMeas
+        DO j=k,measBins*numMeas
+            measHists(j)=measHists(j)+measHists(ioff+j)
+        END DO
+    END DO
+    
+    IF (lfirst) THEN
+        WRITE(lunmon,'(A)') '*** Normalized residuals grouped by first global label (per local fit cycle) ***'
+        WRITE(lunmon,'(A)') '! LFC     Label   Entries        Median  RMS(MAD)          <error>'
+        lfirst=.false.
+    END IF
+
+    ! analyze histograms
+    ioff=0
+    DO i=1,ntgb
+        IF (measIndex(i) > 0) THEN
+            isuml=0
+            ! sum up content                                                                     
+            isuml(1)=measHists(ioff+1)                                                           
+            DO j=2,measBins                                                                      
+                isuml(j)=isuml(j-1)+measHists(ioff+j)                                            
+            END DO                                                                               
+            nent=isuml(measBins)                                                                 
+            ! get median (for location)                                                          
+            DO j=2,measBins                                                                      
+                IF (2*isuml(j) > nent) EXIT                                                      
+            END DO                                                                               
+            imed=j                                                                               
+            amed=REAL(j,mps)
+            IF (isuml(j) > isuml(j-1)) amed=amed+REAL(nent-2*isuml(j-1),mps)/REAL(2*isuml(j)-2*isuml(j-1),mps)     
+            amed=10.0*(amed-REAL(measBins/2,mps))/REAL(measBins,mps)                             
+            ! sum up differences                                                                 
+            isums = 0                                                                            
+            DO j=imed,measBins                                                                   
+                k=j-imed+1                                                                       
+                isums(k)=isums(k)+measHists(ioff+j)                                              
+            END DO                                                                               
+            DO j=imed-1,1,-1                                                                     
+                k=imed-j                                                                         
+                isums(k)=isums(k)+measHists(ioff+j)                                              
+            END DO                                                                               
+            DO j=2, measBins                                                                     
+                isums(j)=isums(j)+isums(j-1)
+            END DO                                                                               
+            ! get median (for scale)                                                             
+            DO j=2,measBins                                                                      
+                IF (2*isums(j) > nent) EXIT                                                      
+            END DO                                                                               
+            amad=REAL(j-1,mps)
+            IF (isums(j) > isums(j-1)) amad=amad+REAL(nent-2*isums(j-1),mps)/REAL(2*isums(j)-2*isums(j-1),mps)     
+            amad=10.0*amad/REAL(measBins,mps)
+            ij=globalParLabelIndex(1,i)                                                    
+            WRITE(lunmon,110) nloopn, ij, nent, amed, amad*1.4826, REAL(measRes(i),mps)                                        
+            !                                                                                    
+            ioff=ioff+measBins
+        END IF                                                                   
+    END DO
+ 
+110 FORMAT(i5,2i10,3G14.5)
+END SUBROUTINE monres
+
 
 !> Prepare storage for vectors and matrices.
 !!
@@ -6124,6 +6272,7 @@ SUBROUTINE xloopn                !
     REAL(mpd) :: db1
     REAL(mpd) :: db2
     REAL(mpd) :: dbdot
+    LOGICAL :: btest
     LOGICAL :: warner
     LOGICAL :: warners
     LOGICAL :: warnerss
@@ -6518,6 +6667,10 @@ SUBROUTINE xloopn                !
             nrejec(0), ' (rank deficit/NaN) ',nrejec(1),' (Ndf=0)   ',  &
             nrejec(2), ' (huge)   ',nrejec(3),' (large)'
     END IF
+    
+    ! monitoring of residuals
+    IF (imonit > 0 .AND. btest(imonit,1)) CALL monres
+    IF (lunmon > 0) CLOSE(UNIT=lunmon)
 
     dwmean=sumndf/REAL(ndfsum,mpd)
     dratio=fvalue/dwmean/REAL(ndfsum-nagb,mpd)
@@ -7790,6 +7943,14 @@ SUBROUTINE intext(text,nline)
             RETURN
         END IF
 
+        keystx='monitorresiduals'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            imonit=3
+            IF (nums > 0) imonit=NINT(dnum(1),mpi)
+            RETURN
+        END IF
+        
         keystx='iterateentries'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
