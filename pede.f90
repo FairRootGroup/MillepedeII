@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-01 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-02 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -408,7 +408,8 @@
 !! (minimum) number of iterations \ref mpmod::mitera "mitera" to \a number1,
 !! convergence limit \ref mpmod::dflim "dflim" to \a number2.
 !! \subsection cmd-monres monitorresiduals
-!! Set flag \ref mpmod::imonit "imonit" for monitoring of residuals to \a number1 [3].
+!! Set flag \ref mpmod::imonit "imonit" for monitoring of residuals to \a number1 [3]
+!! and increase number of bins (of size 0.1) for internal storage to \a number2 [100].
 !! \subsection cmd-mresmode mresmode
 !! Set \ref minresqlpmodule::minresqlp "MINRES-QLP" factorization mode
 !!  \ref mpmod::mrmode "mrmode" to \a number1.
@@ -2905,7 +2906,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
     !$OMP      readBufferDataD,writeBufferHeader,writeBufferInfo, &
     !$OMP      writeBufferData,writeBufferIndices,writeBufferUpdates,globalVector,globalCounter, &
     !$OMP      globalParameter,globalParLabelIndex,globalIndexUsage,backIndexUsage, &
-    !$OMP      numMeas,measIndex,measRes,measHists, &
+    !$OMP      measBins,numMeas,measIndex,measRes,measHists, &
     !$OMP      NAGB,NVGB,NAGBN,ICALCM,ICHUNK,NLOOPN,NRECER,NPRDBG,IPRDBG, &
     !$OMP      NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,MTHRD, &
     !$OMP      DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB,IMONIT) &
@@ -3269,7 +3270,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                         IF (imonit /= 0) THEN
                             IF (jb < ist) THEN
                                 ij=inder(jb+1) ! group by first global label
-                                irbin=MIN(measBins,max(1,INT((0.1*pull*rerr/measRes(ij)+0.5)*REAL(measBins,mpd))))
+                                irbin=MIN(measBins,max(1,INT(pull*rerr/measRes(ij)/measBinSize+0.5*REAL(measBins,mpd))))
                                 irbin=irbin+measBins*(measIndex(ij)-1+numMeas*iproc)
                                 measHists(irbin)=measHists(irbin)+1
                             ENDIF
@@ -4960,7 +4961,7 @@ SUBROUTINE loop2
             listConstraints(newlen)%label=listConstraints(i)%label ! copy label
             listConstraints(newlen)%value=listConstraints(i)%value ! copy value
         END DO
-        IF (ncgb > 0 .AND. icheck>0) WRITE(*,113) ncgb, newlen-lastlen-3, nvar
+        IF (ncgb > 0 .AND. icheck>0) WRITE(*,113) ncgb, newlen-lastlen-2, nvar
         IF (nvar == 0) ncgbe=ncgbe+1
         IF (nvar == 0 .AND. iskpec > 0) newlen=lastlen
     END IF
@@ -5598,7 +5599,7 @@ SUBROUTINE monres
             imed=j                                                                               
             amed=REAL(j,mps)
             IF (isuml(j) > isuml(j-1)) amed=amed+REAL(nent-2*isuml(j-1),mps)/REAL(2*isuml(j)-2*isuml(j-1),mps)     
-            amed=10.0*(amed-REAL(measBins/2,mps))/REAL(measBins,mps)                             
+            amed=REAL(measBinSize,mps)*(amed-REAL(measBins/2,mps))
             ! sum up differences                                                                 
             isums = 0                                                                            
             DO j=imed,measBins                                                                   
@@ -5618,7 +5619,7 @@ SUBROUTINE monres
             END DO                                                                               
             amad=REAL(j-1,mps)
             IF (isums(j) > isums(j-1)) amad=amad+REAL(nent-2*isums(j-1),mps)/REAL(2*isums(j)-2*isums(j-1),mps)     
-            amad=10.0*amad/REAL(measBins,mps)
+            amad=REAL(measBinSize,mps)*amad
             ij=globalParLabelIndex(1,i)                                                    
             WRITE(lunmon,110) nloopn, ij, nent, amed, amad*1.4826, REAL(measRes(i),mps)                                        
             !                                                                                    
@@ -6569,9 +6570,10 @@ SUBROUTINE xloopn                !
                 END IF
             ENDIF
 
-            IF(db <= 0.0_mpd) THEN
+            ! change significantly negative ?
+            IF(db <= -16.0_mpd*SQRT(max(db1,db2))*epsilon(db)) THEN
                 WRITE(*,*) 'Function not decreasing:',db
-                IF(db <= -1.0E-3_mpd) THEN ! 100311, VB/CK: allow some margin for numerics
+                IF(db > -1.0E-3_mpd) THEN ! 100311, VB/CK: allow some margin for numerics
                     iagain=iagain+1
                     IF (iagain <= 1) THEN
                         WRITE(*,*) '... again matrix calculation'
@@ -7948,6 +7950,7 @@ SUBROUTINE intext(text,nline)
         IF(mat >= (npat-npat/5)) THEN
             imonit=3
             IF (nums > 0) imonit=NINT(dnum(1),mpi)
+            IF (nums > 1) measBins=max(measBins,NINT(dnum(2),mpi))
             RETURN
         END IF
         
