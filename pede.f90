@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-02 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-03 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -5570,7 +5570,7 @@ SUBROUTINE monres
     ioff=0
     DO i=2,mthrd
         ioff=ioff+measBins*numMeas
-        DO j=k,measBins*numMeas
+        DO j=1,measBins*numMeas
             measHists(j)=measHists(j)+measHists(ioff+j)
         END DO
     END DO
