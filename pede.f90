@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-03 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-05 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -91,7 +91,13 @@
 !! * 150925: Monitoring of residuals per local fit cycle is selected by \ref cmd-monres.
 !!   The normalized residuals are grouped by the first global label and the median 
 !!   and the RMS (from the median of the absolute deviations) per group are
-!!   written to <tt>millepede.mon</tt>. 
+!!   written to <tt>millepede.mon</tt>.
+!! * 170502: Monitoring of pulls per local fit cycle is selected by \ref cmd-monpull.
+!!   The scaling of measurement errors is enabled by \ref cmd-scaleerrors.
+!!   Pede will abort now for constraints with a singular QL decomposition
+!!   of the constraints matrix (solution by elemination).
+!!   This problem is usually caused by *empty* constraints (see \ref
+!!   cmd-skipemptycons).
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -410,6 +416,11 @@
 !! \subsection cmd-monres monitorresiduals
 !! Set flag \ref mpmod::imonit "imonit" for monitoring of residuals to \a number1 [3]
 !! and increase number of bins (of size 0.1) for internal storage to \a number2 [100].
+!! Monitoring mode \ref mpmod::imonmd "imonmd" is 0.
+!! \subsection cmd-monpull monitorpulls
+!! Set flag \ref mpmod::imonit "imonit" for monitoring of pulls to \a number1 [3]
+!! and increase number of bins (of size 0.1) for internal storage to \a number2 [100].
+!! Monitoring mode \ref mpmod::imonmd "imonmd" is 1.
 !! \subsection cmd-mresmode mresmode
 !! Set \ref minresqlpmodule::minresqlp "MINRES-QLP" factorization mode
 !!  \ref mpmod::mrmode "mrmode" to \a number1.
@@ -455,6 +466,11 @@
 !! Set flag \ref mpmod::nregul "nregul" for regularization to 1 (true),
 !! regularization parameter \ref mpmod::regula "regula" to \a number2,
 !! default pre-sigma \ref mpmod::regpre "regpre" to \a number3.
+!! \subsection cmd-scaleerrors scaleerrors
+!! Set measurement scaling factors \ref mpmod::dscerr "dscerr"
+!! to \a number1 [1.] and \a number2 [\a number1].
+!! First value is for "global" measurements (with global derivatives),
+!! second for "local" measurements (without global derivatives).
 !! \subsection cmd-skipemptycons skipemptycons
 !! Set flag \ref mpmod::iskpec "iskpec" to 1 (true).
 !! Empty constraints (without variable parameters) will be skipped.
@@ -504,6 +520,7 @@
 !!    + **24**   Aborted, vector/matrix size mismatch
 !!    + **25**   Aborted, result vector contains NaNs
 !!    + **26**   Aborted, too many rejects
+!!    + **27**   Aborted, singular QL decomposition of constraints matrix
 !!    + **30**   Aborted, memory allocation failed
 !!    + **31**   Aborted, memory deallocation failed
 !!    + **32**   Aborted, iteration limit reached in diagonalization
@@ -642,6 +659,7 @@ PROGRAM mptwo
         WRITE(8,*) ' in second iteration with factor',chirem
         WRITE(8,*) ' (reduced by sqrt in next iterations)'
     END IF
+    
     IF(lhuber /= 0) THEN
         WRITE(8,*) 'Down-weighting of outliers in', lhuber,' iterations'
         WRITE(8,*) 'Cut on downweight fraction',dwcut
@@ -1302,6 +1320,10 @@ SUBROUTINE feasma
         CALL qlgete(evmin,evmax)
         PRINT *, '   largest  eigenvalue of L: ', evmax
         PRINT *, '   smallest eigenvalue of L: ', evmin
+        IF (evmax == 0.0_mpd) THEN
+            CALL peend(27,'Aborted, singular QL decomposition of constraints matrix')
+            STOP 'FEASMA: stopping due singular QL decomposition of constraints matrix'
+        END IF    
     END IF
 
     CALL mpdealloc(matConstraintsT)
@@ -1784,7 +1806,7 @@ END SUBROUTINE peread
 !! For global parameters replace label by index (<tt>INONE</tt>).
 !!
 !! \param[in] mode <=0: build index table (INONE) for global variables; \n
-!!                 >0: use index table, can be parallelized
+!!                 >0: use index table, can be parallelized, optional scale errors 
 !!
 SUBROUTINE peprep(mode)
     USE mpmod
@@ -1819,7 +1841,7 @@ SUBROUTINE peprep(mode)
         ! parallelize record loop
         !$OMP  PARALLEL DO &
         !$OMP   DEFAULT(PRIVATE) &
-        !$OMP   SHARED(numReadBuffer,readBufferPointer,readBufferDataI,readBufferDataD,ICHUNK) &
+        !$OMP   SHARED(numReadBuffer,readBufferPointer,readBufferDataI,readBufferDataD,ICHUNK,iscerr,dscerr) &
         !$OMP   SCHEDULE(DYNAMIC,ICHUNK)
         DO ibuf=1,numReadBuffer ! buffer for current record
             iproc=0
@@ -1832,6 +1854,14 @@ SUBROUTINE peprep(mode)
                 DO j=1,ist-jb
                     readBufferDataI(jb+j)=inone( readBufferDataI(jb+j) ) ! translate to index
                 END DO
+                ! scale error ?
+                IF (iscerr > 0) THEN
+                    IF (jb < ist) THEN
+                        readBufferDataD(jb) = readBufferDataD(jb) * dscerr(1) ! 'global' measurement
+                    ELSE
+                        readBufferDataD(jb) = readBufferDataD(jb) * dscerr(2) ! 'local' measurement
+                    END IF 
+                END IF    
             END DO
         END DO
         !$OMP  END PARALLEL DO
@@ -2909,7 +2939,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
     !$OMP      measBins,numMeas,measIndex,measRes,measHists, &
     !$OMP      NAGB,NVGB,NAGBN,ICALCM,ICHUNK,NLOOPN,NRECER,NPRDBG,IPRDBG, &
     !$OMP      NEWITE,CHICUT,LHUBER,CHUBER,ITERAT,NRECPR,MTHRD, &
-    !$OMP      DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB,IMONIT) &
+    !$OMP      DWCUT,CHHUGE,NRECP2,CAUCHY,LFITNP,LFITBB,IMONIT,IMONMD) &
     !$OMP   REDUCTION(+:NDFS,SNDF,DCHI2S,NREJ,NBNDR,NACCF,CHI2F,NDFF) &
     !$OMP   REDUCTION(MAX:NBNDX,NBDRX) &
     !$OMP   REDUCTION(MIN:NREC3) &
@@ -3270,7 +3300,11 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                         IF (imonit /= 0) THEN
                             IF (jb < ist) THEN
                                 ij=inder(jb+1) ! group by first global label
-                                irbin=MIN(measBins,max(1,INT(pull*rerr/measRes(ij)/measBinSize+0.5*REAL(measBins,mpd))))
+                                if (imonmd == 0) THEN
+                                    irbin=MIN(measBins,max(1,INT(pull*rerr/measRes(ij)/measBinSize+0.5*REAL(measBins,mpd))))
+                                ELSE    
+                                    irbin=MIN(measBins,max(1,INT(pull/measBinSize+0.5*REAL(measBins,mpd))))
+                                ENDIF
                                 irbin=irbin+measBins*(measIndex(ij)-1+numMeas*iproc)
                                 measHists(irbin)=measHists(irbin)+1
                             ENDIF
@@ -5576,7 +5610,11 @@ SUBROUTINE monres
     END DO
     
     IF (lfirst) THEN
-        WRITE(lunmon,'(A)') '*** Normalized residuals grouped by first global label (per local fit cycle) ***'
+        IF (imonmd == 0) THEN
+            WRITE(lunmon,'(A)') '*** Normalized residuals grouped by first global label (per local fit cycle) ***'
+        ELSE
+            WRITE(lunmon,'(A)') '*** Pulls grouped by first global label (per local fit cycle) ***'
+        ENDIF
         WRITE(lunmon,'(A)') '! LFC     Label   Entries        Median  RMS(MAD)          <error>'
         lfirst=.false.
     END IF
@@ -5590,7 +5628,7 @@ SUBROUTINE monres
             isuml(1)=measHists(ioff+1)                                                           
             DO j=2,measBins                                                                      
                 isuml(j)=isuml(j-1)+measHists(ioff+j)                                            
-            END DO                                                                               
+            END DO                                                                              
             nent=isuml(measBins)                                                                 
             ! get median (for location)                                                          
             DO j=2,measBins                                                                      
@@ -6361,7 +6399,11 @@ SUBROUTINE xloopn                !
             WRITE(lunp,123) '... in second iteration with factor',chirem
             WRITE(lunp,121) ' (reduced by sqrt in next iterations)'
         END IF
-  
+        IF(iscerr > 0) THEN
+            WRITE(lunp,121) 'Scaling of measurement errors applied'
+            WRITE(lunp,123) '... factor for "global" measuements',dscerr(1)
+            WRITE(lunp,123) '... factor for "local"  measuements',dscerr(2)
+        END IF 
         IF(lhuber /= 0) THEN
             WRITE(lunp,122) 'Down-weighting of outliers in', lhuber,' iterations'
             WRITE(lunp,123) 'Cut on downweight fraction',dwcut
@@ -7951,6 +7993,25 @@ SUBROUTINE intext(text,nline)
             imonit=3
             IF (nums > 0) imonit=NINT(dnum(1),mpi)
             IF (nums > 1) measBins=max(measBins,NINT(dnum(2),mpi))
+            RETURN
+        END IF
+
+        keystx='monitorpulls'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            imonit=3
+            imonmd=1
+            IF (nums > 0) imonit=NINT(dnum(1),mpi)
+            IF (nums > 1) measBins=max(measBins,NINT(dnum(2),mpi))
+            RETURN
+        END IF
+        
+        keystx='scaleerrors'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            iscerr=1
+            IF (nums > 0) dscerr(1:2)=dnum(1)
+            IF (nums > 1) dscerr(2)=dnum(2)
             RETURN
         END IF
         

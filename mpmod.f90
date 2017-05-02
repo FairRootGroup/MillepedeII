@@ -105,6 +105,9 @@ MODULE mpmod
     INTEGER(mpi) :: iskpec=0  !< flag for skipping empty constraints (no variable parameters)
     INTEGER(mpi) :: imonit=0  !< flag for monitoring residuals per local fit cycle (=0: none, <0: all, bit 0: first, bit 1: last)
     INTEGER(mpi) :: measBins=100 !< number of bins per measurement for monitoring
+    INTEGER(mpi) :: imonmd=0  !< monitoring mode: 0:residuals (normalized to average error), 1:pulls
+    INTEGER(mpi) :: iscerr=0  !< flag for scaling of errors
+    REAL(mpd), DIMENSION(2) :: dscerr = (/ 1.0, 1.0 /) !< scaling factors for errors of 'global' and 'local' measurement
  
     ! variables
     INTEGER(mpi) :: lunmon !< unit for monitoring output file
