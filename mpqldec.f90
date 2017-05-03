@@ -460,10 +460,10 @@ END SUBROUTINE qlpssq
 
 !> Get eigenvalues.
 !!
-!! Get smallest and largest eingenvalue of L.
+!! Get smallest and largest |eigenvalue| of L.
 !!
-!! \param [out]    emin  smallest eigenvalue
-!! \param [out]    emax  largest eigenvalue
+!! \param [out]    emin  eigenvalue with smallest absolute value
+!! \param [out]    emax  eigenvalue with largest absolute value
 !!
 SUBROUTINE qlgete(emin,emax)
     USE mpqldec

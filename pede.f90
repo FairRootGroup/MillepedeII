@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-05 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-06 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -1318,11 +1318,11 @@ SUBROUTINE feasma
         CALL qldec(matConstraintsT)
         ! check eignevalues of L
         CALL qlgete(evmin,evmax)
-        PRINT *, '   largest  eigenvalue of L: ', evmax
-        PRINT *, '   smallest eigenvalue of L: ', evmin
-        IF (evmax == 0.0_mpd) THEN
+        PRINT *, '   largest  |eigenvalue| of L: ', evmax
+        PRINT *, '   smallest |eigenvalue| of L: ', evmin
+        IF (evmin == 0.0_mpd) THEN
             CALL peend(27,'Aborted, singular QL decomposition of constraints matrix')
-            STOP 'FEASMA: stopping due singular QL decomposition of constraints matrix'
+            STOP 'FEASMA: stopping due to singular QL decomposition of constraints matrix'
         END IF    
     END IF
 
