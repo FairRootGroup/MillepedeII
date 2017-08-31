@@ -23,7 +23,7 @@
 #
 # Hardcoded defaults can be replaced by command line arguments for
 #    -  Name of binary file
-#    -  Number of records to print (-1: all)
+#    -  Number of records to print (-1: all; <-1: all, record headers only)
 #    -  Number of records to skip (optional)
 #    -  Mininum value to print derivative
 #
@@ -62,7 +62,7 @@ mrec = 10
 ## number of records (track) to skip before 
 skiprec = 0
 ## minimum value to print derivatives
-minval = 0.
+minval = None  # allows for NaNs
 #
 # ## C. Kleinwort - DESY ########################
 
@@ -70,7 +70,7 @@ minval = 0.
 narg = len(sys.argv)
 if narg > 1:
   if narg < 3:
-    print " usage: readMilleBinary.py <file name> <number of records> [<number of records to skip> <minimum value to print derivative>]" 
+    print " usage: readMilleBinary.py <file name> <number of records> [<number of records to skip> <minimum value to print derivative>]"
     sys.exit(2)
   else:
     fname = sys.argv[1]
@@ -79,42 +79,46 @@ if narg > 1:
       skiprec = int(sys.argv[3])
     if narg > 4:
       minval = float(sys.argv[4])
-      
+
 #print " input ", fname, mrec, skiprec
-  
+
 f = open(fname, "rb")
 
 nrec = 0
 try:
     while (nrec < mrec + skiprec) or (mrec < 0):
 # read 1 record
-        nr = 0   
-        if (Cfiles == 0): 
-           lenf = array.array(intfmt)
-           lenf.fromfile(f, 2)
-           
+        nr = 0
+        if (Cfiles == 0):
+            lenf = array.array(intfmt)
+            lenf.fromfile(f, 2)
+
         length = array.array(intfmt)
         length.fromfile(f, 1)
         nr = abs(length[0] / 2)
         nrec += 1
 
-        if length[0] > 0: 
+        if length[0] > 0:
             glder = array.array('f')
         else:
-            glder = array.array('d')          
+            glder = array.array('d')
         glder.fromfile(f, nr)
 
         inder = array.array(intfmt)
         inder.fromfile(f, nr)
-        
-        if (Cfiles == 0): 
-           lenf = array.array(intfmt)
-           lenf.fromfile(f, 2)
+
+        if (Cfiles == 0):
+            lenf = array.array(intfmt)
+            lenf.fromfile(f, 2)
 
         if (nrec <= skiprec):  # must be after last fromfile
             continue
 
         print " === NR ", nrec, length[0] / 2
+
+        # no details, only header
+        if (mrec < -1):
+            continue
 
         i = 0
         nh = 0
@@ -134,44 +138,50 @@ try:
             i -= 1
 # special data ?
             if (ja + 1 == jb) and (glder[jb] < 0.):
-               jsp = jb
-               nsp = int(-glder[jb])
-               i += nsp
-               print ' ### spec. ', nsp, inder[jsp + 1:i + 1], glder[jsp + 1:i + 1]
-               continue
-            nh += 1           
+                jsp = jb
+                nsp = int(-glder[jb])
+                i += nsp
+                print ' ### spec. ', nsp, inder[jsp + 1:i + 1], glder[jsp + 1:i + 1]
+                continue
+            nh += 1
             if (jb < i):
 # measurement with global derivatives
-               print ' -g- meas. ', nh, inder[jb + 1], jb - ja - 1, i - jb, glder[ja], glder[jb]
+                print ' -g- meas. ', nh, inder[jb + 1], jb - ja - 1, i - jb, glder[ja], glder[jb]
             else:
 # measurement without global derivatives
-               print ' -l- meas. ', nh, inder[ja + 1], jb - ja - 1, i - jb, glder[ja], glder[jb]            
+                print ' -l- meas. ', nh, inder[ja + 1], jb - ja - 1, i - jb, glder[ja], glder[jb]
             if (ja + 1 < jb):
-               lab = []
-               val = []
-               for k in range(ja+1, jb):
-                 if abs(glder[k]) >= minval:
-                    lab.append(inder[k])
-                    val.append(glder[k])
-               print " local  ", lab
-               print " local  ", val
+                lab = []
+                val = []
+                for k in range(ja + 1, jb):
+                    if minval is None:
+                        lab.append(inder[k])
+                        val.append(glder[k])
+                    elif abs(glder[k]) >= minval:
+                        lab.append(inder[k])
+                        val.append(glder[k])
+                print " local  ", lab
+                print " local  ", val
             if (jb + 1 < i + 1):
-               lab = []
-               val = []
-               for k in range(jb+1, i+1):
-                 if abs(glder[k]) >= minval:
-                    lab.append(inder[k])
-                    val.append(glder[k])
-               print " global ", lab
-               print " global ", val
+                lab = []
+                val = []
+                for k in range(jb + 1, i + 1):
+                    if minval is None:
+                        lab.append(inder[k])
+                        val.append(glder[k]) 
+                    elif abs(glder[k]) >= minval:
+                        lab.append(inder[k])
+                        val.append(glder[k])
+                print " global ", lab
+                print " global ", val
 
-               
+
 except EOFError:
-     print
-     if (nr > 0):
+    print
+    if (nr > 0):
         print " >>> error: end of file before end of record", nrec
-     else:
-        print " end of file after", nrec, "records"   
+    else:
+        print " end of file after", nrec, "records"
 
 
 f.close()
