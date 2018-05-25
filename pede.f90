@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-08 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-09 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -100,6 +100,8 @@
 !!   cmd-skipemptycons).
 !! * 170831: More debug information for problems with reading Cfiles. Don't stop
 !!   after read error for \ref cmd-checkinput mode.
+!! * 180525: Some fixes: Proper handling of special (debug) data blocks in binary
+!!   files, proper exit code (3) for 'function not decreasing'.
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -1957,14 +1959,16 @@ SUBROUTINE pechk(ibuf, nerr)
             IF(is > nst) EXIT outer
             IF(inder(is) == 0) EXIT inner2 ! found 2. marker
         END DO inner2
-        jb=is
+        jb=is        
+        IF(ja+1 == jb.AND.glder(jb) < 0.0_mpr8) THEN
+            !  special data
+            jsp=jb ! pointer to special data
+            is=is+NINT(-glder(jb),mpi) ! skip NSP words
+            CYCLE outer
+        END IF     
         DO WHILE(inder(is+1) /= 0.AND.is < nst)
             is=is+1
         END DO
-        IF(ja+1 /= jb.OR.glder(jb) >= 0.0_mpr8) CYCLE outer
-        !        special data
-        jsp=jb          ! pointer to special data
-        is=is+NINT(-glder(jb),mpi) ! skip NSP words
     END DO outer
     IF(is > nst) THEN
         ioff = readBufferPointer(ibuf)
@@ -2040,13 +2044,16 @@ SUBROUTINE isjajb(nst,is,ja,jb,jsp)
             IF(inder(is) == 0) EXIT
         END DO
         jb=is
+        IF(ja+1 == jb.AND.glder(jb) < 0.0_mpr8) THEN
+            !  special data
+            jsp=jb ! pointer to special data
+            is=is+NINT(-glder(jb),mpi) ! skip NSP words
+            CYCLE
+        END IF     
         DO WHILE(inder(is+1) /= 0.AND.is < nst)
             is=is+1
         END DO
-        IF(ja+1 /= jb.OR.glder(jb) >= 0.0_mpr8) EXIT
-        !        special data
-        jsp=jb          ! pointer to special data
-        is=is+NINT(-glder(jb),mpi) ! skip NSP words
+        EXIT
     END DO
 
 END SUBROUTINE isjajb
@@ -6630,7 +6637,7 @@ SUBROUTINE xloopn                !
                     END IF
                 ELSE
                     WRITE(*,*) '... stopping iterations'
-                    iagain=0
+                    iagain=-1
                     GO TO 90
                 END IF
             ELSE
@@ -7103,18 +7110,16 @@ SUBROUTINE filetc
         END IF
 
         keystx='fortranfiles'
-        !GF      MAT=MATINT(TEXT(IA:IB),KEYSTX,NPAT,NTEXT)
-        !GF      IF(MAT.GE.NTEXT-NTEXT/10) THEN
-        IF (text(ia:ib) == keystx) THEN ! exact comparison by GF
+        mat=matint(text(ia:ib),keystx,npat,ntext)
+        IF(mat == ntext) THEN ! exact matching
             nuf=3
             !         WRITE(*,*) 'Fortran files'
             CYCLE
         END IF
 
         keystx='Cfiles'
-        !GF      MAT=MATINT(TEXT(IA:IB),KEYSTX,NPAT,NTEXT)
-        !GF      IF(MAT.GE.NTEXT-NTEXT/10) THEN
-        IF (text(ia:ib) == keystx) THEN ! exact comparison by GF
+        mat=matint(text(ia:ib),keystx,npat,ntext)
+        IF(mat == ntext) THEN ! exact matching
             nuf=1
             !         WRITE(*,*) 'Cfiles'
             CYCLE
