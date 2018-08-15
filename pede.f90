@@ -10,7 +10,7 @@
 !! \author Claus Kleinwort, DESY (maintenance and developement)
 !!
 !! \copyright
-!! Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
+!! Copyright (c) 2009 - 2018 Deutsches Elektronen-Synchroton,
 !! Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY \n\n
 !! This library is free software; you can redistribute it and/or modify
 !! it under the terms of the GNU Library General Public License as
@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-09 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-10 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -102,6 +102,8 @@
 !!   after read error for \ref cmd-checkinput mode.
 !! * 180525: Some fixes: Proper handling of special (debug) data blocks in binary
 !!   files, proper exit code (3) for 'function not decreasing'.
+!! * 180815: Some minor fixes, additional level of detail (appearance range of global
+!!   parameters in binary files) for \ref cmd-checkinput mode.
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -314,7 +316,9 @@
 !! \subsection opt-f -f
 !! Force iterating of solution (in case of rank deficits for constraints).
 !! \subsection opt-c -c
-!! Check input (binary files, constraints). No solution is determined.
+!! Check input (binary files, constraints). No solution is determined. (\ref mpmod::icheck "icheck"=1)
+!! \subsection opt-C -C
+!! Check input (binary files, constraints, appearance). No solution is determined. (\ref mpmod::icheck "icheck"=2)
 !!
 !! \section sec-cmd Steering file commands:
 !! In general the commands are defined by a single line:
@@ -342,8 +346,11 @@
 !! \subsection cmd-cfiles Cfiles
 !! Following binaries are C files.
 !! \subsection cmd-checkinput checkinput
-!! Set check input flag \ref mpmod::icheck "icheck" to 1 (true).
-!! Same as \ref opt-c "-c".
+!! Set check input flag \ref mpmod::icheck "icheck" to \a number1 [1].
+!! Similar to \ref opt-c "-c" or \ref opt-C "-C".
+!! For mpmod::icheck "icheck" >0 no solution is performed but input statistics is checked in detail.
+!! With mpmod::icheck "icheck" >1 the appearance range (first/last file,record and number of files)
+!! of global parameters is determined too.
 !! \subsection cmd-chisqcut chisqcut
 !! For local fit \ref an-chisq "setChi^2" cut \ref mpmod::chicut "chicut" to \a number1 [1.],
 !! \ref mpmod::chirem "chirem" to \a number2 [1.].
@@ -2270,10 +2277,10 @@ SUBROUTINE loopn
     END IF   
     IF(icalcm == 1 .AND. nzero > 0) THEN
         ndefec = nzero ! rank defect
-        WRITE(*,*)   'Warning: the rank defect of the symmetric',nagb,  &
-            '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
-        WRITE(lun,*) 'Warning: the rank defect of the symmetric',nagb,  &
-            '-by-',nagb,' matrix is ',ndefec,' (should be zero).'
+        WRITE(*,*)   'Warning: the rank defect of the symmetric',nfgb,  &
+            '-by-',nfgb,' matrix is ',ndefec,' (should be zero).'
+        WRITE(lun,*) 'Warning: the rank defect of the symmetric',nfgb,  &
+            '-by-',nfgb,' matrix is ',ndefec,' (should be zero).'
         IF (iforce == 0) THEN
             isubit=1
             WRITE(*,*)   '         --> enforcing SUBITO mode'
@@ -3892,6 +3899,7 @@ SUBROUTINE prtstat
     INTEGER(mpi) :: ivgbi
     INTEGER(mpi) :: lup
     INTEGER(mpi) :: ncon
+    INTEGER(mpi) :: k
 
     SAVE
     !     ...
@@ -3916,11 +3924,21 @@ SUBROUTINE prtstat
             WRITE(lup,111) itgbl,par,presig,icount,ncon
         END IF
     END DO
+    ! appearance statistics
+    IF (icheck > 1) THEN
+        WRITE(lup,*) '! '
+        WRITE(lup,*) '! Appearance statistics '
+        WRITE(lup,*) '!      Label  First file and record  Last file and record  number of files '
+        DO itgbi=1,ntgb
+            WRITE(lup,112) globalParLabelIndex(1,itgbi), (appearanceCounter(itgbi*5+k), k=-4,0)
+        END DO
+    END IF
     REWIND lup
     CLOSE(UNIT=lup)
 
 110 FORMAT(' ! ',i10,2X,2G14.5,2i12,'  fixed',I2)
 111 FORMAT(' ! ',i10,2X,2G14.5,2i12,'  variable')
+112 FORMAT(' ! ',i10,5i11)
 END SUBROUTINE prtstat    ! print input statistics
 
 
@@ -4940,7 +4958,7 @@ SUBROUTINE loop2
             INTEGER(mpi), DIMENSION(:), INTENT(IN) :: ncmprs
         END SUBROUTINE spbits
     END INTERFACE
-
+    
     SAVE
 
     !$ INTEGER(mpi) :: OMP_GET_THREAD_NUM
@@ -5081,6 +5099,13 @@ SUBROUTINE loop2
     ! to read (old) float binary files
     length=(ndimbuf+2)*mthrdr
     CALL mpalloc(readBufferDataF,length,'read buffer, float')
+    
+    ! for checking appearance 
+    IF (icheck > 1) THEN
+        print *, " checking appearance ", icheck, ntgb, nagb
+        length=5*ntgb
+        CALL mpalloc(appearanceCounter,length,'appearance statistics')
+    END IF
 
     DO
         CALL peread(nr) ! read records
@@ -5150,6 +5175,19 @@ SUBROUTINE loop2
                     nfixed=0
                     DO j=1,ist-jb
                         ij=inder(jb+j)                     ! index of global parameter
+                        ! check appearance 
+                        IF (icheck > 1) THEN
+                            ioff = 5*(ij-1)
+                            kfile=NINT(readBufferDataD(isfrst(ibuf)-1),mpi) ! file
+                            IF (appearanceCounter(ioff+1) == 0) THEN
+                                appearanceCounter(ioff+1) = kfile
+                                appearanceCounter(ioff+2) = nrec-ifd(kfile) ! (local) record number
+                            END IF
+                            IF (appearanceCounter(ioff+3) /= kfile) appearanceCounter(ioff+5)=appearanceCounter(ioff+5)+1
+                            appearanceCounter(ioff+3) = kfile
+                            appearanceCounter(ioff+4) = nrec-ifd(kfile) ! (local) record number
+                        END IF
+                        
                         ij=globalParLabelIndex(2,ij)       ! change to variable parameter
                         IF(ij > 0) THEN
                             ijn=backIndexUsage(ij)         ! get index of index
@@ -5826,10 +5864,10 @@ SUBROUTINE minver
         CALL sqminl(globalMatD, globalCorrections,nfgb,nrank,  &
             workspaceD,workspaceI)
         IF(nfgb /= nrank) THEN
-            WRITE(*,*)   'Warning: the rank defect of the symmetric',nagb,  &
-                '-by-',nagb,' matrix is ',nagb-nrank,' (should be zero).'
-            WRITE(lun,*) 'Warning: the rank defect of the symmetric',nagb,  &
-                '-by-',nagb,' matrix is ',nagb-nrank,' (should be zero).'
+            WRITE(*,*)   'Warning: the rank defect of the symmetric',nfgb,  &
+                '-by-',nfgb,' matrix is ',nfgb-nrank,' (should be zero).'
+            WRITE(lun,*) 'Warning: the rank defect of the symmetric',nfgb,  &
+                '-by-',nfgb,' matrix is ',nfgb-nrank,' (should be zero).'
             IF (iforce == 0 .AND. isubit == 0) THEN
                 isubit=1
                 WRITE(*,*)   '         --> enforcing SUBITO mode'
@@ -6727,7 +6765,7 @@ SUBROUTINE xloopn                !
     IF (lunmon > 0) CLOSE(UNIT=lunmon)
 
     dwmean=sumndf/REAL(ndfsum,mpd)
-    dratio=fvalue/dwmean/REAL(ndfsum-nagb,mpd)
+    dratio=fvalue/dwmean/REAL(ndfsum-nfgb,mpd)
     catio=REAL(dratio,mps)
     IF(nloopn /= 1.AND.lhuber /= 0) THEN
         catio=catio/0.9326  ! correction Huber downweighting (in global chi2)       
@@ -6738,11 +6776,11 @@ SUBROUTINE xloopn                !
         WRITE(lunp,*) ' '
         IF (nfilw <= 0) THEN
             WRITE(lunp,*) 'Sum(Chi^2)/Sum(Ndf) =',fvalue
-            WRITE(lunp,*) '                    / (',ndfsum,'-',nagb,')'
+            WRITE(lunp,*) '                    / (',ndfsum,'-',nfgb,')'
             WRITE(lunp,*) '                    =',dratio
         ELSE
             WRITE(lunp,*) 'Sum(W*Chi^2)/Sum(Ndf)/<W> =',fvalue
-            WRITE(lunp,*) '                          / (',ndfsum,'-', nagb,')'
+            WRITE(lunp,*) '                          / (',ndfsum,'-', nfgb,')'
             WRITE(lunp,*) '                          /',dwmean
             WRITE(lunp,*) '                          =',dratio
         END IF
@@ -7030,7 +7068,8 @@ SUBROUTINE filetc
             END IF
             IF(INDEX(text(ia:ib),'s') /= 0) isubit=1  ! like "subito"
             IF(INDEX(text(ia:ib),'f') /= 0) iforce=1  ! like "force"
-            IF(INDEX(text(ia:ib),'c') /= 0) icheck=1  ! like "checkinput
+            IF(INDEX(text(ia:ib),'c') /= 0) icheck=1  ! like "checkinput"
+            IF(INDEX(text(ia:ib),'C') /= 0) icheck=2  ! like "checkinput 2"
         END IF
         IF(i == iargc()) WRITE(*,*) '--------------------- '
     END DO
@@ -7569,6 +7608,11 @@ SUBROUTINE filetx ! ---------------------------------------------------
         ENDIF
     ENDIF
 
+    IF(numMeasurements>0) THEN
+        WRITE(*,*) 
+        WRITE(*,*) ' Number of external measurements ', numMeasurements
+    ENDIF
+    
     CALL mend
 
 101 FORMAT(i3,2X,a)
@@ -7988,6 +8032,7 @@ SUBROUTINE intext(text,nline)
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5)) THEN
             icheck=1
+            IF (nums > 0) icheck=NINT(dnum(1),mpi)            
             RETURN
         END IF
 
@@ -8217,6 +8262,7 @@ SUBROUTINE intext(text,nline)
             END IF
         ELSE IF(lkey == 4) THEN         ! measurement
             IF(nums == 2) THEN ! start measurement
+                numMeasurements=numMeasurements+1
                 lpvs=0   ! r = r.h.s. value
                 CALL addItem(lenMeasurements,listMeasurements,lpvs,dnum(1))
                 lpvs=-1  ! sigma

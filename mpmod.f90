@@ -4,7 +4,7 @@
 !! \author Claus Kleinwort, DESY, 2012 (Claus.Kleinwort@desy.de)
 !!
 !! \copyright
-!! Copyright (c) 2012 - 2015 Deutsches Elektronen-Synchroton,
+!! Copyright (c) 2012 - 2018 Deutsches Elektronen-Synchroton,
 !! Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY \n\n
 !! This library is free software; you can redistribute it and/or modify
 !! it under the terms of the GNU Library General Public License as
@@ -230,6 +230,7 @@ MODULE mpmod
     ! global parameter usage in record
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalIndexUsage !< indices of global par in record
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: backIndexUsage   !< list of global par in record
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: appearanceCounter !< appearance statistics for global par (first/last file,record)
     ! local fit
     REAL(mpd), DIMENSION(:), ALLOCATABLE::blvec  !< local fit vector 'b' (in A*x=b), replaced by 'x'
     REAL(mpd), DIMENSION(:), ALLOCATABLE::clmat  !< local fit matrix 'A' (in A*x=b)
@@ -264,8 +265,9 @@ MODULE mpmod
     TYPE(listItem), DIMENSION(:), ALLOCATABLE :: listPreSigmas    !< list of pre-sgmas from steering file
     INTEGER(mpi) :: lenConstraints=0  !< length of list of constraints from steering file
     TYPE(listItem), DIMENSION(:), ALLOCATABLE :: listConstraints  !< list of constraints from steering file
-    INTEGER(mpi) :: lenMeasurements=0 !< length of list of measurements from steering file
-    TYPE(listItem), DIMENSION(:), ALLOCATABLE :: listMeasurements !< list of measurements from steering file
+    INTEGER(mpi) :: numMeasurements=0 !< number of (external) measurements from steering file
+    INTEGER(mpi) :: lenMeasurements=0 !< length of list of (external) measurements from steering file
+    TYPE(listItem), DIMENSION(:), ALLOCATABLE :: listMeasurements !< list of (external) measurements from steering file
     !======================================================
     ! file information
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: mfd   !< file mode: cbinary =1, text =2, fbinary=3

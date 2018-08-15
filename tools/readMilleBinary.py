@@ -6,7 +6,7 @@
 # \author Claus Kleinwort, DESY, 2009 (Claus.Kleinwort@desy.de)
 #
 #  \copyright
-#  Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
+#  Copyright (c) 2009 - 2018 Deutsches Elektronen-Synchroton,
 #  Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY \n\n
 #  This library is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU Library General Public License as
@@ -134,15 +134,15 @@ try:
             while (i < nr) and (inder[i] != 0): i += 1
             jb = i
             i += 1
-            while (i < nr) and (inder[i] != 0): i += 1
-            i -= 1
-# special data ?
+            # special data ?
             if (ja + 1 == jb) and (glder[jb] < 0.):
                 jsp = jb
                 nsp = int(-glder[jb])
-                i += nsp
+                i += nsp - 1
                 print ' ### spec. ', nsp, inder[jsp + 1:i + 1], glder[jsp + 1:i + 1]
                 continue
+            while (i < nr) and (inder[i] != 0): i += 1
+            i -= 1
             nh += 1
             if (jb < i):
 # measurement with global derivatives
@@ -175,13 +175,11 @@ try:
                 print " global ", lab
                 print " global ", val
 
-
 except EOFError:
     print
     if (nr > 0):
         print " >>> error: end of file before end of record", nrec
     else:
         print " end of file after", nrec, "records"
-
 
 f.close()
