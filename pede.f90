@@ -2467,11 +2467,12 @@ SUBROUTINE loopn
     END IF
 
     !     local fit: band matrix structure !?
-    IF (nloopn == 1.AND.nbndr > 0) THEN
+    IF (nloopn == 1.AND.nbndr(1)+nbndr(2) > 0) THEN
         DO lun=6,8,2
             WRITE(lun,*) ' '
             WRITE(lun,*) ' === local fits have bordered band matrix structure ==='
-            WRITE(lun,101) ' NBNDR',nbndr,'number of records'
+            IF (nbndr(1) > 0 ) WRITE(lun,101) ' NBNDR',nbndr(1),'number of records (upper/left border)'
+            IF (nbndr(2) > 0 ) WRITE(lun,101) ' NBNDR',nbndr(2),'number of records (lower/right border)'
             WRITE(lun,101) ' NBDRX',nbdrx,'max border size'
             WRITE(lun,101) ' NBNDX',nbndx,'max band width'
         END DO
@@ -2893,6 +2894,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
     INTEGER(mpi) :: kx
     INTEGER(mpi) :: mbdr
     INTEGER(mpi) :: mbnd
+    INTEGER(mpi) :: mside
     INTEGER(mpi) :: nalc
     INTEGER(mpi) :: nalg
     INTEGER(mpi) :: nan
@@ -3130,7 +3132,8 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
         !      check matrix for bordered band structure (MBDR+MBND+1 <= NALC)
         mbnd=-1
         mbdr=nalc
-        DO i=1, nalc
+        mside=-1 ! side (1: upper/left border, 2: lower/right border)
+        DO i=1, 2*nalc
             ibandh(i)=0
         END DO
         irow=1
@@ -3211,8 +3214,10 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                         !           check for band matrix substructure
                         IF (iter == 1) THEN
                             id=IABS(ij-ik)+1
-                            im=MIN(ij,ik)
+                            im=MIN(ij,ik) ! upper/left border
                             ibandh(id)=MAX(ibandh(id),im)
+                            im=MIN(nalc+1-ij,nalc+1-ik) ! lower/rght border (mirrored)
+                            ibandh(nalc+id)=MAX(ibandh(nalc+id),im)
                         END IF
                     END DO
                 END DO
@@ -3220,9 +3225,10 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
             !      for non trivial fits check for bordered band matrix structure
             IF (iter == 1.AND.nalc > 5.AND.lfitbb > 0) THEN
                 kx=-1
-                kbdr=0
                 kbdrx=0
                 icmn=INT(nalc,mpl)**3 ! cost (*6) should improve by at least factor 2
+                ! upper/left border ?
+                kbdr=0  
                 DO k=nalc,2,-1
                     kbnd=k-2
                     kbdr=MAX(kbdr,ibandh(k))
@@ -3231,8 +3237,24 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                         icmn=icost
                         kx=k
                         kbdrx=kbdr
+                        mside=1
                     END IF
-                END DO
+                END DO    
+                IF (kx < 0) THEN
+                    ! lower/right border instead?
+                    kbdr=0  
+                    DO k=nalc,2,-1
+                        kbnd=k-2
+                        kbdr=MAX(kbdr,ibandh(k+nalc))
+                        icost=6*INT(nalc-kbdr,mpl)*INT(kbnd+kbdr+1,mpl)**2+2*INT(kbdr,mpl)**3
+                        IF (icost < icmn) THEN
+                            icmn=icost
+                            kx=k
+                            kbdrx=kbdr
+                            mside=2
+                        END IF
+                    END DO
+                END IF
                 IF (kx > 0) THEN
                     mbnd=kx-2
                     mbdr=kbdrx
@@ -3242,7 +3264,7 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
             IF (mbnd >= 0) THEN
                 !      fast solution for border banded matrix (inverse for ICALCM>0)
                 IF (nloopn == 1) THEN
-                    nbndr=nbndr+1
+                    nbndr(mside)=nbndr(mside)+1
                     nbdrx=MAX(nbdrx,mbdr)
                     nbndx=MAX(nbndx,mbnd)
                 END IF
@@ -3250,8 +3272,13 @@ SUBROUTINE loopbf(nrej,ndfs,sndf,dchi2s, numfil,naccf,chi2f,ndff)
                 inv=0
                 IF (nloopn <= lfitnp.AND.iter == 1) inv=1 ! band part of inverse (for pulls)
                 IF (icalcm == 1.OR.lprnt) inv=2     ! complete inverse
-                CALL sqmibb(clmat,blvec,nalc,mbdr,mbnd,inv,nrank,  &
-                    vbnd,vbdr,aux,vbk,vzru,scdiag,scflag)
+                IF (mside == 1) THEN
+                    CALL sqmibb(clmat,blvec,nalc,mbdr,mbnd,inv,nrank,  &
+                        vbnd,vbdr,aux,vbk,vzru,scdiag,scflag)
+                ELSE
+                    CALL sqmibb2(clmat,blvec,nalc,mbdr,mbnd,inv,nrank,  &
+                        vbnd,vbdr,aux,vbk,vzru,scdiag,scflag)
+                ENDIF        
             ELSE
                 !      full inversion and solution
                 inv=2
@@ -5753,7 +5780,7 @@ SUBROUTINE vmprep(msize)
     CALL mpalloc(vzru,length,' local fit scratch array: vzru')
     CALL mpalloc(scdiag,length,' local fit scratch array: scdiag')
     CALL mpalloc(scflag,length,' local fit scratch array: scflag')
-    CALL mpalloc(ibandh,length,' local fit band width hist.: ibandh')
+    CALL mpalloc(ibandh,2*length,' local fit band width hist.: ibandh')
 
     CALL mpalloc(globalMatD,msize(1),'global matrix (D)' )
     CALL mpalloc(globalMatF,msize(2),'global matrix (F)')

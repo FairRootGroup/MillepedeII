@@ -44,7 +44,8 @@
 !!        VABDEC
 !!
 !!     Solution by Cholesky decomposition of bordered band matrix
-!!        SQMIBB  (CHK)
+!!        SQMIBB    upper/left  border (CHK)
+!!        SQMIBB2   lower/right border (CHK)
 !!
 !!     Matrix/vector products
 !!        DBDOT     dot vector product
@@ -2473,3 +2474,262 @@ SUBROUTINE sqmibb(v,b,n,nbdr,nbnd,inv,nrank,vbnd,vbdr,aux,vbk,vzru,scdiag,scflag
     END IF
 
 END SUBROUTINE sqmibb
+
+!                                                 181105 C. Kleinwort, DESY-BELLE
+!> Band bordered matrix.
+!!
+!! Obtain solution of a system of linear equations with symmetric
+!! band bordered  matrix (V * X = B), on request inverse is calculated.
+!! For band part root-free Cholesky decomposition and forward/backward
+!! substitution is used.
+!!
+!! Use decomposition in band and border part for block matrix algebra:
+!!
+!!     | A  Ct |   | x1 |   | b1 |        , A  is the band part
+!!     |       | * |    | = |    |        , Ct is the mixed part
+!!     | C  D  |   | x2 |   | b2 |        , D  is the border part
+!!
+!! \param [in,out] v symmetric N-by-N matrix in symmetric storage mode
+!!                   (V(1) = V11, V(2) = V12, V(3) = V22, V(4) = V13, ...),
+!!                   replaced by inverse matrix
+!! \param [in,out] b N-vector, replaced by solution vector
+!! \param [in]     n size of V, B
+!! \param [in]     nbdr   border size
+!! \param [in]     nbnd   band width
+!! \param [in]     inv    =1 calculate band part of inverse (for pulls),
+!!                        >1 calculate complete inverse
+!! \param [out]    nrank  rank of matrix V
+!! \param [out]    vbnd   band part of V
+!! \param [out]    vbdr   border part of V
+!! \param [out]    aux    solutions for border rows
+!! \param [out]    vbk    matrix for border solution
+!! \param [out]    vzru   border solution
+!! \param [out]    scdiag workspace (D)
+!! \param [out]    scflag workspace (I)
+!!
+SUBROUTINE sqmibb2(v,b,n,nbdr,nbnd,inv,nrank,vbnd,vbdr,aux,vbk,vzru,scdiag,scflag)
+    USE mpdef
+
+    ! REAL(mpd) scratch arrays:
+    !     VBND(N*(NBND+1)) = storage of band   part
+    !     VBDR(N* NBDR)    = storage of border part
+    !     AUX (N* NBDR)    = intermediate results
+
+    ! cost[dot ops] ~= (N-NBDR)*(NBDR+NBND+1)**2 + NBDR**3/3 (leading term, solution only)
+
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: ij
+    INTEGER(mpi) :: ioff
+    INTEGER(mpi) :: ip
+    INTEGER(mpi) :: ip1
+    INTEGER(mpi) :: is
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: j0
+    INTEGER(mpi) :: jb
+    INTEGER(mpi) :: joff
+    INTEGER(mpi) :: koff
+    INTEGER(mpi) :: mp1
+    INTEGER(mpi) :: nb1
+    INTEGER(mpi) :: nmb
+    INTEGER(mpi) :: npri
+    INTEGER(mpi) :: nrankb
+
+    REAL(mpd), INTENT(IN OUT)         :: v(*)
+    REAL(mpd), INTENT(OUT)            :: b(n)
+    INTEGER(mpi), INTENT(IN)                      :: n
+    INTEGER(mpi), INTENT(IN)                      :: nbdr
+    INTEGER(mpi), INTENT(IN)                      :: nbnd
+    INTEGER(mpi), INTENT(IN)                      :: inv
+    INTEGER(mpi), INTENT(OUT)                     :: nrank
+
+    REAL(mpd), INTENT(OUT) :: vbnd(n*(nbnd+1))
+    REAL(mpd), INTENT(OUT) :: vbdr(n*nbdr)
+    REAL(mpd), INTENT(OUT) :: aux(n*nbdr)
+    REAL(mpd), INTENT(OUT) :: vbk((nbdr*nbdr+nbdr)/2)
+    REAL(mpd), INTENT(OUT) :: vzru(nbdr)
+    REAL(mpd), INTENT(OUT) :: scdiag(nbdr)
+    INTEGER(mpi), INTENT(OUT)          :: scflag(nbdr)
+
+    SAVE npri
+    DATA npri / 100 /
+    !           ...
+    nrank=0
+    mp1=nbnd+1
+    nmb=n-nbdr
+    nb1=nmb+1
+    !     copy band part
+    DO i=1,nmb
+        ip=(i*(i+1))/2
+        is=0
+        DO j=i,MIN(nmb,i+nbnd)
+            ip=ip+is
+            is=j
+            ib=j-i+1
+            vbnd(ib+(i-1)*mp1)=v(ip)
+        END DO
+    END DO
+    !     copy border part
+    IF (nbdr > 0) THEN
+        ioff=0
+        DO i=nb1,n
+            ip=(i*(i-1))/2
+            DO j=1,i
+                vbdr(ioff+j)=v(ip+j)
+            END DO
+            ioff=ioff+n
+        END DO
+    END IF
+
+    CALL dbcdec(vbnd,mp1,nmb,aux)
+    ! use? CALL DBFDEC(VBND,MP1,NMB) ! modified decomp., numerically more stable
+    !      CALL DBCPRB(VBND,MP1,NMB)
+    ip=1
+    DO i=1, nmb
+        IF (vbnd(ip) <= 0.0_mpd) THEN
+            npri=npri-1
+            IF (npri >= 0) THEN
+                IF (vbnd(ip) == 0.0_mpd) THEN
+                    PRINT *, ' SQMIBB2 matrix singular', n, nbdr, nbnd
+                ELSE
+                    PRINT *, ' SQMIBB2 matrix not positive definite', n, nbdr, nbnd
+                END IF
+            END IF
+            !           return zeros
+            DO ip=1,n
+                b(ip)=0.0_mpd
+            END DO
+            DO ip=1,(n*n+n)/2
+                v(ip)=0.0_mpd
+            END DO
+            RETURN
+        END IF
+        ip=ip+mp1
+    END DO
+    nrank=nmb
+
+    IF (nbdr == 0) THEN ! special case NBDR=0
+  
+        CALL dbcslv(vbnd,mp1,nmb,b,b)
+        IF (inv > 0) THEN
+            IF (inv > 1) THEN
+                CALL dbcinv(vbnd,mp1,nmb,v)
+            ELSE
+                CALL dbcinb(vbnd,mp1,nmb,v)
+            END IF
+        END IF
+  
+    ELSE ! general case NBDR>0
+  
+        ioff=0
+        DO ib=1,nbdr
+            !           solve for aux. vectors
+            CALL dbcslv(vbnd,mp1,nmb,vbdr(ioff+1),aux(ioff+1))
+            !           zT ru
+            vzru(ib)=b(nmb+ib)
+            DO i=1,nmb
+                vzru(ib)=vzru(ib)-b(i)*aux(ioff+i)
+            END DO
+            ioff=ioff+n
+        END DO
+        !        solve for band part only
+        CALL dbcslv(vbnd,mp1,nmb,b,b)
+        !        Ck - cT z
+        ip=0
+        ioff=0
+        koff=nmb
+        DO ib=1,nbdr
+            joff=0
+            DO jb=1,ib
+                ip=ip+1
+                vbk(ip)=vbdr(koff+jb)
+                DO i=1,nmb   
+                    vbk(ip)=vbk(ip)-vbdr(ioff+i)*aux(joff+i)
+                END DO
+                joff=joff+n
+            END DO
+            ioff=ioff+n
+            koff=koff+n
+        END DO
+        
+        !        solve border part
+        CALL sqminv(vbk,vzru,nbdr,nrankb,scdiag,scflag)
+        IF (nrankb == nbdr) THEN
+            nrank=nrank+nbdr
+        ELSE
+            npri=npri-1
+            IF (npri >= 0) PRINT *, ' SQMIBB2 undef border ', n, nbdr, nbnd, nrankb
+            DO ib=1,nbdr
+                vzru(ib)=0.0_mpd
+            END DO
+            DO ip=(nbdr*nbdr+nbdr)/2,1,-1
+                vbk(ip)=0.0_mpd
+            END DO
+        END IF
+        !        smoothed data points
+        ioff=0
+        DO ib=1, nbdr
+            DO i=1,nmb
+                b(i)=b(i)-vzru(ib)*aux(ioff+i)
+            END DO
+            ioff=ioff+n
+            b(nmb+ib)=vzru(ib)
+        END DO
+        !        inverse requested ?
+        IF (inv > 0) THEN
+            IF (inv > 1) THEN
+                CALL dbcinv(vbnd,mp1,nmb,v)
+            ELSE
+                CALL dbcinb(vbnd,mp1,nmb,v)
+            END IF
+            !           assemble band and border 
+            IF (nbdr > 0) THEN 
+                ! band part                    
+                ip1=(nmb*nmb+nmb)/2                                               
+                DO i=nmb-1,0,-1                                                   
+                    j0=0                                                          
+                    IF (inv == 1) j0=MAX(0,i-nbnd)                                
+                    DO j=i,j0,-1                                                  
+                        ioff=1                                                    
+                        DO ib=1,nbdr                                              
+                            joff=1                                                
+                            DO jb=1,nbdr                                          
+                                ij=MAX(ib,jb)                                     
+                                ij=(ij*ij-ij)/2+MIN(ib,jb)                        
+                                v(ip1)=v(ip1)+vbk(ij)*aux(ioff+i)*aux(joff+j)     
+                                joff=joff+n                                       
+                            END DO                                                
+                            ioff=ioff+n                                           
+                        END DO                                                    
+                        ip1=ip1-1                                                 
+                    END DO                                                        
+                    ip1=ip1-j0
+                END DO                                                        
+                ! band part
+                ip1=(nmb*nmb+nmb)/2
+                ip=0                                               
+                DO ib=1,nbdr
+                    DO i=1,nmb
+                        ip1=ip1+1                                                       
+                        v(ip1)=0.0_mpd                                            
+                        joff=0                                                  
+                        DO jb=1,nbdr                                              
+                            ij=MAX(ib,jb)                                         
+                            ij=(ij*ij-ij)/2+MIN(ib,jb)                            
+                            v(ip1)=v(ip1)-vbk(ij)*aux(i+joff)                     
+                            joff=joff+n                                           
+                        END DO                                                    
+                    END DO
+                    DO jb=1,ib
+                        ip1=ip1+1
+                        ip=ip+1
+                        v(ip1)=vbk(ip)                                                
+                    END DO                                                  
+                END DO                                                            
+                                                          
+            END IF
+        END IF
+    END IF
+
+END SUBROUTINE sqmibb2

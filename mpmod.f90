@@ -72,7 +72,7 @@ MODULE mpmod
     INTEGER(mpi) :: matrit=0  !< matrix calculation up to iteration MATRIT
     INTEGER(mpi) :: icalcm=0  !< calculation mode (for \ref xloopn "XLOOPN") , >0: calculate matrix
     INTEGER(mpi) :: numbit=1  !< number of bits for pair counters
-    INTEGER(mpi) :: nbndr =0  !< number of records with bordered band matrix for local fit
+    INTEGER(mpi), DIMENSION(2) :: nbndr =0  !< number of records with bordered band matrix for local fit (upper/left, lower/right)
     INTEGER(mpi) :: nbdrx =0  !< max border size for local fit
     INTEGER(mpi) :: nbndx =0  !< max band width for local fit
     INTEGER(mpi) :: nrecer=0  !< record with error (rank deficit or Not-a-Number) for printout
