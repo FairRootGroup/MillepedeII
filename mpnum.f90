@@ -2683,51 +2683,51 @@ SUBROUTINE sqmibb2(v,b,n,nbdr,nbnd,inv,nrank,vbnd,vbdr,aux,vbk,vzru,scdiag,scfla
             ELSE
                 CALL dbcinb(vbnd,mp1,nmb,v)
             END IF
-            !           assemble band and border 
-            IF (nbdr > 0) THEN 
-                ! band part                    
-                ip1=(nmb*nmb+nmb)/2                                               
-                DO i=nmb-1,0,-1                                                   
-                    j0=0                                                          
-                    IF (inv == 1) j0=MAX(0,i-nbnd)                                
-                    DO j=i,j0,-1                                                  
-                        ioff=1                                                    
-                        DO ib=1,nbdr                                              
-                            joff=1                                                
-                            DO jb=1,nbdr                                          
-                                ij=MAX(ib,jb)                                     
-                                ij=(ij*ij-ij)/2+MIN(ib,jb)                        
-                                v(ip1)=v(ip1)+vbk(ij)*aux(ioff+i)*aux(joff+j)     
-                                joff=joff+n                                       
-                            END DO                                                
-                            ioff=ioff+n                                           
-                        END DO                                                    
-                        ip1=ip1-1                                                 
-                    END DO                                                        
-                    ip1=ip1-j0
-                END DO                                                        
+            !           assemble band and border
+            IF (nbdr > 0) THEN
                 ! band part
                 ip1=(nmb*nmb+nmb)/2
-                ip=0                                               
+                DO i=nmb-1,0,-1
+                    j0=0
+                    IF (inv == 1) j0=MAX(0,i-nbnd)
+                    DO j=i,j0,-1
+                        ioff=1
+                        DO ib=1,nbdr
+                            joff=1
+                            DO jb=1,nbdr
+                                ij=MAX(ib,jb)
+                                ij=(ij*ij-ij)/2+MIN(ib,jb)
+                                v(ip1)=v(ip1)+vbk(ij)*aux(ioff+i)*aux(joff+j)
+                                joff=joff+n
+                            END DO
+                            ioff=ioff+n
+                        END DO
+                        ip1=ip1-1
+                    END DO
+                    ip1=ip1-j0
+                END DO
+                ! border part
+                ip1=(nmb*nmb+nmb)/2
+                ip=0
                 DO ib=1,nbdr
                     DO i=1,nmb
-                        ip1=ip1+1                                                       
-                        v(ip1)=0.0_mpd                                            
-                        joff=0                                                  
-                        DO jb=1,nbdr                                              
-                            ij=MAX(ib,jb)                                         
-                            ij=(ij*ij-ij)/2+MIN(ib,jb)                            
-                            v(ip1)=v(ip1)-vbk(ij)*aux(i+joff)                     
-                            joff=joff+n                                           
-                        END DO                                                    
+                        ip1=ip1+1
+                        v(ip1)=0.0_mpd
+                        joff=0
+                        DO jb=1,nbdr
+                            ij=MAX(ib,jb)
+                            ij=(ij*ij-ij)/2+MIN(ib,jb)
+                            v(ip1)=v(ip1)-vbk(ij)*aux(i+joff)
+                            joff=joff+n
+                        END DO
                     END DO
                     DO jb=1,ib
                         ip1=ip1+1
                         ip=ip+1
-                        v(ip1)=vbk(ip)                                                
-                    END DO                                                  
-                END DO                                                            
-                                                          
+                        v(ip1)=vbk(ip)
+                    END DO
+                END DO
+
             END IF
         END IF
     END IF

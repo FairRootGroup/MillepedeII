@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-10 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-11 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -2552,7 +2552,7 @@ SUBROUTINE ploopb(lunp)
                 iitera,istopa,chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
         ELSE
             CALL ptlopt(nfa,ma,slopes,steps)  ! slopes steps
-            ratae=ABS(slopes(2)/slopes(1))
+            ratae=MAX(-99.9,MIN(99.9,slopes(2)/slopes(1)))
             stepl=steps(2)
             WRITE(lunp,104) iterat,nloopn,fvalue,delfun,ratae,angras,  &
                 iitera,istopa,lsinfo,stepl, chicut,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
@@ -2598,11 +2598,16 @@ SUBROUTINE ploopc(lunp)
     deltim=rstb-rstart
     CALL sechms(deltim,nhour,minut,secnd) ! time
     nsecnd=nint(secnd,mpi)
-    CALL ptlopt(nfa,ma,slopes,steps)  ! slopes steps
-    ratae=ABS(slopes(2)/slopes(1))
-    stepl=steps(2)
-    WRITE(lunp,105) nloopn,fvalue, ratae,lsinfo,  &
-        stepl,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+    IF (lsinfo == 10) THEN ! line search skipped
+        WRITE(lunp,104) nloopn,fvalue,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+    ELSE
+        CALL ptlopt(nfa,ma,slopes,steps)  ! slopes steps
+        ratae=ABS(slopes(2)/slopes(1))
+        stepl=steps(2)
+        WRITE(lunp,105) nloopn,fvalue, ratae,lsinfo,  &
+           stepl,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+    END IF
+104 FORMAT(3X,i3,e12.5,9X, 35X, i7,  i3,i2.2,i2.2,a4)
 105 FORMAT(3X,i3,e12.5,9X,     f6.3,14X,i3,f6.3,6X, i7,  i3,i2.2,i2.2,a4)
     RETURN
 
