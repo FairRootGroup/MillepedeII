@@ -2253,6 +2253,8 @@ SUBROUTINE loopn
         WRITE(*,111) nparl,ncrit,usei,used,peaki,peakd
 111     FORMAT(' Write cache usage (#flush,#overrun,<levels>,',  &
             'peak(levels))'/2I7,',',4(f6.1,'%'))
+        ! fill second half (j>i) of global matric for extended storage
+        IF (mextnd > 0) CALL mhalf2()
     END IF
 
     ! check entries/counters
@@ -4019,9 +4021,9 @@ SUBROUTINE avprd0(n,x,b)
     ichunk=MIN((n+mthrd-1)/mthrd/8+1,1024)
     IF(matsto == 1) THEN
         ! full symmetric matrix
-         ! parallelize row loop
-         ! private copy of B(N) for each thread, combined at end, init with 0.
-         ! slot of 1024 'I' for next idle thread
+        ! parallelize row loop
+        ! private copy of B(N) for each thread, combined at end, init with 0.
+        ! slot of 1024 'I' for next idle thread
         !$OMP  PARALLEL DO &
         !$OMP  PRIVATE(J,IJ) &
         !$OMP  REDUCTION(+:B) &
@@ -4035,9 +4037,9 @@ SUBROUTINE avprd0(n,x,b)
                 b(i)=b(i)+globalMatD(ij+j)*x(j)
             END DO
         END DO
-       !$OMP END PARALLEL DO
+        !$OMP END PARALLEL DO
     ELSE
-          ! sparse, compressed matrix
+        ! sparse, compressed matrix
         IF(sparseMatrixOffsets(2,1) /= n+1) THEN
             CALL peend(24,'Aborted, vector/matrix size mismatch')
             STOP 'AVPRD0: mismatched vector and matrix'
@@ -4072,17 +4074,28 @@ SUBROUTINE avprd0(n,x,b)
                 lj=0
                 ku=((ku+1)*8)/9-1         ! number of regions (-1)
                 indid=indid+ku/8+1        ! skip group offsets
-                DO kl=0,ku
-                    jc=sparseMatrixColumns(indid+kl)
-                    j=ishft(jc,-iencdb)
-                    jn=IAND(jc, iencdm)
-                    DO jj=1,jn
-                        b(j)=b(j)+globalMatD(indij+lj)*x(i)
-                        b(i)=b(i)+globalMatD(indij+lj)*x(j)
-                        j=j+1
-                        lj=lj+1
+                IF (mextnd>0) THEN
+                    ! extended storage
+                    DO kl=0,ku
+                        jc=sparseMatrixColumns(indid+kl)
+                        j=ishft(jc,-iencdb)
+                        jn=IAND(jc, iencdm)
+                        b(i)=b(i)+dot_product(globalMatD(indij+lj:indij+lj+jn-1),x(j:j+jn-1))
+                        lj=lj+jn
+                    END DO    
+                ELSE
+                    DO kl=0,ku
+                        jc=sparseMatrixColumns(indid+kl)
+                        j=ishft(jc,-iencdb)
+                        jn=IAND(jc, iencdm)
+                        DO jj=1,jn
+                            b(j)=b(j)+globalMatD(indij+lj)*x(i)
+                            b(i)=b(i)+globalMatD(indij+lj)*x(j)
+                            j=j+1
+                            lj=lj+1
+                        END DO
                     END DO
-                END DO
+                END IF 
             END IF
 
             IF (nspc > 1) THEN
@@ -4107,18 +4120,31 @@ SUBROUTINE avprd0(n,x,b)
                         jc=sparseMatrixColumns(indid+kl)
                         j=ishft(jc,-iencdb)
                         jn=IAND(jc, iencdm)
-                        DO jj=1,jn
-                            b(j)=b(j)+REAL(globalMatF(indij+lj),mpd)*x(i)
-                            b(i)=b(i)+REAL(globalMatF(indij+lj),mpd)*x(j)
-                            j=j+1
-                            lj=lj+1
-                        END DO
+                        IF (mextnd>0) THEN
+                            ! extended storage
+                            DO jj=1,jn
+                                b(i)=b(i)+REAL(globalMatF(indij+lj),mpd)*x(j)
+                                j=j+1
+                                lj=lj+1
+                            END DO
+                         ELSE
+                            DO jj=1,jn
+                                b(j)=b(j)+REAL(globalMatF(indij+lj),mpd)*x(i)
+                                b(i)=b(i)+REAL(globalMatF(indij+lj),mpd)*x(j)
+                                j=j+1
+                                lj=lj+1
+                            END DO
+                        END IF       
                     END DO
                 END IF
             END IF
         END DO
         !$OMP END PARALLEL DO
+        !DO i=1,20
+        !    print *, ' b(i) ', i, sparseMatrixOffsets(2,i+1)-sparseMatrixOffsets(2,i), b(i)
+        !ENDDO
     ENDIF
+    !stop " debugging "
 
 END SUBROUTINE avprd0
 
@@ -4269,6 +4295,82 @@ FUNCTION ijadd(itema,itemb)      ! index using "d" and "z"
     END DO outer
 
 END FUNCTION ijadd
+
+!> Fill 2nd half of matrix for extended storage.
+!!
+
+SUBROUTINE mhalf2
+    USE mpmod
+
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ichunk
+    INTEGER(mpi) :: iencdb
+    INTEGER(mpi) :: iencdm
+    INTEGER(mpi) :: ir
+    INTEGER(mpi) :: ispc
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jtem
+    INTEGER(mpi) :: jtemc
+    INTEGER(mpi) :: jtemn
+    INTEGER(mpi) :: nd
+
+    INTEGER(mpl) :: ij
+    INTEGER(mpl) :: ijadd
+    INTEGER(mpl) :: k
+    INTEGER(mpl) :: kk
+    INTEGER(mpl) :: kl
+    INTEGER(mpl) :: ku
+    INTEGER(mpl) :: indid
+    INTEGER(mpl) :: ll
+    INTEGER(mpl) :: k8
+    !     ...
+
+    nd=INT(sparseMatrixOffsets(2,1),mpi)-1   ! dimension of matrix
+    ichunk=MIN((nd+mthrd-1)/mthrd/8+1,1024)
+
+    iencdb=nencdb                       ! encoding info
+    iencdm=ishft(1,iencdb)-1
+    DO ispc=1,nspc
+        ! parallelize row loop
+        ! slot of 1024 'I' for next idle thread
+        !$OMP PARALLEL DO &
+        !$OMP  PRIVATE(I,IR,K,KK,LL,KL,KU,K8,INDID,IJ,J,JTEMC,JTEM,JTEMN) &
+        !$OMP  SCHEDULE(DYNAMIC,ichunk)
+        DO i=1,nd
+            ir=i+(ispc-1)*(nd+1)
+            kk=sparseMatrixOffsets(1,ir) ! offset in 'd' (column lists)
+            ll=sparseMatrixOffsets(2,ir) ! offset in 'j' (matrix)
+            kl=sparseMatrixCompression(i+(ispc-1)*nd) ! number of regions in 1st half (j<i)
+                        
+            ku=sparseMatrixOffsets(1,ir+1)-kk
+            !IF (sparseMatrixColumns(kk) == 0) THEN     ! compression ?
+            ku=(ku*8)/9-1        ! number of regions (-1)
+            indid=kk+ku/8+1      ! index of first region (after group offsets)
+            k8=kl/8                           ! region group (-1)
+            ll=ll+sparseMatrixColumns(kk+k8)  ! offset for group of (8) regions
+            DO k=k8*8,kl-1
+                ll=ll+IAND(sparseMatrixColumns(indid+k),iencdm) ! add region lengths
+            END DO
+            DO k=kl,ku
+                jtemc=sparseMatrixColumns(indid+k)              ! compressed information
+                jtem =ishft(jtemc,-iencdb)     ! first column of region
+                jtemn=jtem+IAND(jtemc,iencdm)  ! first column after region
+                DO j=jtem,jtemn-1
+                   ij=ijadd(i,j)
+                   IF (ispc==1) THEN
+                       globalMatD(ll)=globalMatD(ij)
+                   ELSE
+                       globalMatF(ll)=globalMatF(-ij)
+                   END IF 
+                   ll=ll+1
+                END DO
+            END DO
+        END DO
+        !$OMP END PARALLEL DO
+    END DO
+
+END SUBROUTINE mhalf2
 
 !> Time conversion.
 !!
@@ -4913,7 +5015,6 @@ SUBROUTINE loop2
     INTEGER(mpi) :: j
     INTEGER(mpi) :: ja
     INTEGER(mpi) :: jb
-    INTEGER(mpi) :: jcmprs
     INTEGER(mpi) :: jext
     INTEGER(mpi) :: jsp
     INTEGER(mpi) :: k
@@ -4974,14 +5075,12 @@ SUBROUTINE loop2
     INTEGER(mpi) :: maxEquations = 0
 
     INTERFACE ! needed for assumed-shape dummy arguments
-        SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
+        SUBROUTINE ndbits(ndims,ncmprs,nsparr,ihst)
             USE mpdef
             INTEGER(mpl), DIMENSION(4), INTENT(OUT) :: ndims
             INTEGER(mpi), DIMENSION(:), INTENT(OUT) :: ncmprs
             INTEGER(mpl), DIMENSION(:,:), INTENT(OUT) :: nsparr
-            INTEGER(mpi), INTENT(IN) :: mnpair
             INTEGER(mpi), INTENT(IN) :: ihst
-            INTEGER(mpi), INTENT(IN) :: jcmprs
         END SUBROUTINE ndbits
         SUBROUTINE spbits(nsparr,nsparc,ncmprs)
             USE mpdef
@@ -5086,8 +5185,7 @@ SUBROUTINE loop2
     !     read all data files and add all variable index pairs -------------
 
     IF(matsto == 2) THEN
-        IF (mcmprs /= 0) numbit=MAX(numbit,2)  ! identify single entries for compression
-        CALL clbits(nagb,ndimbi,nencdb,numbit) ! get dimension for bit storage, encoding info
+        CALL clbits(nagb,mreqpe,mhispe,msngpe,mcmprs,mextnd,ndimbi,nencdb,nspc) ! get dimension for bit storage, encoding, precision info
     END IF
     
     IF (imonit /= 0) THEN
@@ -5304,8 +5402,7 @@ SUBROUTINE loop2
                         '(float)       [%]       [GB]'
                 END IF
                 nmatmo=nmatmo+1
-                jcmprs=MAX(mcmprs,msngpe+1)
-                CALL ckbits(ndimsa,mreqpe,jcmprs)
+                CALL ckbits(ndimsa)
                 gbc=1.0E-9*REAL((mpi*ndimsa(2)+mpd*ndimsa(3)+mps*ndimsa(4))/mpi*(BIT_SIZE(1_mpi)/8),mps) ! GB compressed
                 gbu=1.0E-9*REAL(((mpi+mpd)*(ndimsa(3)+ndimsa(4)))/mpi*(BIT_SIZE(1_mpi)/8),mps)             ! GB uncompressed
                 cpr=100.0*gbc/gbu
@@ -5419,7 +5516,6 @@ SUBROUTINE loop2
         noff=INT(noff8,mpi)
     END IF
     ndgn=0
-    nspc=1 ! number of precision types (double, single) for matrix storage
     matwords=0
     IF(matsto == 2) THEN
         ihis=0
@@ -5427,15 +5523,12 @@ SUBROUTINE loop2
             ihis=15
             CALL hmpdef(ihis,0.0,REAL(mhispe,mps), 'NDBITS: #off-diagonal elements')
         END IF
-        jcmprs=MAX(mcmprs,msngpe+1)
-        IF (jcmprs > 0.AND.numbit > 1) nspc=2 ! mixed precision storage
         length=nagb*nspc
-        CALL mpalloc(sparseMatrixCompression,length,'INBITS: row compression')
+        CALL mpalloc(sparseMatrixCompression,length, 'sparse matrix row compression')
         sparseMatrixCompression=0
         length=(nagb+1)*nspc
         CALL mpalloc(sparseMatrixOffsets,two,length, 'sparse matrix row offsets')
-        CALL ndbits(ndimsa,sparseMatrixCompression,sparseMatrixOffsets,  &
-            mreqpe,ihis,jcmprs)
+        CALL ndbits(ndimsa,sparseMatrixCompression,sparseMatrixOffsets,ihis)
         ndgn=ndimsa(3)+ndimsa(4) ! actual number of off-diagonal elements
         matwords=ndimsa(2)+length ! size of sparsity structure
     
@@ -5564,6 +5657,7 @@ SUBROUTINE loop2
         ELSE IF(matsto == 2) THEN
             WRITE(lu,*) '     MATSTO = 2:  sparse matrix'
         END IF
+        IF(mextnd>0) WRITE(lu,*) '                  with extended storage'
         IF(dflim /= 0.0) THEN
             WRITE(lu,103) 'Convergence assumed, if expected dF <',dflim
         END IF
@@ -7723,7 +7817,6 @@ SUBROUTINE intext(text,nline)
     INTEGER(mpi) :: i
     INTEGER(mpi) :: ia
     INTEGER(mpi) :: ib
-    INTEGER(mpi) :: icount
     INTEGER(mpi) :: ier
     INTEGER(mpi) :: iomp
     INTEGER(mpi) :: k
@@ -7732,7 +7825,6 @@ SUBROUTINE intext(text,nline)
     INTEGER(mpi) :: lkey
     INTEGER(mpi) :: mat
     INTEGER(mpi) :: miter
-    INTEGER(mpi) :: mxcnt
     INTEGER(mpi) :: nab
     INTEGER(mpi) :: nkey
     INTEGER(mpi) :: nkeys
@@ -8127,7 +8219,15 @@ SUBROUTINE intext(text,nline)
             mcmprs=1
             RETURN
         END IF
-  
+        
+        keystx='extendedStorage'
+        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        IF(mat >= (npat-npat/5)) THEN
+            mextnd=1
+            ! compression enforced for extended storage (in mpbits)
+            RETURN
+        END IF
+          
         keystx='errlabels'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
         IF(mat >= (npat-npat/5).AND.mnrsel < 100) THEN
@@ -8147,17 +8247,7 @@ SUBROUTINE intext(text,nline)
             IF (nums > 0.AND.dnum(1) > 0.0) THEN
                 mreqpe=NINT(dnum(1),mpi)
                 IF (nums >= 2.AND.dnum(2) >= dnum(1)) mhispe=NINT(dnum(2),mpi)
-                IF (nums >= 3.AND.dnum(3) > 0.0) msngpe=NINT(dnum(3),mpi)
-                icount=MAX(msngpe+1,mhispe)
-                icount=MAX(mreqpe,icount)
-                numbit=1 ! number of bits needed to count up to ICOUNT
-                mxcnt=2
-                DO k=1,30
-                    IF (icount >= mxcnt) THEN
-                        numbit=numbit+1
-                        mxcnt=mxcnt*2
-                    END IF
-                END DO
+                IF (nums >= 3.AND.dnum(3) >= dnum(1)) msngpe=NINT(dnum(3),mpi)
             END IF
             RETURN
         END IF

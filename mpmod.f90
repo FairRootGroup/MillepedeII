@@ -71,7 +71,6 @@ MODULE mpmod
     REAL(mps)    :: regpre=0.0!< default presigma
     INTEGER(mpi) :: matrit=0  !< matrix calculation up to iteration MATRIT
     INTEGER(mpi) :: icalcm=0  !< calculation mode (for \ref xloopn "XLOOPN") , >0: calculate matrix
-    INTEGER(mpi) :: numbit=1  !< number of bits for pair counters
     INTEGER(mpi), DIMENSION(2) :: nbndr =0  !< number of records with bordered band matrix for local fit (upper/left, lower/right)
     INTEGER(mpi) :: nbdrx =0  !< max border size for local fit
     INTEGER(mpi) :: nbndx =0  !< max band width for local fit
@@ -81,6 +80,7 @@ MODULE mpmod
     INTEGER(mpi) :: mhispe=0  !< upper bound for pair entry histogrammimg
     INTEGER(mpi) :: msngpe=-1 !< upper bound for pair entry single precision storage
     INTEGER(mpi) :: mcmprs=0  !< compression flag for sparsity (column indices)
+    INTEGER(mpi) :: mextnd=0  !< flag for extended storage (both 'halves' of sym. mat. for improved access patterns)
     INTEGER(mpi) :: mthrd =1  !< number of (OpenMP) threads
     INTEGER(mpi) :: mxrec =0  !< max number of records
     INTEGER(mpi) :: matmon=0  !< record interval for monitoring of (sparse) matrix construction
@@ -143,7 +143,7 @@ MODULE mpmod
     INTEGER(mpi) :: nmiss1=0 !< rank deficit for constraints
     INTEGER(mpi) :: nalow=0 !< (sum of) global parameters with too few accepted entries
     INTEGER(mpi) :: lcalcm !< last calclation mode
-    INTEGER(mpi) :: nspc   !< number of precision for sparse global matrix (1=D, 2=D+F)
+    INTEGER(mpi) :: nspc=1 !< number of precision for sparse global matrix (1=D, 2=D+F)
     INTEGER(mpi) :: nencdb !< encoding info (number bits for column counter)
     INTEGER(mpi) :: numMeas !< number of measurement groups for monitoring
     REAL(mpd), PARAMETER :: measBinSize=0.1 !< bins size for monitoring 

@@ -1443,7 +1443,7 @@ SUBROUTINE dbprv(lun,v,n)
         ip =ips
 100 CONTINUE
     ipn=ip+istp
-    WRITE(lun,102), i, ip+1-ips, (v(k),k=ip+1,MIN(ipn,ipe))
+    WRITE(lun,102) i, ip+1-ips, (v(k),k=ip+1,MIN(ipn,ipe))
     IF (ipn < ipe) THEN
         ip=ipn
         GO TO 100

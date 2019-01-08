@@ -37,6 +37,11 @@ MODULE mpbits
     INTEGER(mpl) :: ndimb !< dimension for bit (field) array
     INTEGER(mpi) :: n      !< matrix size
     INTEGER(mpi) :: ibfw   !< bit field width
+    INTEGER(mpi) :: ireqpe !< min number of pair entries
+    INTEGER(mpi) :: isngpe !< upper bound for pair entry single precision storage
+    INTEGER(mpi) :: icmprs !< compression flag for sparsity (column indices)
+    INTEGER(mpi) :: iextnd !< flag for extended storage (both 'halves' of sym. mat. for improved access patterns)
+    INTEGER(mpi) :: nspc   !< number of precision for sparse global matrix (1=D, 2=D+f)
     INTEGER(mpi) :: mxcnt  !< max value for bit field counters
     INTEGER(mpi) :: nencdm !< max value for column counter
     INTEGER(mpi) :: nencdb !< number of bits for encoding column counter
@@ -125,28 +130,57 @@ END SUBROUTINE inbits
 !> Calculate bit (field) array size, encoding.
 !!
 !! \param [in]    in        matrix size
+!! \param [in]    jreqpe    min number of pair entries
+!! \param [in]    jhispe    mupper bound for pair entry histogrammimg
+!! \param [in]    jsngpe    upper bound for pair entry single precision storage
+!! \param [in]    jcmprs    compression flag for sparsity (column indices)
+!! \param [in]    jextnd    flag for extended storage
 !! \param [out]   idimb     dimension for bit (field) array
 !! \param [out]   iencdb    number of bits for encoding column counter
-!! \param [in]    jbfw      bit field width
+!! \param [out]   ispc      number of precision for sparse global matrix
 !!
-SUBROUTINE clbits(in,idimb,iencdb,jbfw)
+SUBROUTINE clbits(in,jreqpe,jhispe,jsngpe,jcmprs,jextnd,idimb,iencdb,ispc)
     USE mpbits
     USE mpdalc
 
     INTEGER(mpi), INTENT(IN) :: in
+    INTEGER(mpi), INTENT(IN) :: jreqpe
+    INTEGER(mpi), INTENT(IN) :: jhispe
+    INTEGER(mpi), INTENT(IN) :: jsngpe
+    INTEGER(mpi), INTENT(IN) :: jcmprs
+    INTEGER(mpi), INTENT(IN) :: jextnd
     INTEGER(mpl), INTENT(OUT) :: idimb
     INTEGER(mpi), INTENT(OUT) :: iencdb
-    INTEGER(mpi), INTENT(IN) :: jbfw
+    INTEGER(mpi), INTENT(OUT) :: ispc
 
     INTEGER(mpl) :: noffd
     INTEGER(mpi) :: i
+    INTEGER(mpi) :: icount
     INTEGER(mpi) :: mb
     INTEGER(mpi) :: nbcol
     !$    INTEGER(mpi) :: OMP_GET_MAX_THREADS
-
+    ! save input parameter 
     n=in
-    ibfw=jbfw
-    mxcnt=2**ibfw-1
+    ireqpe=jreqpe
+    isngpe=jsngpe
+    icmprs=jcmprs+jextnd ! enforce compression for extended storage
+    iextnd=jextnd
+    ! number of precision types (D, F)
+    ispc=1
+    if (jsngpe>0) ispc=2
+    nspc = ispc
+    ! bit field size
+    icount=MAX(jsngpe+1,jhispe)
+    icount=MAX(jreqpe,icount)
+    ibfw=1 ! number of bits needed to count up to ICOUNT
+    mxcnt=1
+    DO i=1,30
+        IF (icount > mxcnt) THEN
+            ibfw=ibfw+1
+            mxcnt=mxcnt*2+1
+        END IF
+    END DO
+    ! bit field array size
     noffd=INT(n,mpl)*INT(n-1,mpl)*INT(ibfw,mpl)/2
     ndimb=noffd/bs+n
     idimb=ndimb
@@ -171,6 +205,7 @@ SUBROUTINE clbits(in,idimb,iencdb,jbfw)
     nencdm=ishft(1,nencdb)-1
     nthrd=1
     !$ NTHRD=OMP_GET_MAX_THREADS()
+    print *, ' <<< inbits ', idimb,iencdb,ispc
     RETURN
 END SUBROUTINE clbits
 
@@ -180,19 +215,15 @@ END SUBROUTINE clbits
 !!                          (3/4): number of (double/single precision) off diagonal elements;
 !! \param[out]     ncmprs  compression info (per row)
 !! \param[out]     nsparr  row offsets
-!! \param[in]      mnpair  min. entries for pair
 !! \param[in]      ihst    >0: histogram number
-!! \param[in]      jcmprs  <>0: compress row information (column indices)
 !!
-SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
+SUBROUTINE ndbits(ndims,ncmprs,nsparr,ihst)
     USE mpbits
 
     INTEGER(mpl), DIMENSION(4), INTENT(OUT) :: ndims
     INTEGER(mpi), DIMENSION(:), INTENT(OUT) :: ncmprs
     INTEGER(mpl), DIMENSION(:,:), INTENT(OUT) :: nsparr
-    INTEGER(mpi), INTENT(IN) :: mnpair
     INTEGER(mpi), INTENT(IN) :: ihst
-    INTEGER(mpi), INTENT(IN) :: jcmprs
 
     INTEGER(mpi) :: nwcp(0:1)
     INTEGER(mpi) :: irgn(2)
@@ -200,22 +231,19 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
     INTEGER(mpi) :: ichunk
     INTEGER(mpi) :: i
     INTEGER(mpi) :: j
-    INTEGER(mpi) :: jb
     INTEGER(mpi) :: m
     INTEGER(mpi) :: last
     INTEGER(mpi) :: lrgn
     INTEGER(mpi) :: next
     INTEGER(mpi) :: icp
-    INTEGER(mpi) :: kbfw
     INTEGER(mpi) :: mm
     INTEGER(mpi) :: jp
-    INTEGER(mpi) :: icmprs
     INTEGER(mpi) :: nj
     INTEGER(mpi) :: ib
     INTEGER(mpi) :: ir
     INTEGER(mpi) :: icount
     INTEGER(mpi) :: iproc
-    INTEGER(mpi) :: jbfw
+    INTEGER(mpi) :: iword
     INTEGER(mpi) :: k
     INTEGER(mpi) :: mb
     INTEGER(mpi) :: n1
@@ -229,46 +257,42 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
     REAL(mps) :: fracz
     LOGICAL :: btest
     !$    INTEGER(mpi) :: OMP_GET_THREAD_NUM
+
     ndims(1)=ndimb
     ndims(2)=0
     ndims(3)=0
     ndims(4)=0
     ntot=0
-    icmprs=jcmprs
-    !     reduce bit field counters to bits
-    kbfw=1
     ll=0
     lb=0
     ichunk=MIN((n+nthrd-1)/nthrd/32+1,256)
-    IF (ibfw > 1.OR.icmprs /= 0) THEN
-        IF (ibfw > 1.AND.icmprs > 0) kbfw=2 ! need to tag single precision entries
-        jbfw=kbfw ! temp. bit field width
-        IF (nthrd > 1) jbfw=ibfw ! don't mix rows in bitFieldCounters
+    IF (ibfw > 1.OR.icmprs > 0) THEN
+        ! reduce bit field counters to (precision type) bits, analyze precision type bit fields ('1st half' (j<i))
+
         ! parallelize row loop
-        ! private copy of NDIMS,NTOT for each thread, combined at end, init with 0.
+        ! private copy of NTOT for each thread, combined at end, init with 0.
         !$OMP  PARALLEL DO &
-        !$OMP  PRIVATE(I,LL,MM,LB,MB,INR,IRGN,LAST,LRGN, &
-        !$OMP          J,ICOUNT,NEXT,IB,ICP,NWCP,JB,JP,IR) &
-        !$OMP  REDUCTION(+:NDIMS,NTOT) &
+        !$OMP  PRIVATE(I,NOFFI,LL,MM,LB,MB,IWORD,IPROC,J,ICOUNT,IB,INR,IRGN,LAST,LRGN,NEXT,JP,IR) &
+        !$OMP  REDUCTION(+:NTOT) &
         !$OMP  SCHEDULE(DYNAMIC,ICHUNK)
         DO i=1,n
             noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(ibfw,mpl)/2
             ll=noffi/bs+i
             mm=0
-            noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(jbfw,mpl)/2
-            lb=noffi/bs+i
+            lb=ll
             mb=0
+            iword=0 ! temporary bit fields
+            iproc=0
+            !$ IPROC=OMP_GET_THREAD_NUM()         ! thread number
             inr(1)=0
             inr(2)=0
             irgn(1)=0
             irgn(2)=0
             last=0
             lrgn=0
-            iproc=0
-            !$ IPROC=OMP_GET_THREAD_NUM()         ! thread number
 
             DO j=1,i-1
-
+                ! get (pair) counter
                 icount=0
                 next=0
                 DO ib=0,ibfw-1
@@ -279,60 +303,123 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
                         mm=mm-bs
                     END IF
                 END DO
-                DO jb=0,kbfw-1
-                    bitFieldCounters(lb)=ibclr(bitFieldCounters(lb),mb+jb)
-                END DO
 
                 IF (icount > 0) THEN
                     ntot=ntot+1
                     IF (iproc == 0.AND.ihst > 0) CALL hmpent(ihst,REAL(icount,mps))
                 END IF
-                !              keep pair ?
-                IF (icount >= mnpair) THEN
+
+                ! keep pair ?
+                IF (icount >= ireqpe) THEN
                     next=1 ! double
-                    IF (icount < icmprs.AND.icmprs > 0) next=2 ! single
+                    IF (icount <= isngpe) next=2 ! single
+                    iword=ibset(iword,mb+next-1)
                     inr(next)=inr(next)+1
-                    bitFieldCounters(lb)=ibset(bitFieldCounters(lb),mb+next-1)
                     IF (next /= last.OR.lrgn >= nencdm) THEN
                         irgn(next)=irgn(next)+1
                         lrgn=0
                     END IF
                     lrgn=lrgn+1
                 END IF
-                mb=mb+kbfw
+                last=next
+
+                mb=mb+nspc
                 IF (mb >= bs) THEN
+                    bitFieldCounters(lb)=iword ! store
+                    iword=0
                     lb=lb+1
                     mb=mb-bs
                 END IF
-                last=next
             END DO
+            bitFieldCounters(lb)=iword ! store
 
-            DO jp=1,kbfw
-                icp=0
-                nwcp(0)=inr(jp)                       ! list of column indices (default)
-                IF (inr(jp) > 0) THEN
-                    nwcp(1)=irgn(jp)+(irgn(jp)+7)/8    ! list of regions of consecutive columns
-                    !                 compress row ?
-                    IF (nwcp(1) < nwcp(0).AND.icmprs /= 0) THEN
-                        icp=1
-                        ncmprs(i+n*(jp-1))=irgn(jp)
+            ! save row statistics
+            ir=i+1
+            DO jp=1,nspc
+                nsparr(1,ir)=irgn(jp)    ! number of regions per row and precision
+                nsparr(2,ir)=inr(jp)     ! number of columns per row and precision
+                ir=ir+n+1
+            END DO
+        END DO
+
+        ! analyze precision type bit fields for extended storage, check for row compression
+
+        ! parallelize row loop
+        ! private copy of NDIMS for each thread, combined at end, init with 0.
+        !$OMP  PARALLEL DO &
+        !$OMP  PRIVATE(I,NOFFI,NOFFJ,LL,MM,INR,IRGN,LAST,LRGN,J,NEXT,ICP,NWCP,JP,IR,IB) &
+        !$OMP  REDUCTION(+:NDIMS) &
+        !$OMP  SCHEDULE(DYNAMIC,ICHUNK)
+        DO i=1,n
+            ! restore row statistics
+            irgn(1)=INT(nsparr(1,i+1),mpi)
+            irgn(2)=INT(nsparr(1,i+n+2),mpi)
+            inr(1)=INT(nsparr(2,i+1),mpi)
+            inr(2)=INT(nsparr(2,i+n+2),mpi)
+
+            ! analyze precision type bit fields for extended storage ('2nd half' (j>i) too) ?
+            IF (iextnd > 0) THEN
+
+                noffj=(i-1)*nspc
+                mm=MOD(noffj,bs)
+
+                last=0
+                lrgn=0
+
+                ! remaining columns
+                DO j=i+1, n
+                    ! index for pair (J,I)
+                    noffi=INT(j-1,mpl)*INT(j-2,mpl)*INT(ibfw,mpl)/2 ! for I=1
+                    ll=noffi/bs+j+noffj/bs ! row offset + column offset
+
+                    ! get precision type
+                    next=0
+                    DO ib=0,nspc-1
+                        IF (btest(bitFieldCounters(ll),mm+ib)) next=ibset(next,ib)
+                    END DO
+
+                    ! keep pair ?
+                    IF (next > 0) THEN
+                        inr(next)=inr(next)+1
+                        IF (next /= last.OR.lrgn >= nencdm) THEN
+                            irgn(next)=irgn(next)+1
+                            lrgn=0
+                        END IF
+                        lrgn=lrgn+1
                     END IF
+                    last=next
+                END DO
+            END IF
+
+            ! row statistics, compression
+            ir=i+1
+            DO jp=1,nspc
+                icp=0
+                nwcp(0)=inr(jp)                        ! list of column indices (default)
+                IF (inr(jp) > 0) THEN
+                    nwcp(1)=irgn(jp)+(irgn(jp)+7)/8    ! list of regions of consecutive columns (and group offsets)
+                    ! compress row ?
+                    IF ((nwcp(1) < nwcp(0).AND.icmprs > 0).OR.iextnd > 0) THEN
+                        icp=1
+                        ncmprs(i+n*(jp-1))=irgn(jp)    ! number of regions per row and precision
+                    END IF
+                    ! total space
                     ndims(2)   =ndims(2)   +nwcp(icp)
                     ndims(jp+2)=ndims(jp+2)+nwcp(0)
                 END IF
-                ir=i+(n+1)*(jp-1)
-                nsparr(1,ir+1)=nwcp(icp)
-                nsparr(2,ir+1)=nwcp(0)
+                ! per row and precision
+                nsparr(1,ir)=nwcp(icp)
+                nsparr(2,ir)=nwcp(0)
+                ir=ir+n+1
             END DO
-
         END DO
-
         !$OMP END PARALLEL DO
-        !        sum up, fill row offsets
+
+        ! sum up, fill row offsets
         lb=1
         n1=0
         ll=n+1
-        DO jp=1,kbfw
+        DO jp=1,nspc
             DO i=1,n
                 n1=n1+1
                 nsparr(1,n1)=lb
@@ -346,24 +433,6 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
             ll=1
         END DO
 
-        IF (jbfw /= kbfw) THEN ! move bit fields
-            DO i=1,n
-                noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(jbfw,mpl)/2
-                ll=noffi/bs+i
-                noffi=INT(i-1,mpl)*INT(i-2,mpl)*INT(kbfw,mpl)/2
-                lb=noffi/bs+i
-                nj=((i-1)*kbfw)/bs
-                DO k=0,nj
-                    bitFieldCounters(lb+k)=bitFieldCounters(ll+k)
-                END DO
-            END DO
-        END IF
-
-        ibfw=kbfw
-        noffi=INT(n,mpl)*INT(n-1,mpl)*INT(ibfw,mpl)/2
-        ndimb=noffi/bs+n
-        ndims(1)=ndimb
-
     ELSE
 
         nin=0
@@ -373,7 +442,7 @@ SUBROUTINE ndbits(ndims,ncmprs,nsparr,mnpair,ihst,jcmprs)
         DO i=1,n
             noffi=INT(i-1,mpl)*INT(i-2,mpl)/2
             ll=noffi/bs+i
-            nj=((i-1)*kbfw)/bs
+            nj=(i-1)/bs
             DO k=0,nj
                 DO m=0,bs-1
                     IF(btest(bitFieldCounters(ll+k),m)) nin=nin+1
@@ -409,15 +478,11 @@ END SUBROUTINE ndbits
 !!
 !! \param [out]    ndims   (1): (reduced) size of bit array; (2): size of column lists;
 !!                         (3/4): number of (double/single precision) off diagonal elements;
-!! \param[in]      mnpair  min. entries for pair
-!! \param[in]      jcmprs  <>0: compress row information (column indices)
 !!
-SUBROUTINE ckbits(ndims,mnpair,jcmprs)
+SUBROUTINE ckbits(ndims)
     USE mpbits
 
     INTEGER(mpl), DIMENSION(4), INTENT(OUT) :: ndims
-    INTEGER(mpi), INTENT(IN) :: mnpair
-    INTEGER(mpi), INTENT(IN) :: jcmprs
 
     INTEGER(mpi) :: nwcp(0:1)
     INTEGER(mpi) :: irgn(2)
@@ -432,7 +497,6 @@ SUBROUTINE ckbits(ndims,mnpair,jcmprs)
     INTEGER(mpi) :: icp
     INTEGER(mpi) :: ib
     INTEGER(mpi) :: icount
-    INTEGER(mpi) :: icmprs
     INTEGER(mpi) :: kbfw
     INTEGER(mpi) :: jp
     INTEGER(mpi) :: mm
@@ -441,7 +505,6 @@ SUBROUTINE ckbits(ndims,mnpair,jcmprs)
     DO i=1,4
         ndims(i)=0
     END DO
-    icmprs=jcmprs
     kbfw=1
     IF (ibfw > 1.AND.icmprs > 0) kbfw=2
     ll=0
@@ -470,9 +533,9 @@ SUBROUTINE ckbits(ndims,mnpair,jcmprs)
 
             IF (icount > 0) ndims(1)=ndims(1)+1
             !           keep pair ?
-            IF (icount >= mnpair) THEN
+            IF (icount >= ireqpe) THEN
                 next=1 ! double
-                IF (icount <= icmprs.AND.icmprs > 0) next=2 ! single
+                IF (icount <= isngpe) next=2 ! single
                 inr(next)=inr(next)+1
                 IF (next /= last.OR.lrgn >= nencdm) THEN
                     irgn(next)=irgn(next)+1
@@ -483,14 +546,14 @@ SUBROUTINE ckbits(ndims,mnpair,jcmprs)
             last=next
         END DO
 
-        IF (icmprs /= 0) THEN
+        IF (icmprs > 0) THEN
             DO jp=1,kbfw
                 IF (inr(jp) > 0) THEN
                     icp=0
                     nwcp(0)=inr(jp)                    ! list of column indices (default)
                     nwcp(1)=irgn(jp)+(irgn(jp)+7)/8    ! list of regions of consecutive columns
                     !                 compress row ?
-                    IF (nwcp(1) < nwcp(0)) icp=1
+                    IF (nwcp(1) < nwcp(0).OR. iextnd > 0) icp=1
                     ndims(2)   =ndims(2)   +nwcp(icp)
                     ndims(jp+2)=ndims(jp+2)+nwcp(0)
                 END IF
@@ -509,7 +572,7 @@ END SUBROUTINE ckbits
 !!
 !! \param[in ]    nsparr  row offsets
 !! \param[out]    nsparc  column indices
-!! \param[in]     ncmprs  compression info (per row)
+!! \param[in,out] ncmprs  compression info (per row, in: number of all regions, out: number of regions in 1st half (for accessing 2nd half))
 !!
 SUBROUTINE spbits(nsparr,nsparc,ncmprs)               ! collect elements
     USE mpbits
@@ -517,7 +580,7 @@ SUBROUTINE spbits(nsparr,nsparc,ncmprs)               ! collect elements
 
     INTEGER(mpl), DIMENSION(:,:), INTENT(IN) :: nsparr
     INTEGER(mpi), DIMENSION(:), INTENT(OUT) :: nsparc
-    INTEGER(mpi), DIMENSION(:), INTENT(IN) :: ncmprs
+    INTEGER(mpi), DIMENSION(:), INTENT(INOUT) :: ncmprs
 
     INTEGER(mpl) :: kl
     INTEGER(mpl) :: l
@@ -542,11 +605,10 @@ SUBROUTINE spbits(nsparr,nsparc,ncmprs)               ! collect elements
 
     ichunk=MIN((n+nthrd-1)/nthrd/32+1,256)
 
-    DO jb=0,ibfw-1
+    DO jb=0,nspc-1
         ! parallelize row loop
         !$OMP  PARALLEL DO &
-        !$OMP  PRIVATE(I,N1,NOFFI,L,M,KL,L1,NRGN,NRGN8,K8, &
-        !$OMP          LAST,LRGN,LL,J1,JN,J,NEXT) &
+        !$OMP  PRIVATE(I,N1,NOFFI,NOFFJ,L,M,KL,L1,NRGN,NRGN8,K8,LAST,LRGN,LL,J1,JN,J,NEXT) &
         !$OMP  SCHEDULE(DYNAMIC,ICHUNK)
         DO i=1,n
             n1=i+jb*(n+1)
@@ -591,13 +653,51 @@ SUBROUTINE spbits(nsparr,nsparc,ncmprs)               ! collect elements
                     END IF
                 END IF
                 last=next
-                m=m+ibfw
+                m=m+nspc
                 IF (m >= bs) THEN
                     m=m-bs
                     l=l+1
                 END IF
-
             END DO
+
+            ! extended storage ('2nd half' too) ?
+            IF (iextnd > 0) THEN
+                noffj=(i-1)*nspc
+                m=MOD(noffj,bs)+jb
+                last=0
+                ncmprs(i+n*jb)=lrgn ! remember number of regions in 1st half (j<i)
+                ! remaining columns
+                DO j=i+1, n
+                    ! index for pair (J,I)
+                    noffi=INT(j-1,mpl)*INT(j-2,mpl)*INT(ibfw,mpl)/2 ! for I=1
+                    l=noffi/bs+j+noffj/bs ! row offset + column offset
+                    next=0
+                    IF(btest(bitFieldCounters(l),m)) THEN
+                        ll=ll+1
+                        IF (nrgn <= 0) THEN
+                            kl=kl+1
+                            nsparc(kl)=j ! column index
+                        ELSE
+                            next=1
+                            IF (last == 0.OR.jn >= nencdm) THEN
+                                IF (MOD(lrgn,8) == 0) THEN
+                                    k8=k8+1
+                                    nsparc(k8)=INT(ll-l1,mpi)
+                                END IF
+                                lrgn=lrgn+1
+                                kl=kl+1
+                                j1=ishft(j,nencdb)
+                                jn=0
+                            END IF
+                            jn=jn+1
+                            nsparc(kl)=ior(j1,jn)
+                        END IF
+                    END IF
+                    last=next
+
+                END DO
+            END IF
+
         END DO
     !$OMP END PARALLEL DO
 
