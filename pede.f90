@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-03-11 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-04-00 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -104,6 +104,9 @@
 !!   files, proper exit code (3) for 'function not decreasing'.
 !! * 180815: Some minor fixes, additional level of detail (appearance range of global
 !!   parameters in binary files) for \ref cmd-checkinput mode.
+!! * 190319: Constraints are now sorted and split into disjoint blocks to speed up
+!!   calculation of rank and QL decomposition by block matrix algebra.
+!!   This works best if the label sets of the involved alignable objects are disjoint too.
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -1167,6 +1170,8 @@ SUBROUTINE addcst
     INTEGER(mpi) :: irhs
     INTEGER(mpi) :: itgbi
     INTEGER(mpi) :: ivgb
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jcgb
     INTEGER(mpi) :: l
     INTEGER(mpi) :: label
     INTEGER(mpi) :: nop
@@ -1182,29 +1187,26 @@ SUBROUTINE addcst
     climit=1.0E-5         ! limit for printout
     irhs=0 ! number of values in DRHS(.), to be printed
 
-    i=1
-    DO icgb=1,ncgb
+    DO jcgb=1,ncgb
+        icgb=matConsSort(3,jcgb) ! unsorted constraint index
+        i=vecConsStart(icgb)
         rhs=listConstraints(i  )%value ! right hand side
         sgm=listConstraints(i+1)%value ! sigma parameter
-        i=i+2
-        DO
-            label=listConstraints(i)%label
-            factr=listConstraints(i)%value
+        DO j=i+2,vecConsStart(icgb+1)-1
+            label=listConstraints(j)%label
+            factr=listConstraints(j)%value
             itgbi=inone(label) ! -> ITGBI= index of parameter label
             ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
   
             IF(icalcm == 1.AND.nagb > nvgb.AND.ivgb > 0) THEN
-                CALL mupdat(nvgb+icgb,ivgb,factr) ! add to matrix
+                CALL mupdat(nvgb+jcgb,ivgb,factr) ! add to matrix
             END IF
   
             rhs=rhs-factr*globalParameter(itgbi)     ! reduce residuum
-            i=i+1
-            IF(i > lenConstraints) EXIT
-            IF(listConstraints(i)%label == 0) EXIT
         END DO
         IF(ABS(rhs) > climit) THEN
             irhs=irhs+1
-            idrh(irhs)=icgb
+            idrh(irhs)=jcgb
             drhs(irhs)=rhs
             nop=1
             IF(irhs == 4) THEN
@@ -1212,8 +1214,8 @@ SUBROUTINE addcst
                 irhs=0
             END IF
         END IF
-        vecConsResiduals(icgb)=rhs
-        IF (nagb > nvgb) globalVector(nvgb+icgb)=rhs
+        vecConsResiduals(jcgb)=rhs
+        IF (nagb > nvgb) globalVector(nvgb+jcgb)=rhs
     END DO
 
     IF(irhs /= 0) THEN
@@ -1224,6 +1226,190 @@ SUBROUTINE addcst
 101 FORMAT('            ',4(i4,g11.3))
 102 FORMAT(a,g11.2,a)
 END SUBROUTINE addcst
+
+!> Prepare constraints.
+!!
+!! Count, sort constraints and split into disjoint blocks.
+
+SUBROUTINE prpcon
+    USE mpmod
+    USE mpdalc
+
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: icgb
+    INTEGER(mpi) :: isblck
+    INTEGER(mpi) :: ilast
+    INTEGER(mpi) :: itgbi
+    INTEGER(mpi) :: ivgb
+    INTEGER(mpi) :: jcgb
+    INTEGER(mpi) :: label
+    INTEGER(mpi) :: labelf
+    INTEGER(mpi) :: labell
+    INTEGER(mpi) :: ncon
+    INTEGER(mpi) :: npar
+    INTEGER(mpi) :: nconmx
+    INTEGER(mpi) :: nparmx
+    INTEGER(mpi) :: inone
+    INTEGER(mpi) :: itype
+    INTEGER(mpi) :: ncgbw
+    INTEGER(mpi) :: newlen
+    INTEGER(mpi) :: nvar
+    INTEGER(mpi) :: last
+    INTEGER(mpi) :: lastlen
+
+    INTEGER(mpl):: length
+    INTEGER(mpl) :: rows
+
+    ncgb=0
+    ncgbw=0
+    ncgbe=0
+    IF(lenConstraints == 0) RETURN  ! no constraints
+
+    newlen=0
+    lastlen=0
+    nvar=-1
+    i=0
+    last=-1
+    itype=0
+    !        find next constraint header and count nr of constraints
+    DO WHILE(i < lenConstraints)
+        i=i+1
+        label=listConstraints(i)%label
+        IF(last == 0.AND.label < 0) THEN
+            IF (ncgb > 0 .AND. icheck>0) WRITE(*,113) ncgb, newlen-lastlen-3, nvar
+            IF (nvar == 0) ncgbe=ncgbe+1
+            IF (nvar == 0 .AND. iskpec > 0) THEN
+                ! overwrite
+                newlen=lastlen
+                ! copy previous value (for label 0)
+                newlen=newlen+1
+                listConstraints(newlen)%value=listConstraints(i-1)%value
+            ELSE
+                lastlen=newlen-1 ! end of last accepted constraint
+            END IF
+            ncgb=ncgb+1
+            itype=-label
+            IF(itype == 2) ncgbw=ncgbw+1
+            nvar=0
+        END IF
+        last=label
+        IF(label > 0) THEN
+            itgbi=inone(label) ! -> ITGBI= index of parameter label
+            ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
+            IF (ivgb > 0) nvar=nvar+1
+        END IF
+        IF(label > 0.AND.itype == 2) THEN  ! weighted constraints
+            itgbi=inone(label) ! -> ITGBI= index of parameter label
+            listConstraints(i)%value=listConstraints(i)%value*globalParCounts(itgbi)
+        END IF
+        newlen=newlen+1
+        listConstraints(newlen)%label=listConstraints(i)%label ! copy label
+        listConstraints(newlen)%value=listConstraints(i)%value ! copy value
+    END DO
+    IF (ncgb > 0 .AND. icheck>0) WRITE(*,113) ncgb, newlen-lastlen-2, nvar
+    IF (nvar == 0) ncgbe=ncgbe+1
+    IF (nvar == 0 .AND. iskpec > 0) newlen=lastlen
+    lenConstraints=newlen
+
+    IF (ncgbe > 0 .AND. iskpec > 0) THEN
+        WRITE(*,*) 'PRPCON:',ncgbe,' empty constraints skipped'
+        ncgb=ncgb-ncgbe
+    END IF
+    IF (ncgbw == 0) THEN
+        WRITE(*,*) 'PRPCON:',ncgb,' constraints accepted'
+    ELSE
+        WRITE(*,*) 'PRPCON:',ncgb,' constraints accepted,',ncgbw, 'weighted'
+    END IF
+    WRITE(*,*)
+    
+    IF(lenConstraints == 0) RETURN  ! no constraints left
+    
+    ! keys and index for sorting of constraints
+    length=ncgb+1; rows=3
+    CALL mpalloc(matConsSort,rows,length,'keys and index for sorting (I)')
+    matConsSort(1,ncgb+1)=ntgb+1
+    ! start of constraint in list
+    CALL mpalloc(vecConsStart,length,'start of constraint in list (I)')
+    vecConsStart(ncgb+1)=lenConstraints+1
+    ! start and parameter range of constraint blocks 
+    CALL mpalloc(matConsBlocks,rows,length,'start of constraint blocks, par. range (I)')
+
+    ! prepare
+    i=1
+    DO icgb=1,ncgb
+        ! new constraint 
+        vecConsStart(icgb)=i
+        matConsSort(1,icgb)=ntgb ! min variable parameter
+        matConsSort(2,icgb)=0    ! max variable parameter
+        matConsSort(3,icgb)=icgb ! index
+        i=i+2
+        DO
+            label=listConstraints(i)%label
+            itgbi=inone(label) ! -> ITGBI= index of parameter label
+            ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
+            IF(ivgb > 0) THEN
+                matConsSort(1,icgb)=min(matConsSort(1,icgb),ivgb)
+                matConsSort(2,icgb)=max(matConsSort(2,icgb),ivgb)
+            END IF    
+            i=i+1
+            IF(i > lenConstraints) EXIT
+            IF(listConstraints(i)%label == 0) EXIT
+        END DO
+    END DO
+    
+    ! sort constraints
+    call sort2i(matConsSort,ncgb)
+    
+    ! loop over sorted constraints, try to split into blocks
+    ncblck=0
+    nconmx=0
+    nparmx=0
+    mszcon=0
+    mszprd=0
+    isblck=1
+    ilast=0
+    DO jcgb=1,ncgb
+        ! index in list 
+        icgb=matConsSort(3,jcgb)
+        ! split into disjoint blocks
+        ilast=max(ilast, matConsSort(2,jcgb))
+        IF (icheck > 1) THEN
+            labelf=globalParLabelIndex(1,globalParVarToTotal(matConsSort(1,jcgb)))
+            labell=globalParLabelIndex(1,globalParVarToTotal(matConsSort(2,jcgb)))
+            WRITE(*,*) ' Cons. sorted', jcgb, icgb, vecConsStart(icgb), labelf, labell
+        END IF   
+        IF (matConsSort(1,jcgb+1) > ilast) THEN
+            ncblck=ncblck+1
+            matConsBlocks(1,ncblck)=isblck
+            matConsBlocks(2,ncblck)=matConsSort(1,isblck) ! save first parameter in block
+            matConsBlocks(3,ncblck)=ilast ! save last parameter in block
+            ncon=jcgb+1-isblck
+            npar=ilast+1-matConsSort(1,isblck)
+            nconmx=max(nconmx,ncon)
+            nparmx=max(nparmx,npar)
+            mszcon=mszcon+ncon*npar          ! (sum of) block size for constraint matrix     
+            mszprd=mszprd+(ncon*ncon+ncon)/2 ! (sum of) block size for product matrix     
+            IF (icheck > 0) THEN
+                labelf=globalParLabelIndex(1,globalParVarToTotal(matConsSort(1,isblck)))
+                labell=globalParLabelIndex(1,globalParVarToTotal(ilast))
+                WRITE(*,*) ' Cons. block ', ncblck, isblck, jcgb, labelf, labell
+            ENDIF    
+            ! reset for new block
+            isblck=jcgb+1
+        END IF
+    END DO
+    matConsBlocks(1,ncblck+1)=ncgb+1
+    
+    IF (ncblck+icheck > 1) THEN
+        WRITE(*,*)
+        WRITE(*,*) 'PRPCON: constraints split into ', ncblck, '(disjoint) blocks'
+        WRITE(*,*) '        max block size (cons., par.) ', nconmx, nparmx
+        IF (icheck > 0) WRITE(*,*) '        total block matrix sizes     ', mszcon, mszprd
+    END IF    
+113 FORMAT(' constraint',i6,' : ',i9,' parameters,',i9,' variable')
+
+END SUBROUTINE prpcon
 
 !> Matrix for feasible solution.
 !!
@@ -1237,13 +1423,23 @@ SUBROUTINE feasma
     REAL(mpd) :: factr
     REAL(mpd) :: sgm
     INTEGER(mpi) :: i
+    INTEGER(mpi) :: iblck
     INTEGER(mpi) :: icgb
     INTEGER(mpi) :: ij
+    INTEGER(mpi) :: ifirst
+    INTEGER(mpi) :: ilast
+    INTEGER(mpi) :: ioffc
+    INTEGER(mpi) :: ioffp
+    INTEGER(mpi) :: irank
+    INTEGER(mpi) :: ipar0
     INTEGER(mpi) :: itgbi
     INTEGER(mpi) :: ivgb
     INTEGER(mpi) :: j
+    INTEGER(mpi) :: jcgb
     INTEGER(mpi) :: l
     INTEGER(mpi) :: label
+    INTEGER(mpi) :: ncon
+    INTEGER(mpi) :: npar
     INTEGER(mpi) :: nrank
     INTEGER(mpi) :: inone
 
@@ -1256,54 +1452,71 @@ SUBROUTINE feasma
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: auxVectorI
     SAVE
     !     ...
-    IF(lenConstraints == 0) RETURN  ! no constraints
 
+    IF(ncgb == 0) RETURN  ! no constraints
+
+    ! QL decomposition
     IF (nfgb < nvgb) CALL qlini(nvgb,ncgb)
-    length=(ncgb*ncgb+ncgb)/2
-    CALL mpalloc(matConsProduct, length, 'product matrix of constraints')
+    !     product matrix A A^T (A is stored as transposed)
+    length=mszprd
+    CALL mpalloc(matConsProduct, length, 'product matrix of constraints (blocks)')
     matConsProduct=0.0_mpd
     length=ncgb
     CALL mpalloc(vecConsResiduals, length, 'residuals of constraints')
     CALL mpalloc(vecConsSolution, length, 'solution for constraints')
     CALL mpalloc(auxVectorI,length,'auxiliary array (I)')  ! int aux 1
     CALL mpalloc(auxVectorD,length,'auxiliary array (D)')  ! double aux 1
-    !     constraint matrix A and product A A^T (A is stored as transposed)
-    length = ncgb*nvgb
-    CALL mpalloc(matConstraintsT,length,'transposed matrix of constraints')
+    !     constraint matrix A (A is stored as transposed)
+    length = mszcon
+    CALL mpalloc(matConstraintsT,length,'transposed matrix of constraints (blocks)')
     matConstraintsT=0.0_mpd
-
-    i=1
-    DO icgb=1,ncgb
-        rhs=listConstraints(i  )%value ! right hand side
-        sgm=listConstraints(i+1)%value ! sigma parameter
-        i=i+2
-        DO
-            label=listConstraints(i)%label
-            factr=listConstraints(i)%value
-            itgbi=inone(label) ! -> ITGBI= index of parameter label
-            ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
-            IF(ivgb > 0) matConstraintsT(ivgb+(icgb-1)*nvgb)=factr ! matrix element
-            globalParCons(itgbi)=globalParCons(itgbi)+1
-            rhs=rhs-factr*globalParameter(itgbi)     ! reduce residuum
-            i=i+1
-            IF(i > lenConstraints) EXIT
-            IF(listConstraints(i)%label == 0) EXIT
+       
+    ! loop over sorted constraints, fill matrices, get rank, inverted product matrix (in blocks)
+    ioffc=0 ! block offset in constraint matrix
+    ioffp=0 ! block offset in product matrix
+    nrank=0
+    DO iblck=1,ncblck
+        ifirst=matConsBlocks(1,iblck)     ! first constraint in block
+        ilast=matConsBlocks(1,iblck+1)-1  ! last constraint in block
+        ncon=ilast+1-ifirst               
+        ipar0=matConsBlocks(2,iblck)-1    ! parameter offset
+        npar=matConsBlocks(3,iblck)-ipar0 ! number of parameters
+        DO jcgb=ifirst,ilast
+            ! index in list 
+            icgb=matConsSort(3,jcgb)
+            ! fill constraint matrix
+            i=vecConsStart(icgb)
+            rhs=listConstraints(i  )%value ! right hand side
+            sgm=listConstraints(i+1)%value ! sigma parameter
+            DO j=i+2,vecConsStart(icgb+1)-1
+                label=listConstraints(j)%label
+                factr=listConstraints(j)%value
+                itgbi=inone(label) ! -> ITGBI= index of parameter label
+                ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
+                IF(ivgb > 0) matConstraintsT(ivgb-ipar0+ioffc+(jcgb-ifirst)*npar)=factr ! matrix element
+                globalParCons(itgbi)=globalParCons(itgbi)+1
+                rhs=rhs-factr*globalParameter(itgbi)     ! reduce residuum
+            END DO
+            vecConsResiduals(jcgb)=rhs        ! constraint discrepancy
         END DO
-        vecConsResiduals(icgb)=rhs        ! constraint discrepancy
-    END DO
-
-    DO l=1,nvgb
-        ij=0
-        DO i=1,ncgb
-            DO j=1,i
-                ij=ij+1
-                matConsProduct(ij)=matConsProduct(ij)+matConstraintsT((i-1)*nvgb+l)*matConstraintsT((j-1)*nvgb+l)
+        
+        ! get rank of blocks
+        DO l=ioffc+1,ioffc+npar
+            ij=ioffp
+            DO i=1,ncon
+                DO j=1,i
+                    ij=ij+1
+                    matConsProduct(ij)=matConsProduct(ij)+matConstraintsT((i-1)*npar+l)*matConstraintsT((j-1)*npar+l)
+                END DO
             END DO
         END DO
-    END DO
-
-    !     inversion of product matrix of constraints
-    CALL sqminv(matConsProduct,vecConsResiduals,ncgb,nrank, auxVectorD, auxVectorI)
+        !     inversion of product matrix of constraints
+        CALL sqminv(matConsProduct(ioffp+1:ij),vecConsResiduals(ifirst:ilast),ncon,irank, auxVectorD, auxVectorI)
+        IF (icheck > 1) WRITE(*,*) ' Constraint block rank', iblck, ncon, irank
+        nrank=nrank+irank
+        ioffc=ioffc+npar*ncon
+        ioffp=ij   
+    END DO          
 
     nmiss1=ncgb-nrank
 
@@ -1321,12 +1534,12 @@ SUBROUTINE feasma
             WRITE(8,*) '         --> enforcing SUBITO mode'
         END IF
     END IF
-
+     
     ! QL decomposition
     IF (nfgb < nvgb) THEN
         print *
         print *, 'QL decomposition of constraints matrix'
-        CALL qldec(matConstraintsT)
+        CALL qldecb(matConstraintsT,ncblck,matConsBlocks)
         ! check eignevalues of L
         CALL qlgete(evmin,evmax)
         PRINT *, '   largest  |eigenvalue| of L: ', evmax
@@ -1363,8 +1576,16 @@ SUBROUTINE feasib(concut,iact)
     INTEGER(mpi) :: iter
     INTEGER(mpi) :: itgbi
     INTEGER(mpi) :: ivgb
+    INTEGER(mpi) :: iblck
+    INTEGER(mpi) :: ieblck
+    INTEGER(mpi) :: isblck
+    INTEGER(mpi) :: ifirst
+    INTEGER(mpi) :: ilast
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: jcgb
     INTEGER(mpi) :: label
     INTEGER(mpi) :: inone
+    INTEGER(mpi) :: ncon
 
     REAL(mps), INTENT(IN)     :: concut
     INTEGER(mpi), INTENT(OUT) :: iact
@@ -1374,7 +1595,6 @@ SUBROUTINE feasib(concut,iact)
     REAL(mpd) ::sum2
     REAL(mpd) ::sum3
 
-    !                        ! acts on subarray "0"
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecCorrections
     SAVE
 
@@ -1385,21 +1605,18 @@ SUBROUTINE feasib(concut,iact)
         vecConsResiduals=0.0_mpd
   
         !      calculate right constraint equation discrepancies
-        i=1
-        DO icgb=1,ncgb
+        DO jcgb=1,ncgb
+            icgb=matConsSort(3,jcgb) ! unsorted constraint index
+            i=vecConsStart(icgb)
             rhs=listConstraints(i  )%value ! right hand side
             sgm=listConstraints(i+1)%value ! sigma parameter
-            i=i+2
-            DO
-                label=listConstraints(i)%label
-                factr=listConstraints(i)%value
+            DO j=i+2,vecConsStart(icgb+1)-1
+                label=listConstraints(j)%label
+                factr=listConstraints(j)%value
                 itgbi=inone(label) ! -> ITGBI= index of parameter label
                 rhs=rhs-factr*globalParameter(itgbi)     ! reduce residuum
-                i=i+1
-                IF(i > lenConstraints) EXIT
-                IF(listConstraints(i)%label == 0) EXIT
             ENDDO
-            vecConsResiduals(icgb)=rhs        ! constraint discrepancy
+            vecConsResiduals(jcgb)=rhs        ! constraint discrepancy
         END DO
   
         !      constraint equation discrepancies -------------------------------
@@ -1438,25 +1655,30 @@ SUBROUTINE feasib(concut,iact)
         CALL mpalloc(vecCorrections,INT(nvgb,mpl),'constraint corrections')
         vecCorrections=0.0_mpd
 
-        !      multiply inverse matrix and constraint vector
-        CALL dbsvx(matConsProduct,vecConsResiduals,vecConsSolution,ncgb)
+        !      multiply (block-wise) inverse matrix and constraint vector
+        isblck=0
+        DO iblck=1,ncblck
+            ifirst=matConsBlocks(1,iblck)     ! first constraint in block
+            ilast=matConsBlocks(1,iblck+1)-1  ! last constraint in block
+            ncon=ilast+1-ifirst
+            ieblck=isblck+(ncon*(ncon+1))/2
+            CALL dbsvx(matConsProduct(isblck+1:ieblck),vecConsResiduals(ifirst:ilast),vecConsSolution(ifirst:ilast),ncon)
+            isblck=ieblck
+        END DO    
 
-        i=1
-        DO icgb=1,ncgb
+        DO jcgb=1,ncgb
+            icgb=matConsSort(3,jcgb) ! unsorted constraint index
+            i=vecConsStart(icgb)
             rhs=listConstraints(i  )%value ! right hand side
             sgm=listConstraints(i+1)%value ! sigma parameter
-            i=i+2
-            DO
-                label=listConstraints(i)%label
-                factr=listConstraints(i)%value
+            DO j=i+2,vecConsStart(icgb+1)-1
+                label=listConstraints(j)%label
+                factr=listConstraints(j)%value
                 itgbi=inone(label) ! -> ITGBI= index of parameter label
                 ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
                 IF(ivgb > 0) THEN
-                    vecCorrections(ivgb)=vecCorrections(ivgb)+vecConsSolution(icgb)*factr
+                    vecCorrections(ivgb)=vecCorrections(ivgb)+vecConsSolution(jcgb)*factr
                 END IF
-                i=i+1
-                IF(i > lenConstraints) EXIT
-                IF(listConstraints(i)%label == 0) EXIT
             ENDDO
         END DO
 
@@ -2607,7 +2829,7 @@ SUBROUTINE ploopc(lunp)
         ratae=ABS(slopes(2)/slopes(1))
         stepl=steps(2)
         WRITE(lunp,105) nloopn,fvalue, ratae,lsinfo,  &
-           stepl,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
+            stepl,nrej,nhour,minut,nsecnd,ccalcm(lcalcm)
     END IF
 104 FORMAT(3X,i3,e12.5,9X, 35X, i7,  i3,i2.2,i2.2,a4)
 105 FORMAT(3X,i3,e12.5,9X,     f6.3,14X,i3,f6.3,6X, i7,  i3,i2.2,i2.2,a4)
@@ -4127,7 +4349,7 @@ SUBROUTINE avprd0(n,x,b)
                                 j=j+1
                                 lj=lj+1
                             END DO
-                         ELSE
+                        ELSE
                             DO jj=1,jn
                                 b(j)=b(j)+REAL(globalMatF(indij+lj),mpd)*x(i)
                                 b(i)=b(i)+REAL(globalMatF(indij+lj),mpd)*x(j)
@@ -4139,12 +4361,7 @@ SUBROUTINE avprd0(n,x,b)
                 END IF
             END IF
         END DO
-        !$OMP END PARALLEL DO
-        !DO i=1,20
-        !    print *, ' b(i) ', i, sparseMatrixOffsets(2,i+1)-sparseMatrixOffsets(2,i), b(i)
-        !ENDDO
     ENDIF
-    !stop " debugging "
 
 END SUBROUTINE avprd0
 
@@ -4357,13 +4574,13 @@ SUBROUTINE mhalf2
                 jtem =ishft(jtemc,-iencdb)     ! first column of region
                 jtemn=jtem+IAND(jtemc,iencdm)  ! first column after region
                 DO j=jtem,jtemn-1
-                   ij=ijadd(i,j)
-                   IF (ispc==1) THEN
-                       globalMatD(ll)=globalMatD(ij)
-                   ELSE
-                       globalMatF(ll)=globalMatF(-ij)
-                   END IF 
-                   ll=ll+1
+                    ij=ijadd(i,j)
+                    IF (ispc==1) THEN
+                        globalMatD(ll)=globalMatD(ij)
+                    ELSE
+                        globalMatF(ll)=globalMatF(-ij)
+                    END IF
+                    ll=ll+1
                 END DO
             END DO
         END DO
@@ -5016,12 +5233,13 @@ SUBROUTINE loop2
     INTEGER(mpi) :: ja
     INTEGER(mpi) :: jb
     INTEGER(mpi) :: jext
+    INTEGER(mpi) :: jcgb
     INTEGER(mpi) :: jsp
+    INTEGER(mpi) :: joff
     INTEGER(mpi) :: k
     INTEGER(mpi) :: kfile
     INTEGER(mpi) :: l
     INTEGER(mpi) :: label
-    INTEGER(mpi) :: last
     INTEGER(mpi) :: lu
     INTEGER(mpi) :: lun
     INTEGER(mpi) :: maeqnf
@@ -5047,12 +5265,6 @@ SUBROUTINE loop2
     INTEGER(mpi) :: nwrd
     INTEGER(mpi) :: inone
     INTEGER(mpi) :: inc
-    INTEGER(mpi) :: itype
-    INTEGER(mpi) :: ivgb
-    INTEGER(mpi) :: ncgbw
-    INTEGER(mpi) :: newlen
-    INTEGER(mpi) :: nvar
-    INTEGER(mpi) :: lastlen
     REAL(mps) :: wgh
     REAL(mps) :: wolfc3
     REAL(mps) :: wrec
@@ -5109,65 +5321,9 @@ SUBROUTINE loop2
     CALL mpalloc(backIndexUsage,length,'back index')
     backIndexUsage=0
 
-    !     constraints - determine number of constraints NCGB
-    ncgb=0
-    ncgbw=0
-    ncgbe=0
-    newlen=0
-    lastlen=0
-    nvar=-1
-    i=0
-    last=-1
-    !        find next constraint header and count nr of constraints
-    IF (lenConstraints > 0) THEN
-        DO WHILE(i < lenConstraints)
-            i=i+1
-            label=listConstraints(i)%label
-            IF(last == 0.AND.label < 0) THEN
-                IF (ncgb > 0 .AND. icheck>0) WRITE(*,113) ncgb, newlen-lastlen-3, nvar
-                IF (nvar == 0) ncgbe=ncgbe+1
-                IF (nvar == 0 .AND. iskpec > 0) THEN 
-                    ! overwrite
-                    newlen=lastlen                    
-                    ! copy previous value (for label 0)
-                    newlen=newlen+1
-                    listConstraints(newlen)%value=listConstraints(i-1)%value
-                ELSE
-                    lastlen=newlen-1 ! end of last accepted constraint
-                END IF
-                ncgb=ncgb+1
-                itype=-label
-                IF(itype == 2) ncgbw=ncgbw+1
-                nvar=0
-            END IF
-            last=label
-            IF(label > 0) THEN
-                itgbi=inone(label) ! -> ITGBI= index of parameter label
-                ivgb =globalParLabelIndex(2,itgbi) ! -> variable-parameter index
-                IF (ivgb > 0) nvar=nvar+1
-            END IF
-            IF(label > 0.AND.itype == 2) THEN  ! weighted constraints
-                itgbi=inone(label) ! -> ITGBI= index of parameter label
-                listConstraints(i)%value=listConstraints(i)%value*globalParCounts(itgbi)
-            END IF
-            newlen=newlen+1
-            listConstraints(newlen)%label=listConstraints(i)%label ! copy label
-            listConstraints(newlen)%value=listConstraints(i)%value ! copy value
-        END DO
-        IF (ncgb > 0 .AND. icheck>0) WRITE(*,113) ncgb, newlen-lastlen-2, nvar
-        IF (nvar == 0) ncgbe=ncgbe+1
-        IF (nvar == 0 .AND. iskpec > 0) newlen=lastlen
-    END IF
-    lenConstraints=newlen
-    IF (ncgbe > 0 .AND. iskpec > 0) THEN
-        WRITE(*,*) 'LOOP2:',ncgbe,' empty constraints skipped'
-        ncgb=ncgb-ncgbe
-    END IF
-    IF (ncgbw == 0) THEN
-        WRITE(*,*) 'LOOP2:',ncgb,' constraints accepted'
-    ELSE
-        WRITE(*,*) 'LOOP2:',ncgb,' constraints accepted,',ncgbw, 'weighted'
-    END IF
+    ! prepare constraints - determine number of constraints NCGB
+    !                     - sort and split into blocks
+    CALL prpcon
 
     IF (icelim > 0) THEN ! elimination
         nagb=nvgb         ! total number of parameters
@@ -5235,6 +5391,7 @@ SUBROUTINE loop2
         print *, " checking appearance ", icheck, ntgb, nagb
         length=5*ntgb
         CALL mpalloc(appearanceCounter,length,'appearance statistics')
+        appearanceCounter=0
     END IF
 
     DO
@@ -5307,15 +5464,15 @@ SUBROUTINE loop2
                         ij=inder(jb+j)                     ! index of global parameter
                         ! check appearance 
                         IF (icheck > 1) THEN
-                            ioff = 5*(ij-1)
+                            joff = 5*(ij-1)
                             kfile=NINT(readBufferDataD(isfrst(ibuf)-1),mpi) ! file
-                            IF (appearanceCounter(ioff+1) == 0) THEN
-                                appearanceCounter(ioff+1) = kfile
-                                appearanceCounter(ioff+2) = nrec-ifd(kfile) ! (local) record number
+                            IF (appearanceCounter(joff+1) == 0) THEN
+                                appearanceCounter(joff+1) = kfile
+                                appearanceCounter(joff+2) = nrec-ifd(kfile) ! (local) record number
                             END IF
-                            IF (appearanceCounter(ioff+3) /= kfile) appearanceCounter(ioff+5)=appearanceCounter(ioff+5)+1
-                            appearanceCounter(ioff+3) = kfile
-                            appearanceCounter(ioff+4) = nrec-ifd(kfile) ! (local) record number
+                            IF (appearanceCounter(joff+3) /= kfile) appearanceCounter(joff+5)=appearanceCounter(joff+5)+1
+                            appearanceCounter(joff+3) = kfile
+                            appearanceCounter(joff+4) = nrec-ifd(kfile) ! (local) record number
                         END IF
                         
                         ij=globalParLabelIndex(2,ij)       ! change to variable parameter
@@ -5442,23 +5599,19 @@ SUBROUTINE loop2
         !        Lagrange multiplier and global parameters
 
 
-        i=0
-        icgb=0
-        last=-1
         inc=MAX(mreqpe, msngpe+1) !  keep constraints in double precision
-        !        find next constraint header
-        DO WHILE(i < lenConstraints)
-            i=i+1
-            label=listConstraints(i)%label
-            IF(last == 0.AND.label == (-1)) icgb=icgb+1
-            IF(label > 0) THEN
+
+        !  loop over (sorted) constraints
+        DO jcgb=1,ncgb
+            icgb=matConsSort(3,jcgb) ! unsorted constraint index
+            DO i=vecConsStart(icgb)+2,vecConsStart(icgb+1)-1
+                label=listConstraints(i)%label
                 itgbi=inone(label)
                 ij=globalParLabelIndex(2,itgbi)         ! change to variable parameter
                 IF(ij > 0 .AND. nagb > nvgb) THEN
-                    CALL inbits(nvgb+icgb,ij,inc)
+                    CALL inbits(nvgb+jcgb,ij,inc)
                 END IF
-            END IF
-            last=label
+            END DO
         END DO
 
         !     measurements - determine index-pairs
@@ -5746,7 +5899,6 @@ SUBROUTINE loop2
 102 FORMAT(22X,a)
 103 FORMAT(1X,a,g12.4)
 106 FORMAT(i6,2(3X,f9.3,f12.1,3X))
-113 FORMAT(' constraint',i6,' : ',i9,' parameters,',i9,' variable') 
 END SUBROUTINE loop2
 
 !> Monitor input residuals.
@@ -8220,13 +8372,14 @@ SUBROUTINE intext(text,nline)
             RETURN
         END IF
         
-        keystx='extendedStorage'
-        mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
-            mextnd=1
-            ! compression enforced for extended storage (in mpbits)
-            RETURN
-        END IF
+        ! still experimental
+        !keystx='extendedStorage'
+        !mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
+        !IF(mat >= (npat-npat/5)) THEN
+        !    mextnd=1
+        !    ! compression enforced for extended storage (in mpbits)
+        !    RETURN
+        !END IF
           
         keystx='errlabels'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison

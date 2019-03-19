@@ -205,7 +205,6 @@ SUBROUTINE clbits(in,jreqpe,jhispe,jsngpe,jcmprs,jextnd,idimb,iencdb,ispc)
     nencdm=ishft(1,nencdb)-1
     nthrd=1
     !$ NTHRD=OMP_GET_MAX_THREADS()
-    print *, ' <<< inbits ', idimb,iencdb,ispc
     RETURN
 END SUBROUTINE clbits
 

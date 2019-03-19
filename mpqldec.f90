@@ -32,6 +32,8 @@ MODULE mpqldec
     INTEGER(mpi) :: ncon   !< number of constraints
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matV !< unit normals (v_i) of Householder reflectors
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matL !< lower diagonal matrix L
+    REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecN !< normal vector
+
 END MODULE mpqldec
 
 !> Initialize QL decomposition.
@@ -56,6 +58,8 @@ SUBROUTINE qlini(n,m)
     CALL mpalloc(matV,length,'QLDEC: V')
     length=ncon*ncon
     CALL mpalloc(matL,length,'QLDEC: L')
+    length=npar
+    CALL mpalloc(vecN,length,'QLDEC: v')    
 END SUBROUTINE qlini
 
 !                                                 141217 C. Kleinwort, DESY-FH1
@@ -95,8 +99,6 @@ SUBROUTINE qldec(a)
 
     REAL(mpd), INTENT(IN)             :: a(*)
 
-    REAL(mpd)                         :: v(npar)
-
     ! prepare 
     length=npar*ncon
     matV=a(1:length)
@@ -108,34 +110,165 @@ SUBROUTINE qldec(a)
         ! column offset
         ioff1=(k-1)*npar
         ! get column
-        v(1:kn)=matV(ioff1+1:ioff1+kn)
-        nrm = SQRT(dot_product(v(1:kn),v(1:kn)))
+        vecN(1:kn)=matV(ioff1+1:ioff1+kn)
+        nrm = SQRT(dot_product(vecN(1:kn),vecN(1:kn)))
         IF (nrm == 0.0_mpd) CYCLE
         !
-        IF (v(kn) >= 0.0_mpd) THEN
-            v(kn)=v(kn)+nrm
+        IF (vecN(kn) >= 0.0_mpd) THEN
+            vecN(kn)=vecN(kn)+nrm
         ELSE
-            v(kn)=v(kn)-nrm
+            vecN(kn)=vecN(kn)-nrm
         END IF
         ! create normal vector
-        nrm = SQRT(dot_product(v(1:kn),v(1:kn)))
-        v(1:kn)=v(1:kn)/nrm
+        nrm = SQRT(dot_product(vecN(1:kn),vecN(1:kn)))
+        vecN(1:kn)=vecN(1:kn)/nrm
         ! transformation
         ioff2=0
         DO i=1,k
-            sp=dot_product(v(1:kn),matV(ioff2+1:ioff2+kn))
-            matV(ioff2+1:ioff2+kn)=matV(ioff2+1:ioff2+kn)-2.0_mpd*v(1:kn)*sp
+            sp=dot_product(vecN(1:kn),matV(ioff2+1:ioff2+kn))
+            matV(ioff2+1:ioff2+kn)=matV(ioff2+1:ioff2+kn)-2.0_mpd*vecN(1:kn)*sp
             ioff2=ioff2+npar
         END DO
         ! store column of L
         ioff3=(k-1)*ncon
         matL(ioff3+k:ioff3+ncon)=matV(ioff1+kn:ioff1+npar)
         ! store normal vector
-        matV(ioff1+1:ioff1+kn)=v(1:kn)
+        matV(ioff1+1:ioff1+kn)=vecN(1:kn)
         matV(ioff1+kn+1:ioff1+npar)=0.0_mpd
     END DO
 
 END SUBROUTINE qldec
+
+!                                                 190312 C. Kleinwort, DESY-BELLE
+!> QL decomposition (for disjoint block matrix).
+!!
+!! QL decomposition with Householder transformations.
+!! Decompose N-By-M matrix A into orthogonal N-by-N matrix Q and a
+!! N-by-M matrix containing zeros except for a lower triangular
+!! M-by-M matrix L (at the bottom):
+!!
+!!              | 0 |
+!!      A = Q * |   |
+!!              | L |
+!!
+!! The decomposition is stored in a N-by-M matrix matV containing the unit
+!! normal vectors v_i of the hyperplanes (Householder reflectors) defining Q.
+!! The lower triangular matrix L is stored in the M-by-M matrix matL.
+!!
+!! \param [in]     a   block compressed Npar-by-Ncon matrix
+!! \param [in]     nb  number of blocks
+!! \param [in]     b   3-by-Ncon+1 matrix (with block definition)
+!!
+SUBROUTINE qldecb(a,nb,b)
+    USE mpqldec
+    USE mpdalc
+
+    ! cost[dot ops] ~= Npar*Ncon*Ncon
+
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: ifirst
+    INTEGER(mpi) :: ilast
+    INTEGER(mpl) :: ioff1
+    INTEGER(mpl) :: ioff2
+    INTEGER(mpl) :: ioff3
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: k1
+    INTEGER(mpi) :: kn
+    INTEGER(mpi) :: ncb
+    INTEGER(mpi) :: npb
+    INTEGER(mpl) :: length
+    REAL(mpd) :: nrm
+    REAL(mpd) :: sp
+
+    REAL(mpd), INTENT(IN)             :: a(*)
+    INTEGER(mpi), INTENT(IN)          :: nb
+    INTEGER(mpi), INTENT(IN)          :: b(3,*)
+
+    ! prepare 
+    length=npar*ncon
+    matV=0.0_mpd
+    matL=0.0_mpd
+    ! expand a into matV
+    ioff1=0
+    ioff2=0
+    DO ib=1,nb
+        ncb=b(1,ib+1)-b(1,ib) ! number of constraints in block
+        npb=b(3,ib)+1-b(2,ib) ! number of parameters in block
+        ifirst=b(2,ib)
+        ilast=b(3,ib)
+        DO i=1,ncb
+            matV(ioff1+ifirst:ioff1+ilast)=a(ioff2+1:ioff2+npb)
+            ioff1=ioff1+npar
+            ioff2=ioff2+npb
+        END DO    
+    END DO
+ 
+    ib=nb ! start with last block
+    k1=b(1,ib) ! first constraint in block
+    ! Householder procedure
+    DO k=ncon,1,-1
+        kn=npar+k-ncon
+        ! different block?
+        IF (k < k1) THEN
+            ib=ib-1
+            k1=b(1,ib)
+        END IF    
+        ! index if first non-zero element
+        ifirst=b(2,ib)
+        IF (ifirst > kn) CYCLE
+        ! index of last element
+        ilast=min(b(3,ib),kn)
+        ! column offsets
+        ioff1=(k-1)*npar
+        ioff2=(k1-1)*npar
+        ! get column
+        vecN(kn)=0.0_mpd
+        vecN(ifirst:ilast)=matV(ioff1+ifirst:ioff1+ilast)
+        nrm = SQRT(dot_product(vecN(ifirst:ilast),vecN(ifirst:ilast)))
+        IF (nrm == 0.0_mpd) CYCLE
+        !
+        IF (vecN(kn) >= 0.0_mpd) THEN
+            vecN(kn)=vecN(kn)+nrm
+        ELSE
+            vecN(kn)=vecN(kn)-nrm
+        END IF
+        
+        IF (ilast < kn) THEN
+            ! create normal vector
+            nrm = SQRT(dot_product(vecN(ifirst:ilast),vecN(ifirst:ilast))+vecN(kn)*vecN(kn))
+            vecN(ifirst:ilast)=vecN(ifirst:ilast)/nrm
+            vecN(kn)=vecN(kn)/nrm  
+            ! transformation
+            DO i=k1,k
+                sp=dot_product(vecN(ifirst:ilast),matV(ioff2+ifirst:ioff2+ilast))
+                matV(ioff2+ifirst:ioff2+ilast)=matV(ioff2+ifirst:ioff2+ilast)-2.0_mpd*vecN(ifirst:ilast)*sp
+                matV(ioff2+kn)=-2.0_mpd*vecN(kn)*sp
+                ioff2=ioff2+npar
+            END DO
+        ELSE
+            ! create normal vector
+            nrm = SQRT(dot_product(vecN(ifirst:ilast),vecN(ifirst:ilast)))
+            vecN(ifirst:ilast)=vecN(ifirst:ilast)/nrm
+            ! transformation
+            DO i=k1,k
+                sp=dot_product(vecN(ifirst:ilast),matV(ioff2+ifirst:ioff2+ilast))
+                matV(ioff2+ifirst:ioff2+ilast)=matV(ioff2+ifirst:ioff2+ilast)-2.0_mpd*vecN(ifirst:ilast)*sp
+                ioff2=ioff2+npar
+            END DO
+        END IF
+            
+        ! store column of L
+        ioff3=(k-1)*ncon
+        matL(ioff3+k:ioff3+ncon)=matV(ioff1+kn:ioff1+npar)
+        ! store normal vector
+        matV(ioff1+1:ioff1+npar)=0.0_mpd
+        matV(ioff1+ifirst:ioff1+ilast)=vecN(ifirst:ilast)
+        matV(ioff1+kn)=vecN(kn)
+    END DO
+    
+END SUBROUTINE qldecb
 
 
 !> Multiply left by Q(t).

@@ -67,6 +67,7 @@
 !!        HEAPF    heap sort reals direct
 !!        SORT1K   sort 1-dim key-array (CHK)
 !!        SORT2K   sort 2-dim key-array
+!!        SORT2I   sort 2-dim key-array with index (CHK)
 !!
 
 !----------------------------------------------------------------------
@@ -1688,6 +1689,105 @@ SUBROUTINE sort2k(a,n)
     END IF
     GO TO 10
 END SUBROUTINE sort2k
+
+!> Quick sort 2 with index.
+!!
+!! Quick sort of A(3,N) integer.
+!!
+!! \param[in,out] a vector (pair) of integers, sorted at return and an index
+!! \param[in]     n size of vector
+
+SUBROUTINE sort2i(a,n)
+    USE mpdef
+
+    IMPLICIT NONE
+    INTEGER(mpi) :: nlev          ! stack size
+    PARAMETER (nlev=2*32) ! ... for N = 2**32 = 4.3 10**9
+    INTEGER(mpi) :: i
+    INTEGER(mpi) ::j
+    INTEGER(mpi) ::l
+    INTEGER(mpi) ::r
+    INTEGER(mpi) ::lev
+    INTEGER(mpi) ::lr(nlev)
+    INTEGER(mpi) ::lrh
+    INTEGER(mpi) ::maxlev
+    INTEGER(mpi) ::a1       ! pivot key
+    INTEGER(mpi) ::a2       ! pivot key
+    INTEGER(mpi) ::at       ! pivot key
+
+    INTEGER(mpi), INTENT(IN OUT) :: a(3,*)
+    INTEGER(mpi), INTENT(IN)     :: n
+    !     ...
+    maxlev=0
+    lev=0
+    l=1
+    r=n
+10  IF(r-l == 1) THEN     ! sort two elements L and R
+        IF(a(1,l) > a(1,r).OR.( a(1,l) == a(1,r).AND.a(2,l) > a(2,r))) THEN
+            at=a(1,l)       ! exchange L <-> R
+            a(1,l)=a(1,r)
+            a(1,r)=at
+            at=a(2,l)
+            a(2,l)=a(2,r)
+            a(2,r)=at
+            at=a(3,l)
+            a(3,l)=a(3,r)
+            a(3,r)=at
+        END IF
+        r=l
+    END IF
+    IF(r == l) THEN
+        IF(lev <= 0) THEN
+            WRITE(*,*) 'SORT2I (quicksort): maxlevel used/available =', maxlev,'/64'
+            RETURN
+        END IF
+        lev=lev-2
+        l=lr(lev+1)
+        r=lr(lev+2)
+    ELSE
+        !        LRH=(L+R)/2
+        lrh=(l/2)+(r/2)          ! avoid bit overflow
+        IF(MOD(l,2) == 1.AND.MOD(r,2) == 1) lrh=lrh+1
+        a1=a(1,lrh)      ! middle
+        a2=a(2,lrh)
+        i=l-1            ! find limits [J,I] with [L,R]
+        j=r+1
+20      i=i+1
+        IF(a(1,i) < a1) GO TO 20
+        IF(a(1,i) == a1.AND.a(2,i) < a2) GO TO 20
+30      j=j-1
+        IF(a(1,j) > a1) GO TO 30
+        IF(a(1,j) == a1.AND.a(2,j) > a2) GO TO 30
+        IF(i <= j) THEN
+            at=a(1,i)     ! exchange I <-> J
+            a(1,i)=a(1,j)
+            a(1,j)=at
+            at=a(2,i)
+            a(2,i)=a(2,j)
+            a(2,j)=at
+            at=a(3,i)
+            a(3,i)=a(3,j)
+            a(3,j)=at
+            GO TO 20
+        END IF
+        IF(lev+2 > nlev) THEN
+            CALL peend(33,'Aborted, stack overflow in quicksort')
+            STOP 'SORT2I (quicksort): stack overflow'
+        END IF
+        IF(r-i < j-l) THEN
+            lr(lev+1)=l
+            lr(lev+2)=j
+            l=i
+        ELSE
+            lr(lev+1)=i
+            lr(lev+2)=r
+            r=j
+        END IF
+        lev=lev+2
+        maxlev=MAX(maxlev,lev)
+    END IF
+    GO TO 10
+END SUBROUTINE sort2i
 
 !> Chi2/ndf cuts.
 !!

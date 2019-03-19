@@ -119,6 +119,9 @@ MODULE mpmod
     INTEGER(mpi) :: nfgb !< number of fit parameters
     INTEGER(mpi) :: ncgb !< number of constraints
     INTEGER(mpi) :: ncgbe !< number of empty constraints (no variable parameters)
+    INTEGER(mpi) :: ncblck !< number of (disjoint) constraint blocks
+    INTEGER(mpi) :: mszcon !< (integrated block) matrix size for constraint matrix
+    INTEGER(mpi) :: mszprd !< (integrated block) matrix size for (constraint) product matrix
     INTEGER(mpi), DIMENSION(2) :: nprecond !< number of constraints, matrix size for preconditioner
     INTEGER(mpi) :: nagbn !< max number of global paramters per record
     INTEGER(mpi) :: nalcn !< max number of local paramters per record
@@ -198,6 +201,10 @@ MODULE mpmod
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matConsProduct !< product matrix of constraints
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecConsResiduals !< residuals of constraints
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecConsSolution !< solution for constraint elimination
+    ! constraint sorting, blocks
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: vecConsStart !< start of constraint in listConstraints (unsorted input)
+    INTEGER(mpi), DIMENSION(:,:), ALLOCATABLE :: matConsSort !< keys and index for sorting
+    INTEGER(mpi), DIMENSION(:,:), ALLOCATABLE :: matConsBlocks !< start of constraint blocks, parameter range 
     ! monitoring of input residuals
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: measIndex !< mapping of 1. global label to measurement index
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: measHists !< measurement histograms (100 bins per thread)
