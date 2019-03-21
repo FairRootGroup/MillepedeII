@@ -28,14 +28,18 @@
 !! first column and their number for continous regions (encoded in single INTEGER(mpi) words).
 !! Rare elements may be stored in single precision.
 !!
+!! An additional bit map is used to monitor the parameter pairs for measurements (or 'equations').
+!!
 
 !> Bit field data.
 MODULE mpbits
     USE mpdef
     IMPLICIT NONE
 
-    INTEGER(mpl) :: ndimb !< dimension for bit (field) array
-    INTEGER(mpi) :: n      !< matrix size
+    INTEGER(mpl) :: ndimb  !< dimension for bit (field) array
+    INTEGER(mpl) :: ndimb2 !< dimension for bit map
+    INTEGER(mpi) :: n      !< matrix size (counters)
+    INTEGER(mpi) :: n2     !< matrix size (map)
     INTEGER(mpi) :: ibfw   !< bit field width
     INTEGER(mpi) :: ireqpe !< min number of pair entries
     INTEGER(mpi) :: isngpe !< upper bound for pair entry single precision storage
@@ -46,7 +50,8 @@ MODULE mpbits
     INTEGER(mpi) :: nencdm !< max value for column counter
     INTEGER(mpi) :: nencdb !< number of bits for encoding column counter
     INTEGER(mpi) :: nthrd  !< number of threads
-    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: bitFieldCounters !< fit field counters for global parameters pairs
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: bitFieldCounters !< fit field counters for global parameters pairs (tracks)
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: bitMap !< fit field map for global parameters pairs (measurements)
     INTEGER(mpi), PARAMETER :: bs = BIT_SIZE(1_mpi)  !< number of bits in INTEGER(mpi)
 
 END MODULE mpbits
@@ -717,3 +722,103 @@ SUBROUTINE spbits(nsparr,nsparc,ncmprs)               ! collect elements
 END SUBROUTINE spbits
 
 
+!> Clear (additional) bit map.
+!!
+!! \param [in]    in        matrix size
+!
+SUBROUTINE clbmap(in)
+    USE mpbits
+    USE mpdalc
+
+    INTEGER(mpi), INTENT(IN) :: in
+
+    INTEGER(mpl) :: noffd
+    INTEGER(mpi) :: mb
+
+    ! save input parameter 
+    n2=in    
+    ! bit field array size
+    noffd=INT(n2,mpl)*INT(n2-1,mpl)/2
+    ndimb2=noffd/bs+n2
+    mb=INT(4.0E-6*REAL(ndimb2,mps),mpi)
+    WRITE(*,*) ' '
+    IF (mb > 0) THEN
+        WRITE(*,*) 'CLBMAP: dimension of bit-map',ndimb2 , '(',mb,'MB)'
+    ELSE
+        WRITE(*,*) 'CLBMAP: dimension of bit-map',ndimb2 , '(< 1 MB)'
+    END IF
+    CALL mpalloc(bitMap,ndimb2,'INBMAP: bit storage')
+    bitMap=0
+    RETURN
+END SUBROUTINE clbmap    
+
+!> Fill bit map.
+!!
+!! \param [in]    im     first index
+!! \param [in]    jm     second index
+!!
+SUBROUTINE inbmap(im,jm)        ! include element (I,J)
+    USE mpbits
+
+    INTEGER(mpi), INTENT(IN) :: im
+    INTEGER(mpi), INTENT(IN) :: jm
+
+    INTEGER(mpl) :: l
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: noffj
+    INTEGER(mpl) :: noffi
+    INTEGER(mpi) :: m
+
+    IF(im == jm) RETURN  ! diagonal
+    j=MIN(im,jm)
+    i=MAX(im,jm)
+    IF(j <= 0) RETURN    ! out low
+    IF(i > n2) RETURN    ! out high
+    noffi=INT(i-1,mpl)*INT(i-2,mpl)/2 ! for J=1
+    noffj=(j-1)
+    l=noffi/bs+i+noffj/bs ! row offset + column offset
+    !     add I instead of 1 to keep bit maps of different rows in different words (openMP !)
+    m=MOD(noffj,bs)
+    bitMap(l)=ibset(bitMap(l),m)
+    RETURN
+END SUBROUTINE inbmap 
+
+!> Get pairs (statistic) from map.
+!!
+!! \param [out]    npair   number of paired parameters
+!!
+SUBROUTINE gpbmap(npair)
+    USE mpbits
+
+    INTEGER(mpi), DIMENSION(:), INTENT(OUT) :: npair
+
+    INTEGER(mpl) :: l
+    INTEGER(mpl) :: noffi
+    INTEGER(mpi) :: i
+    INTEGER(mpi) :: j
+    INTEGER(mpi) :: m
+    LOGICAL :: btest
+
+    npair(1:n2)=0
+    l=0
+
+    DO i=1,n2
+        noffi=INT(i-1,mpl)*INT(i-2,mpl)/2
+        l=noffi/bs+i
+        m=0
+        DO j=1,i-1
+            IF (btest(bitMap(l),m)) THEN
+                npair(i)=npair(i)+1
+                npair(j)=npair(j)+1
+            END IF
+            m=m+1
+            IF (m >= bs) THEN
+                l=l+1
+                m=m-bs
+            END IF
+        END DO
+    END DO
+
+    RETURN
+END SUBROUTINE gpbmap

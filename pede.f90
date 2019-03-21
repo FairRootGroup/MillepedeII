@@ -639,6 +639,7 @@ PROGRAM mptwo
     !$    WRITE(*,*) 'Maximum number of OpenMP threads: ', MXTHRD
     !$    WRITE(*,*) 'Number of threads for processing: ', MTHRD
     !$    IF (MXREC.GT.0) MTHRDR=1          ! to get allways the same MXREC records
+    !$    IF (ICHECK.GT.1) MTHRDR=1         ! to get allways the same order of records
     !$    WRITE(*,*) 'Number of threads for reading:    ', MTHRDR
     !$POMP INST INIT                        ! start profiling with ompP
     IF (ncache < 0) THEN
@@ -2023,7 +2024,7 @@ SUBROUTINE peread(more)
                 ifd(k)=ifd(k-1)-kfd(1,k-1)
             END DO
             !           sort
-            IF (nthr > 1) CALL sort2k(kfd,nfilb)
+            IF (nthr > 1) CALL sort2k(kfd,nfilb)  
             IF (skippedRecords > 0) THEN
                 PRINT *, 'PEREAD skipped records: ', skippedRecords
                 ndimbuf=maxRecordSize/2 ! adjust buffer size
@@ -4184,9 +4185,9 @@ SUBROUTINE prtstat
     IF (icheck > 1) THEN
         WRITE(lup,*) '! '
         WRITE(lup,*) '! Appearance statistics '
-        WRITE(lup,*) '!      Label  First file and record  Last file and record  number of files '
+        WRITE(lup,*) '!      Label  First file and record  Last file and record   #files  #paired-par'
         DO itgbi=1,ntgb
-            WRITE(lup,112) globalParLabelIndex(1,itgbi), (appearanceCounter(itgbi*5+k), k=-4,0)
+            WRITE(lup,112) globalParLabelIndex(1,itgbi), (appearanceCounter(itgbi*5+k), k=-4,0), pairCounter(itgbi)
         END DO
     END IF
     REWIND lup
@@ -4194,7 +4195,7 @@ SUBROUTINE prtstat
 
 110 FORMAT(' ! ',i10,2X,2G14.5,2i12,'  fixed',I2)
 111 FORMAT(' ! ',i10,2X,2G14.5,2i12,'  variable')
-112 FORMAT(' ! ',i10,5i11)
+112 FORMAT(' !.',i10,6i11)
 END SUBROUTINE prtstat    ! print input statistics
 
 
@@ -5300,6 +5301,10 @@ SUBROUTINE loop2
             INTEGER(mpi), DIMENSION(:), INTENT(OUT) :: nsparc
             INTEGER(mpi), DIMENSION(:), INTENT(IN) :: ncmprs
         END SUBROUTINE spbits
+        SUBROUTINE gpbmap(npair)
+            USE mpdef
+            INTEGER(mpi), DIMENSION(:), INTENT(OUT) :: npair
+        END SUBROUTINE gpbmap
     END INTERFACE
     
     SAVE
@@ -5339,6 +5344,8 @@ SUBROUTINE loop2
     noff8=int8(nagb)*int8(nagb-1)/2
 
     !     read all data files and add all variable index pairs -------------
+
+    IF (icheck > 1) CALL clbmap(ntgb)
 
     IF(matsto == 2) THEN
         CALL clbits(nagb,mreqpe,mhispe,msngpe,mcmprs,mextnd,ndimbi,nencdb,nspc) ! get dimension for bit storage, encoding, precision info
@@ -5388,10 +5395,12 @@ SUBROUTINE loop2
     
     ! for checking appearance 
     IF (icheck > 1) THEN
-        print *, " checking appearance ", icheck, ntgb, nagb
         length=5*ntgb
         CALL mpalloc(appearanceCounter,length,'appearance statistics')
         appearanceCounter=0
+        length=ntgb
+        CALL mpalloc(pairCounter,length,'pair statistics')
+        pairCounter=0
     END IF
 
     DO
@@ -5473,6 +5482,10 @@ SUBROUTINE loop2
                             IF (appearanceCounter(joff+3) /= kfile) appearanceCounter(joff+5)=appearanceCounter(joff+5)+1
                             appearanceCounter(joff+3) = kfile
                             appearanceCounter(joff+4) = nrec-ifd(kfile) ! (local) record number
+                            ! count pairs
+                            DO k=1,j
+                                CALL inbmap(ij,inder(jb+k))
+                            END DO
                         END IF
                         
                         ij=globalParLabelIndex(2,ij)       ! change to variable parameter
@@ -5590,8 +5603,12 @@ SUBROUTINE loop2
     END DO
     !     end=of=data=end=of=data=end=of=data=end=of=data=end=of=data=end=of
 
-    IF(matsto == 2) THEN
+    IF (icheck > 1) THEN
+        CALL gpbmap(pairCounter)
+    END IF    
 
+    IF(matsto == 2) THEN
+          
         !     constraints and index pairs with Lagrange multiplier
 
 
