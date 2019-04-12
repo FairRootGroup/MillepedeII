@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-04-00 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-04-01 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -107,6 +107,10 @@
 !! * 190319: Constraints are now sorted and split into disjoint blocks to speed up
 !!   calculation of rank and QL decomposition by block matrix algebra.
 !!   This works best if the label sets of the involved alignable objects are disjoint too.
+!! * 190412: Cleanup of operations (open, close, rewind) on binary files. New command
+!!   \ref cmd-closeandreopen to to enable closing and reopening of binary files
+!!   to limit the number of concurrently open files. The modification dates of the
+!!   files are monitored to ensure data integrity.
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -360,6 +364,9 @@
 !! \subsection cmd-compress compress
 !! Set compression flag \ref mpmod::mcmprs "mcmprs" for \ref mpbits.f90 "sparse storage"
 !! to 1 (true) (and \ref mpmod::msngpe "msngpe" to 1).
+!! \subsection cmd-closeandreopen closeandreopen
+!! Set flag \ref mpmod::keepopen "keepOpen" to zero to enable closing and reopening of binary files
+!! to limit the number of concurrently open files.
 !! \subsection cmd-constraint constraint
 !! Define \ref sssec_consinf "constraints" for global parameters.
 !! \subsection cmd-debug debug
@@ -527,6 +534,7 @@
 !!    + **16**   Aborted, open error(s) for text files
 !!    + **17**   Aborted, file name too long
 !!    + **18**   Aborted, read error(s) for binary files
+!!    + **19**   Aborted, binary file(s) modified
 !!    + **20**   Aborted, bad binary records
 !!    + **21**   Aborted, no labels/parameters defined
 !!    + **22**   Aborted, no variable global parameters
@@ -1736,6 +1744,7 @@ SUBROUTINE peread(more)
     INTEGER(mpi) :: ierrf
     INTEGER(mpi) :: inder
     INTEGER(mpi) :: ioffp
+    INTEGER(mpi) :: ios
     INTEGER(mpi) :: ithr
     INTEGER(mpi) :: jfile
     INTEGER(mpi) :: jrec
@@ -1816,7 +1825,7 @@ SUBROUTINE peread(more)
     !$OMP  DEFAULT(PRIVATE) &
     !$OMP  SHARED(readBufferInfo,readBufferPointer,readBufferDataI,readBufferDataD, &
     !$OMP  readBufferDataF,nPointer,nData,skippedRecords,ndimbuf,NTHR,NFILF,FLOOP, &
-    !$OMP        IFD,KFD,IFILE,NFILB,WFD,XFD,icheck) &
+    !$OMP        IFD,KFD,IFILE,NFILB,WFD,XFD,icheck,keepOpen) &
     !$OMP  NUM_THREADS(NTHR)
 
     ithr=1
@@ -1829,6 +1838,10 @@ SUBROUTINE peread(more)
 
     files: DO WHILE (jfile > 0)
         kfile=kfd(2,jfile)
+        ! open again
+        IF (keepOpen < 1 .AND. readBufferInfo(3,ithr) == 0) THEN
+            CALL binopn(kfile,ithr,ios)
+        END IF        
         records: DO
             nbuf=readBufferInfo(4,ithr)+1
             noff=readBufferInfo(5,ithr)+2     ! 2 header words per record
@@ -1842,10 +1855,11 @@ SUBROUTINE peread(more)
                 DO i=1,nr
                     readBufferDataD(noff+i)=REAL(readBufferDataF(noffs+i),mpr8)
                 END DO
-                IF (ierrf < 0) REWIND lun ! end-of-file
+                ! IF (ierrf < 0) REWIND lun ! end-of-file ! CHK use binrwd()
                 eof=(ierrf /= 0)
             ELSE         ! C file
                 lun=kfile-nfilf
+                IF (keepOpen < 1) lun=ithr
 #ifdef READ_C_FILES
                 CALL readc(readBufferDataD(noff+1),readBufferDataF(noffs+1),readBufferDataI(noff+1),nr,lun,ierrc)
                 n=nr+nr
@@ -1895,7 +1909,12 @@ SUBROUTINE peread(more)
 
         END DO records
 
-        readBufferInfo(1,ithr)=-jfile   ! flag eof
+        readBufferInfo(1,ithr)=-jfile   ! flag eof        
+        IF (keepOpen < 1) THEN ! close again
+            CALL bincls(kfile,ithr)
+        ELSE ! rewind 
+            CALL binrwd(kfile)    
+        END IF
         IF (kfd(1,jfile) == 1) THEN
             PRINT *, 'PEREAD: file ', kfile, 'read the first time, found',jrec,' records'
             kfd(1,jfile)=-jrec
@@ -1946,19 +1965,15 @@ SUBROUTINE peread(more)
         more=-1
         DO k=1,nthr
             jfile=readBufferInfo(1,k)
-            IF (jfile > 0) THEN   ! rewind files
+            IF (jfile > 0) THEN   ! rewind or close files
                 nrc=readBufferInfo(3,k)
                 IF (kfd(1,jfile) == 1) kfd(1,jfile)=-nrc
                 kfile=kfd(2,jfile)
-                IF (kfile <= nfilf) THEN
-                    lun=kfile+10
-                    REWIND lun
-                ELSE
-                    lun=kfile-nfilf
-#ifdef READ_C_FILES
-                    CALL resetc(lun)
-#endif
-                END IF
+                IF (keepOpen < 1) THEN ! close again
+                    CALL bincls(kfile,k)
+                ELSE ! rewind
+                    CALL binrwd(kfile)
+                END IF               
             END IF
         END DO
     END IF
@@ -7277,6 +7292,7 @@ SUBROUTINE filetc
     INTEGER(mpi) :: ie
     INTEGER(mpi) :: ierrf
     INTEGER(mpi) :: ieq
+    INTEGER(mpi) :: ifilb
     INTEGER(mpi) :: ioff
     INTEGER(mpi) :: iopt
     INTEGER(mpi) :: ios
@@ -7459,6 +7475,13 @@ SUBROUTINE filetc
             CYCLE
         END IF
 
+        keystx='closeandreopen' ! don't keep binary files open
+        mat=matint(text(ia:ib),keystx,npat,ntext)
+        IF(mat == ntext) THEN ! exact matching
+            keepOpen=0
+            CYCLE
+        END IF
+
         ! file names
         !     check for file options (' -- ')
         ie=ib
@@ -7537,6 +7560,9 @@ SUBROUTINE filetc
     CALL mpalloc(xfd,length,'max. record size')
     CALL mpalloc(wfd,length,'file weight')
     CALL mpalloc(cfd,length,'chi2 sum')
+    CALL mpalloc(sfd,rows,length,'start, end of file name in TFD')
+    CALL mpalloc(yfd,length,'modification date')
+    yfd=0
     !
     WRITE(*,*) '-------------------------'
     WRITE(*,*) ' '
@@ -7562,26 +7588,30 @@ SUBROUTINE filetc
         WRITE(*,*) ' '
     END IF
 
-    !     open the binary (data) files on unit 11, 12, ...
+    !     open the binary Fortran (data) files on unit 11, 12, ...
 
     iosum=0
     nfilf=0
     nfilb=0
     nfilw=0
     ioff=0
-    DO i=1,nfiles                                 ! Fortran files
+    ifilb=0
+    IF (keepOpen < 1) ifilb=1
+    DO i=1,nfiles
         IF(mfd(i) == 3) THEN
-            FORALL (k=1:lfd(i)) fname(k:k)=tfd(ioff+k)
-            !        fname=tfd(i)(1:lfd(i))
-            WRITE(*,*) 'Opening Fortran file ',10+nfilf+1, ' ',fname(1:lfd(i))
-            OPEN(10+nfilf+1,FILE=fname(1:lfd(i)),IOSTAT=ios, FORM='UNFORMATTED')
-            IF(ios /= 0) THEN
-                WRITE(*,*) 'Open error for file ',fname(1:lfd(i))
-                iosum=iosum+1
-            ELSE
-                nfilf=nfilf+1
-                nfilb=nfilb+1
+            nfilf=nfilf+1
+            nfilb=nfilb+1
+            ! next file name
+            sfd(1,nfilb)=ioff
+            sfd(2,nfilb)=lfd(i)
+            CALL binopn(nfilb,ifilb,ios)
+            IF(ios == 0) THEN
                 wfd(nfilb)=ofd(i)
+                IF (keepOpen < 1) CALL bincls(nfilb,ifilb)  
+            ELSE ! failure
+                iosum=iosum+1
+                nfilf=nfilf-1
+                nfilb=nfilb-1 
             END IF
         END IF
         ioff=ioff+lfd(i)
@@ -7594,25 +7624,29 @@ SUBROUTINE filetc
     DO i=1,nfiles                                 ! Cfiles
         IF(mfd(i) == 1) THEN
 #ifdef READ_C_FILES
-            IF(nfilc < 0) CALL initc(nfiles) ! uncommented by GF
-            IF(nfilc < 0) nfilc=0
-            FORALL (k=1:lfd(i)) fname(k:k)=tfd(ioff+k)
-            !            fname=tfd(i)(1:lfd(i))
-            WRITE(*,*) 'Opening C file ',nfilc+1, ': ',fname(1:lfd(i)) ! by GF
-            CALL openc(fname(1:lfd(i)),ios)
-            IF(ios /= 0) THEN
-                WRITE(*,*) 'Open error ',ios,' for file ',fname(1:lfd(i))
-                iosum=iosum+1 ! typo fixed by GF
-            ELSE
-                nfilc=nfilc+1
-                nfilb=nfilb+1
+            IF(nfilc < 0) THEN ! initialize
+                CALL initc(max(nfiles,mthrdr)) ! uncommented by GF
+                nfilc=0
+            END IF
+            nfilc=nfilc+1
+            nfilb=nfilb+1
+            ! next file name
+            sfd(1,nfilb)=ioff
+            sfd(2,nfilb)=lfd(i)
+            CALL binopn(nfilb,ifilb,ios)
+            IF(ios == 0) THEN
                 wfd(nfilb)=ofd(i)
+                IF (keepOpen < 1) CALL bincls(nfilb,ifilb)
+            ELSE ! failure
+                iosum=iosum+1
+                nfilc=nfilc-1
+                nfilb=nfilb-1                     
             END IF
 #else
             WRITE(*,*) 'Opening of C-files not supported.'
-                   ! GF add
+            ! GF add
             iosum=iosum+1
-        ! GF add end
+            ! GF add end
 #endif
         END IF
         ioff=ioff+lfd(i)
@@ -7633,7 +7667,11 @@ SUBROUTINE filetc
         CALL peend(14,'Aborted, no binary files')
         STOP 'FILETC: no binary files                                 '
     END IF
-    WRITE(*,*) nfilb,' binary files opened' ! corrected by GF
+    IF (keepOpen > 0) THEN 
+        WRITE(*,*) nfilb,' binary files opened' ! corrected by GF
+    ELSE
+        WRITE(*,*) nfilb,' binary files opened and closed' ! corrected by GF
+    END IF     
 101 FORMAT(i3,2X,a)
 102 FORMAT(a)
 103 FORMAT(i3,2X,a14,3X,a)
@@ -8487,7 +8525,11 @@ SUBROUTINE intext(text,nline)
         keystx='Cfiles'
         mat=matint(text(ia:ib),keystx,npat,ntext) ! comparison
         IF(mat >= ntext-ntext/10) RETURN
-  
+
+        keystx='closeandreopen'
+        mat=matint(text(ia:ib),keystx,npat,ntext) ! comparison
+        IF(mat >= ntext-ntext/10) RETURN
+          
         keystx=keylst(1)
         nkey=1                 ! unknown keyword
         IF(nums /= 0) nkey=0
@@ -8858,6 +8900,138 @@ SUBROUTINE peend(icode, cmessage)
 
 END SUBROUTINE peend
 
+!> Open binary file.
+!!
+!! \param[in]  kfile     file number
+!! \param[in]  ithr      thread number ([1..nthrd] - close and reopen) or 0 (next file - keep open) for C files
+!! \param[out] ierr      error flag
+!!
+SUBROUTINE binopn(kfile, ithr, ierr)
+    USE mpmod
+
+    IMPLICIT NONE
+    INTEGER(mpi), INTENT(IN) :: kfile
+    INTEGER(mpi), INTENT(IN) :: ithr
+    INTEGER(mpi), INTENT(OUT) :: ierr
+
+    INTEGER(mpi), DIMENSION(13) :: ibuff
+    INTEGER(mpi) :: ioff
+    INTEGER(mpi) :: ios
+    INTEGER(mpi) :: k
+    INTEGER(mpi) :: lfn
+    INTEGER(mpi) :: lun
+    INTEGER(mpi) :: moddate
+    CHARACTER (LEN=1024) :: fname
+
+    ierr=0
+    lun=ithr
+    ! modification date (=0: open for first time, >0: reopen, <0: unknown )
+    moddate=yfd(kfile) 
+    ! file name
+    ioff=sfd(1,kfile)
+    lfn=sfd(2,kfile)
+    FORALL (k=1:lfn) fname(k:k)=tfd(ioff+k)
+    !print *, " opening binary ", kfile, ithr, moddate, " : ", fname(1:lfn)
+    ! open
+    ios=0 
+    IF(kfile <= nfilf) THEN
+        ! Fortran file
+        lun=kfile+10 
+        OPEN(lun,FILE=fname(1:lfn),IOSTAT=ios, FORM='UNFORMATTED')
+        print *, ' lun ', lun, ios
+#ifdef READ_C_FILES
+    ELSE
+        ! C file
+        CALL openc(fname(1:lfn),lun,ios)
+#else
+        WRITE(*,*) 'Opening of C-files not supported.'
+        ierr=1
+        RETURN
+#endif
+    END IF
+    IF(ios /= 0) THEN
+        ierr=1
+        WRITE(*,*) 'Open error for file ',fname(1:lfn), ios
+        IF (moddate /= 0) THEN
+            CALL peend(15,'Aborted, open error(s) for binary files')
+            STOP 'PEREAD: open error                                      '
+        ENDIF
+        RETURN
+    END IF
+    ! get status
+    CALL stat(fname(1:lfn),ibuff,ios)
+    !print *, ' STAT ', ios, ibuff(10), moddate
+    IF(ios /= 0) THEN
+        ierr=1
+        WRITE(*,*) 'STAT error for file ',fname(1:lfn), ios
+        ibuff(10)=-1
+    END IF
+    ! check/store modification date
+    IF (moddate /= 0) THEN    
+        IF (ibuff(10) /= moddate) THEN
+            CALL peend(19,'Aborted, binary file(s) modified')
+            STOP 'PEREAD: file modified                                   '
+        END IF
+    ELSE
+        yfd(kfile)=ibuff(10)
+    END IF          
+    RETURN
+
+END SUBROUTINE binopn
+
+!> Close binary file.
+!!
+!! \param[in]  kfile     file number
+!! \param[in]  ithr      thread number ([1..nthrd] - close and reopen) for C files
+!!
+SUBROUTINE bincls(kfile, ithr)
+    USE mpmod
+
+    IMPLICIT NONE
+    INTEGER(mpi), INTENT(IN) :: kfile
+    INTEGER(mpi), INTENT(IN) :: ithr
+
+    INTEGER(mpi) :: lun
+    
+    lun=ithr
+    !print *, " closing binary ", kfile, ithr
+    IF(kfile <= nfilf) THEN ! Fortran file
+        lun=kfile+10 
+        CLOSE(lun)
+#ifdef READ_C_FILES
+    ELSE ! C file
+        CALL closec(lun)
+#endif
+    END IF
+    
+END SUBROUTINE bincls
+    
+!> Rewind binary file.
+!!
+!! \param[in]  kfile     file number
+!!
+SUBROUTINE binrwd(kfile)
+    USE mpmod 
+    
+    IMPLICIT NONE
+    INTEGER(mpi), INTENT(IN) :: kfile
+
+    INTEGER(mpi) :: lun
+           
+    !print *, " rewinding binary ", kfile
+    IF (kfile <= nfilf) THEN
+        lun=kfile+10
+        REWIND lun
+#ifdef READ_C_FILES
+    ELSE
+        lun=kfile-nfilf
+        CALL resetc(lun)
+#endif
+    END IF 
+
+END SUBROUTINE binrwd
+                    
+                    
 ! ----- accurate summation ----(from mpnum) ---------------------------------
 
 !> Accurate summation.

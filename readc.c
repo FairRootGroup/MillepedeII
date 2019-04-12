@@ -45,9 +45,12 @@
  *  - skip records larger than buffer size (to determine max record length)
  *  - dynamic allocation of file pointer list (no hard-coded max number of files)
  *
- *  Last major update on February 26th, 2014 by C.Kleinwort:
+ *  Major update on February 26th, 2014 by C.Kleinwort:
  *  - implement reading of records containing doubles (instead of floats)
  *    indicated by negative record length.
+ *
+ *  Last major update on April 10th, 2019 by C.Kleinwort:
+ *  - Option to close and reopen files 
  */
 
 #ifdef USE_SHIFT_RFIO
@@ -130,10 +133,29 @@ void resetC(int *nFileIn) {
 FCALLSCSUB1( resetC, RESETC, resetc, PINT)
 
 /*______________________________________________________________*/
+/// Close file.
+/**
+ * \param[in]  nFileIn  File number (1 .. maxNumFiles)
+ */
+void closeC(int *nFileIn) {
+	int fileIndex = *nFileIn - 1; /* index of current file */
+	if (fileIndex < 0)
+		return; /* no file opened at all... */
+#ifdef USE_ZLIB
+	gzclose(files[fileIndex]);
+#else
+	fclose(files[fileIndex]);
+#endif
+        files[fileIndex] = 0;
+}
+FCALLSCSUB1( closeC, CLOSEC, closec, PINT)
+
+/*______________________________________________________________*/
 /// Open file.
-void openC(const char *fileName, int *errorFlag)
+void openC(const char *fileName, int *nFileIn, int *errorFlag)
 /**
  * \param[in]  fileName  File name
+ * \param[in]  nFileIn  File number (1 .. maxNumFiles) or <=0 for next one
  * \param[out] errorFlag error flag:
  *      * 0: if file opened and OK,
  *      * 1: if too many files open,
@@ -146,21 +168,24 @@ void openC(const char *fileName, int *errorFlag)
 	if (!errorFlag)
 		return; /* 'printout' error? */
 
-	if (numAllFiles >= maxNumFiles) {
+	int fileIndex = *nFileIn - 1; /* index of specific file */
+	if (fileIndex < 0) fileIndex = numAllFiles; /* next one */
+        
+	if (fileIndex >= maxNumFiles) {
 		*errorFlag = 1;
 	} else {
 #ifdef USE_ZLIB
-		files[numAllFiles] = gzopen(fileName, "rb");
-		if (!files[numAllFiles]) {
+		files[fileIndex] = gzopen(fileName, "rb");
+		if (!files[fileIndex]) {
 			*errorFlag = 2;
 		} else
 #else
-		files[numAllFiles] = fopen(fileName, "rb");
-		if (!files[numAllFiles]) {
+		files[fileIndex] = fopen(fileName, "rb");
+		if (!files[fileIndex]) {
 			*errorFlag = 2;
-		} else if (ferror(files[numAllFiles])) {
-			fclose(files[numAllFiles]);
-			files[numAllFiles] = 0;
+		} else if (ferror(files[fileIndex])) {
+			fclose(files[fileIndex]);
+			files[fileIndex] = 0;
 			*errorFlag = 3;
 		} else
 #endif
@@ -170,7 +195,7 @@ void openC(const char *fileName, int *errorFlag)
 		}
 	}
 }
-FCALLSCSUB2( openC, OPENC, openc, STRING, PINT)
+FCALLSCSUB3( openC, OPENC, openc, STRING, PINT, PINT)
 
 /*______________________________________________________________*/
 /// Read record from file.
@@ -218,7 +243,7 @@ void readC(double *bufferDouble, float *bufferFloat, int *bufferInt,
 #ifdef USE_ZLIB
 	int nCheckR = gzread(files[fileIndex], &recordLength, sizeof(recordLength));
 	if (gzeof(files[fileIndex])) {
-		gzrewind(files[fileIndex]);
+		/* gzrewind(files[fileIndex]); CHK: moved to binrwd */
 		*errorFlag = 0; /* Means EOF of file. */
 		return;
 	}
@@ -308,8 +333,8 @@ void readC(double *bufferDouble, float *bufferFloat, int *bufferInt,
 			files[fileIndex]);
 	if (feof(files[fileIndex])) {
 		/* rewind(files[fileIndex]);  Does not work with rfio, so call: */
-		fseek(files[fileIndex], 0L, SEEK_SET);
-		clearerr(files[fileIndex]); /* These two should be the same as rewind... */
+		/* fseek(files[fileIndex], 0L, SEEK_SET); CHK: moved to binrwd
+		clearerr(files[fileIndex]); These two should be the same as rewind... */
 		*errorFlag = 0; /* Means EOF of file. */
 		return;
 	}

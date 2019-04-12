@@ -108,7 +108,8 @@ MODULE mpmod
     INTEGER(mpi) :: imonmd=0  !< monitoring mode: 0:residuals (normalized to average error), 1:pulls
     INTEGER(mpi) :: iscerr=0  !< flag for scaling of errors
     REAL(mpd), DIMENSION(2) :: dscerr = (/ 1.0, 1.0 /) !< scaling factors for errors of 'global' and 'local' measurement
- 
+    INTEGER(mpi) :: keepOpen=1 !< flag for keeping binary files open
+
     ! variables
     INTEGER(mpi) :: lunmon !< unit for monitoring output file
     INTEGER(mpi) :: lunlog !< unit for logfile
@@ -288,7 +289,9 @@ MODULE mpmod
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: xfd   !< file: max. record size
     REAL(mps), DIMENSION(:), ALLOCATABLE :: cfd      !< file: chi2 sum
     REAL(mps), DIMENSION(:), ALLOCATABLE :: ofd      !< file: option
-    REAL(mps), DIMENSION(:), ALLOCATABLE :: wfd      !< file: weight
+    REAL(mps), DIMENSION(:), ALLOCATABLE :: wfd      !< binary file: weight
+    INTEGER(mpi), DIMENSION(:,:), ALLOCATABLE :: sfd !< offset (1,..), length (2,..) of binary file name in tfd
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: yfd   !< binary file: modification date
     CHARACTER (LEN=1024) :: filnam !< name of steering file
     INTEGER(mpi) :: nfnam  !< length of sterring file name
     CHARACTER, DIMENSION(:), ALLOCATABLE :: tfd !< file names (concatenation)
