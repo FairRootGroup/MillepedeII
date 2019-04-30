@@ -10,7 +10,7 @@
 !! \author Claus Kleinwort, DESY (maintenance and developement)
 !!
 !! \copyright
-!! Copyright (c) 2009 - 2018 Deutsches Elektronen-Synchroton,
+!! Copyright (c) 2009 - 2019 Deutsches Elektronen-Synchroton,
 !! Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY \n\n
 !! This library is free software; you can redistribute it and/or modify
 !! it under the terms of the GNU Library General Public License as
@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-04-01 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-00 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -108,9 +108,13 @@
 !!   calculation of rank and QL decomposition by block matrix algebra.
 !!   This works best if the label sets of the involved alignable objects are disjoint too.
 !! * 190412: Cleanup of operations (open, close, rewind) on binary files. New command
-!!   \ref cmd-closeandreopen to to enable closing and reopening of binary files
+!!   \ref cmd-closeandreopen to enable closing and reopening of binary files
 !!   to limit the number of concurrently open files. The modification dates of the
 !!   files are monitored to ensure data integrity.
+!! * 190430: Update of (approximate) string matching for keyword detection.
+!!   Matching is now symmetric in pattern and text. Previously e.g. a binary file
+!!   with the letters from '<tt>Cfiles</tt>' in the name in that order was
+!!   treated as that keyword and not as a binary file.
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -547,7 +551,7 @@
 !!    + **31**   Aborted, memory deallocation failed
 !!    + **32**   Aborted, iteration limit reached in diagonalization
 !!    + **33**   Aborted, stack overflow in quicksort
-!!    + **34**   Aborted, pattern string too long
+!!    + **34**   Aborted, pattern string too long - obsolete
 
 !> Millepede II main program \ref sssec-stalone "Pede".
 PROGRAM mptwo
@@ -7451,7 +7455,7 @@ SUBROUTINE filetc
         CALL rltext(text,ia,ib,nab)        ! test content   'end'
         IF(ib == ia+2) THEN
             mat=matint(text(ia:ib),'end',npat,ntext)
-            IF(mat == 3) THEN
+            IF(mat == max(npat,ntext)) THEN ! exact matching
                 text=' '
                 CALL intext(text,nline)
                 WRITE(*,*) '    end-statement after',nline,' text lines'
@@ -7461,7 +7465,7 @@ SUBROUTINE filetc
 
         keystx='fortranfiles'
         mat=matint(text(ia:ib),keystx,npat,ntext)
-        IF(mat == ntext) THEN ! exact matching
+        IF(mat == max(npat,ntext)) THEN ! exact matching
             nuf=3
             !         WRITE(*,*) 'Fortran files'
             CYCLE
@@ -7469,7 +7473,7 @@ SUBROUTINE filetc
 
         keystx='Cfiles'
         mat=matint(text(ia:ib),keystx,npat,ntext)
-        IF(mat == ntext) THEN ! exact matching
+        IF(mat == max(npat,ntext)) THEN ! exact matching
             nuf=1
             !         WRITE(*,*) 'Cfiles'
             CYCLE
@@ -7477,7 +7481,7 @@ SUBROUTINE filetc
 
         keystx='closeandreopen' ! don't keep binary files open
         mat=matint(text(ia:ib),keystx,npat,ntext)
-        IF(mat == ntext) THEN ! exact matching
+        IF(mat == max(npat,ntext)) THEN ! exact matching
             keepOpen=0
             CYCLE
         END IF
@@ -7804,7 +7808,7 @@ SUBROUTINE filetx ! ---------------------------------------------------
             CALL rltext(text,ia,ib,nab)        ! test content   'end'
             IF(ib == ia+2) THEN
                 mat=matint(text(ia:ib),'end',npat,ntext)
-                IF(mat == 3) THEN
+                IF(mat == max(npat,ntext)) THEN ! exact matching
                     text=' '
                     CALL intext(text,nline)
                     WRITE(*,*) '    end-statement after',nline,' text lines'
@@ -8087,17 +8091,14 @@ SUBROUTINE intext(text,nline)
         DO nkey=2,nkeys           ! loop over all pede keywords
             keystx=keylst(nkey)   ! copy NKEY.th pede keyword
             mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-            IF(mat >= ntext-ntext/5) GO TO 10
+            IF(100*mat >= 80*max(npat,ntext)) GO TO 10 ! 80% (symmetric) matching
         END DO
   
         !        more comparisons
   
         keystx='print'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        !         WRITE(*,*) KEYSTX,MAT,NTEXT
-        !         IF(MAT.GE.NTEXT) THEN
-        IF(mat >= (npat-npat/5)) THEN
-            !         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             mprint=1
             IF(nums > 0) mprint=NINT(dnum(1),mpi)
             RETURN
@@ -8105,8 +8106,7 @@ SUBROUTINE intext(text,nline)
   
         keystx='debug'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
-            !         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             mdebug=3
             ! GF            IF(NUMS.GT.0) MPRINT=DNUM(1)
             IF(nums > 0) mdebug=NINT(dnum(1),mpi)
@@ -8116,8 +8116,7 @@ SUBROUTINE intext(text,nline)
 
         keystx='entries'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
-            !         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums > 0 .AND. dnum(1) > 0.5) mreqenf=NINT(dnum(1),mpi)
             IF(nums > 1 .AND. dnum(2) > 0.5) mreqena=NINT(dnum(2),mpi)
             IF(nums > 2 .AND. dnum(3) > 0.5) iteren=NINT(dnum(1)*dnum(3),mpi)
@@ -8126,7 +8125,7 @@ SUBROUTINE intext(text,nline)
 
         keystx='printrecord'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums > 0) nrecpr=NINT(dnum(1),mpi)
             IF(nums > 1) nrecp2=NINT(dnum(2),mpi)
             RETURN
@@ -8134,14 +8133,14 @@ SUBROUTINE intext(text,nline)
 
         keystx='maxrecord'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF (nums > 0.AND.dnum(1) > 0.) mxrec=NINT(dnum(1),mpi)
             RETURN
         END IF
   
         keystx='cache'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF (nums > 0.AND.dnum(1) >= 0.) ncache=NINT(dnum(1),mpi) ! cache size, <0 keeps default
             IF (nums == 2.AND.dnum(2) > 0..AND.dnum(2) <= 1.0)  &  ! read cache fill level
                 fcache(1)=REAL(dnum(2),mps)
@@ -8155,7 +8154,7 @@ SUBROUTINE intext(text,nline)
   
         keystx='chisqcut'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums == 0) THEN ! always 3-sigma cut
                 chicut=1.0
                 chirem=1.0
@@ -8176,7 +8175,7 @@ SUBROUTINE intext(text,nline)
         ! GF added:
         keystx='hugecut'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums > 0) chhuge=REAL(dnum(1),mps)
             IF(chhuge < 1.0) chhuge=1.0 ! at least (!!) 3-sigma
             RETURN
@@ -8185,14 +8184,14 @@ SUBROUTINE intext(text,nline)
   
         keystx='linesearch'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums > 0) lsearch=NINT(dnum(1),mpi)
             RETURN
         END IF
 
         keystx='localfit'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums > 0) lfitnp=NINT(dnum(1),mpi)
             IF(nums > 1) lfitbb=NINT(dnum(2),mpi)
             RETURN
@@ -8200,7 +8199,7 @@ SUBROUTINE intext(text,nline)
 
         keystx='regularization'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             nregul=1
             regula=REAL(dnum(1),mps)
             IF(nums >= 2) regpre=REAL(dnum(2),mps)
@@ -8209,7 +8208,7 @@ SUBROUTINE intext(text,nline)
   
         keystx='regularisation'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             nregul=1
             regula=REAL(dnum(1),mps)
             IF(nums >= 2) regpre=REAL(dnum(2),mps)
@@ -8218,21 +8217,21 @@ SUBROUTINE intext(text,nline)
   
         keystx='presigma'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             regpre=REAL(dnum(1),mps)
             RETURN
         END IF
   
         keystx='matiter'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             matrit=NINT(dnum(1),mpi)
             RETURN
         END IF
   
         keystx='matmoni'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             matmon=-1
             IF (nums > 0.AND.dnum(1) > 0.) matmon=NINT(dnum(1),mpi)
             RETURN
@@ -8240,8 +8239,7 @@ SUBROUTINE intext(text,nline)
   
         keystx='bandwidth'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        !         IF(MAT.GE.(NTEXT+NTEXT+3)/3) THEN
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums > 0)   mbandw=NINT(dnum(1),mpi)
             IF(mbandw < 0) mbandw=-1
             IF(nums > 1)   lprecm=NINT(dnum(2),mpi)
@@ -8270,9 +8268,7 @@ SUBROUTINE intext(text,nline)
   
         keystx='outlierdownweighting'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        !         WRITE(*,*) KEYSTX,MAT,(NTEXT+NTEXT)/3
-        !         IF(MAT.GE.(NTEXT+NTEXT+NTEXT-2)/3) THEN
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             lhuber=NINT(dnum(1),mpi)
             IF(lhuber > 0.AND.lhuber <= 2) lhuber=2 ! at least 2 Huber iterations (if any)
             RETURN
@@ -8280,7 +8276,7 @@ SUBROUTINE intext(text,nline)
   
         keystx='dwfractioncut'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             dwcut=REAL(dnum(1),mps)
             IF(dwcut > 0.5) dwcut=0.5
             RETURN
@@ -8288,28 +8284,28 @@ SUBROUTINE intext(text,nline)
   
         keystx='pullrange'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             prange=ABS(REAL(dnum(1),mps))
             RETURN
         END IF
   
         keystx='subito'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             isubit=1
             RETURN
         END IF
   
         keystx='force'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             iforce=1
             RETURN
         END IF
 
         keystx='memorydebug'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             memdbg=1
             IF (nums > 0.AND.dnum(1) > 0.0) memdbg=NINT(dnum(1),mpi)
             RETURN
@@ -8317,14 +8313,14 @@ SUBROUTINE intext(text,nline)
   
         keystx='globalcorr'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             igcorr=1
             RETURN
         END IF
 
         keystx='printcounts'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             ipcntr=1
             IF (nums > 0.AND.dnum(1) > 0.0) ipcntr=NINT(dnum(1),mpi)
             RETURN
@@ -8332,7 +8328,7 @@ SUBROUTINE intext(text,nline)
 
         keystx='weightedcons'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             iwcons=1
             IF (nums > 0) iwcons=NINT(dnum(1),mpi)
             RETURN
@@ -8340,28 +8336,28 @@ SUBROUTINE intext(text,nline)
 
         keystx='skipemptycons'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             iskpec=1
             RETURN
         END IF
 
         keystx='withelimination'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             icelim=1
             RETURN
         END IF
 
         keystx='withmultipliers'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             icelim=0
             RETURN
         END IF
 
         keystx='checkinput'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             icheck=1
             IF (nums > 0) icheck=NINT(dnum(1),mpi)            
             RETURN
@@ -8369,7 +8365,7 @@ SUBROUTINE intext(text,nline)
 
         keystx='monitorresiduals'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             imonit=3
             IF (nums > 0) imonit=NINT(dnum(1),mpi)
             IF (nums > 1) measBins=max(measBins,NINT(dnum(2),mpi))
@@ -8378,7 +8374,7 @@ SUBROUTINE intext(text,nline)
 
         keystx='monitorpulls'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             imonit=3
             imonmd=1
             IF (nums > 0) imonit=NINT(dnum(1),mpi)
@@ -8388,7 +8384,7 @@ SUBROUTINE intext(text,nline)
         
         keystx='scaleerrors'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             iscerr=1
             IF (nums > 0) dscerr(1:2)=dnum(1)
             IF (nums > 1) dscerr(2)=dnum(2)
@@ -8397,7 +8393,7 @@ SUBROUTINE intext(text,nline)
         
         keystx='iterateentries'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             iteren=huge(iteren)
             IF (nums > 0) iteren=NINT(dnum(1),mpi)
             RETURN
@@ -8405,7 +8401,7 @@ SUBROUTINE intext(text,nline)
 
         keystx='threads'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             iomp=0
             !$          IOMP=1
             !$          IF (IOMP.GT.0) THEN
@@ -8422,7 +8418,7 @@ SUBROUTINE intext(text,nline)
   
         keystx='compress'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             mcmprs=1
             RETURN
         END IF
@@ -8430,7 +8426,7 @@ SUBROUTINE intext(text,nline)
         ! still experimental
         !keystx='extendedStorage'
         !mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        !IF(mat >= (npat-npat/5)) THEN
+        !IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
         !    mextnd=1
         !    ! compression enforced for extended storage (in mpbits)
         !    RETURN
@@ -8438,7 +8434,7 @@ SUBROUTINE intext(text,nline)
           
         keystx='errlabels'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5).AND.mnrsel < 100) THEN
+        IF(100*mat >= 80*max(npat,ntext).AND.mnrsel < 100) THEN ! 80% (symmetric) matching
             nl=MIN(nums,100-mnrsel)
             DO k=1,nl
                 lbmnrs(mnrsel+k)=NINT(dnum(k),mpi)
@@ -8449,7 +8445,7 @@ SUBROUTINE intext(text,nline)
   
         keystx='pairentries'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             !     This option could be implemented to get rid of parameter pairs
             !     that have very few entries - to save matrix memory size.
             IF (nums > 0.AND.dnum(1) > 0.0) THEN
@@ -8462,7 +8458,7 @@ SUBROUTINE intext(text,nline)
   
         keystx='wolfe'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             wolfc1=REAL(dnum(1),mps)
             wolfc2=REAL(dnum(2),mps)
             RETURN
@@ -8472,7 +8468,7 @@ SUBROUTINE intext(text,nline)
         ! convergence tolerance for minres:
         keystx='mrestol'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums > 0) THEN
                 IF (dnum(1) < 1.0E-10_mpd.OR.dnum(1) > 1.0E-04_mpd) THEN
                     WRITE(*,*) 'ERROR: need 1.0D-10 <= MRESTL ',  &
@@ -8487,7 +8483,7 @@ SUBROUTINE intext(text,nline)
 
         keystx='mrestranscond'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums > 0) THEN
                 mrtcnd = dnum(1)
             END IF
@@ -8496,7 +8492,7 @@ SUBROUTINE intext(text,nline)
 
         keystx='mresmode'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             IF(nums > 0) THEN
                 mrmode = INT(dnum(1),mpi)
             END IF
@@ -8505,30 +8501,29 @@ SUBROUTINE intext(text,nline)
 
         keystx='nofeasiblestart'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= (npat-npat/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             nofeas=1 ! do not make parameters feasible at start
             RETURN
         END IF
   
         keystx='histprint'
         mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-        IF(mat >= ntext-ntext/10) THEN
-            !         IF(MAT.GE.(NPAT-NPAT/5)) THEN
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
             nhistp=1 ! print histograms
             RETURN
         END IF
   
         keystx='fortranfiles'
         mat=matint(text(ia:ib),keystx,npat,ntext) ! comparison
-        IF(mat >= ntext-ntext/10) RETURN
+        IF(mat == max(npat,ntext)) RETURN
   
         keystx='Cfiles'
         mat=matint(text(ia:ib),keystx,npat,ntext) ! comparison
-        IF(mat >= ntext-ntext/10) RETURN
+        IF(mat == max(npat,ntext)) RETURN
 
         keystx='closeandreopen'
         mat=matint(text(ia:ib),keystx,npat,ntext) ! comparison
-        IF(mat >= ntext-ntext/10) RETURN
+        IF(mat == max(npat,ntext)) RETURN
           
         keystx=keylst(1)
         nkey=1                 ! unknown keyword
@@ -8608,7 +8603,7 @@ SUBROUTINE intext(text,nline)
                 WRITE(*,*) '> ',text(1:nab)
             END IF
     
-        ELSE IF(lkey == 5) THEN         ! method
+        ELSE IF(lkey == 5.AND.keyb < keyc) THEN         ! method with text argument
             miter=mitera
             IF(nums >= 1) miter=NINT(dnum(1),mpi)
             IF(miter >= 1) mitera=miter
@@ -8616,8 +8611,8 @@ SUBROUTINE intext(text,nline)
             lkey=0
             DO i=1,nmeth
                 keystx=methxt(i)
-                mat=matint(text(keya:keyb),keystx,npat,ntext) ! comparison
-                IF(mat >= ntext-ntext/5) THEN
+                mat=matint(text(keyb+1:keyc),keystx,npat,ntext) ! comparison
+                IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
                     IF(i == 1) THEN            ! diagonalization
                         metsol=2
                         matsto=1

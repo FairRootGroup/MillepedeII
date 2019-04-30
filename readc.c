@@ -6,7 +6,7 @@
  * \author Claus Kleinwort, DESY (maintenance and developement)
  *
  *  \copyright
- *  Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
+ *  Copyright (c) 2009 - 2019 Deutsches Elektronen-Synchroton,
  *  Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY \n\n
  *  This library is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU Library General Public License as
