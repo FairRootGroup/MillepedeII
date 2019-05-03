@@ -221,10 +221,21 @@ SUBROUTINE ratext(text,nums,dnum)
     ic=0
     k=0
     DO i=1,icd(1,1)-1
-        IF(ia == 0.AND.text(i:i) /= ' ') ia=i
-        IF(ia > 0.AND.text(i:i) == ' ') k=k+1
-        IF(k == 0) ib=i
-        IF(text(i:i) /= ' ') ic=i
+        ! (still) leading blanks ?
+        IF(ia == 0) THEN
+            IF(text(i:i) /= ' ') THEN
+                ia=i ! first non blank char
+            ELSE
+                CYCLE ! skip
+            END IF
+        END IF
+        ! non blank char ?
+        IF(text(i:i) /= ' ')  THEN
+            ic=i ! last non blank char
+        ELSE
+            k=i ! new blank
+        END IF
+        IF(k == 0) ib=i ! last non blank char in keyword
     END DO
     keya=ia
     keyb=ib

@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-00 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-01 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
