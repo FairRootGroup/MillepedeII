@@ -66,7 +66,7 @@ SUBROUTINE gbrshi(n,a)
     INTEGER(mpi), PARAMETER :: ir=2836
     REAL(mps), PARAMETER :: aeps=1.0E-10
     REAL(mps), PARAMETER :: scalin=4.6566125E-10
-    COMMON/ranbuf/mbuff(0:nb),ian,ic,iboost
+    COMMON/ranbuf/mbuff(0:nb+1),ian,ic,iboost
 
     INTEGER(mpi) :: istart
 

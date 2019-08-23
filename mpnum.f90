@@ -1059,7 +1059,7 @@ SUBROUTINE vabslv(n,val,ilptr,x)
     INTEGER(mpi), INTENT(IN)                      :: ilptr(n)
     REAL(mpd), INTENT(IN OUT)         :: x(n)
     !     ...
-    DO k=1,n                  ! forward loop
+    DO k=2,n                  ! forward loop
         mk=k-ilptr(k)+ilptr(k-1)+1
         DO j=mk,k-1
             x(k)=x(k)-val(ilptr(k)-k+j)*x(j)  ! X_k := X_k - L_kj B_j
@@ -1070,7 +1070,7 @@ SUBROUTINE vabslv(n,val,ilptr,x)
         x(k)=x(k)*val(ilptr(k))            ! X_k := X_k*D_kk
     END DO
 
-    DO k=n,1,-1               ! backward loop
+    DO k=n,2,-1               ! backward loop
         mk=k-ilptr(k)+ilptr(k-1)+1
         DO j=mk,k-1
             x(j)=x(j)-val(ilptr(k)-k+j)*x(k)  ! X_j := X_j - L_kj X_k

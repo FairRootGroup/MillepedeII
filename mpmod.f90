@@ -109,6 +109,7 @@ MODULE mpmod
     INTEGER(mpi) :: iscerr=0  !< flag for scaling of errors
     REAL(mpd), DIMENSION(2) :: dscerr = (/ 1.0, 1.0 /) !< scaling factors for errors of 'global' and 'local' measurement
     INTEGER(mpi) :: keepOpen=1 !< flag for keeping binary files open
+    INTEGER(mpi) :: ireeof=0 !< flag for treating (binary file) read errors as end-of-file
 
     ! variables
     INTEGER(mpi) :: lunmon !< unit for monitoring output file
@@ -155,6 +156,8 @@ MODULE mpmod
     REAL(mpd) :: fvalue !< function value (chi2 sum) solution
     REAL(mpd) :: flines !< function value line search
     REAL(mpd) :: sumndf !< weighted sum(ndf)
+    INTEGER(mpi) :: nrderr=0 !< number of binary files with read errors
+       
     ! each loop
     INTEGER(mpi) :: numReadbuffer     !< number of buffers (records) in (read) block
     INTEGER(mpi) :: numBlocks         !< number of (read) blocks

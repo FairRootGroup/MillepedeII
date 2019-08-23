@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-01 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-02 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -483,6 +483,9 @@
 !! \subsection cmd-pullrange pullrange
 !! Set (symmetric) range \ref mpmod::prange "prange" for histograms
 !! of pulls, normalized residuals to \a number1 (=0: auto-ranging).
+!! \subsection cmd-readerroraseof readerroraseof
+!! Set flag \ref mpmod::ireeof "ireeof" to 1 (true) to treat read errors for binary files
+!! as end-of-file instead of aborting.
 !! \subsection cmd-regularisation regularisation
 !! Set flag \ref mpmod::nregul "nregul" for regularization to 1 (true),
 !! regularization parameter \ref mpmod::regula "regula" to \a number2,
@@ -529,6 +532,7 @@
 !!    + **01**   Ended with warnings (bad measurements)
 !!    + **02**   Ended with severe warnings (insufficient measurements)
 !!    + **03**   Ended with severe warnings (bad global matrix)
+!!    + **04**   Ended with severe warnings (bad binary file(s))
 !!    + **10**   Aborted, no steering file
 !!    + **11**   Aborted, open error for steering file
 !!    + **12**   Aborted, second text file in command line
@@ -1829,7 +1833,7 @@ SUBROUTINE peread(more)
     !$OMP  DEFAULT(PRIVATE) &
     !$OMP  SHARED(readBufferInfo,readBufferPointer,readBufferDataI,readBufferDataD, &
     !$OMP  readBufferDataF,nPointer,nData,skippedRecords,ndimbuf,NTHR,NFILF,FLOOP, &
-    !$OMP        IFD,KFD,IFILE,NFILB,WFD,XFD,icheck,keepOpen) &
+    !$OMP        IFD,KFD,IFILE,NFILB,WFD,XFD,icheck,keepOpen,ireeof,nrderr) &
     !$OMP  NUM_THREADS(NTHR)
 
     ithr=1
@@ -1875,11 +1879,15 @@ SUBROUTINE peread(more)
                 IF(eof.AND.ierrc < 0) THEN
                     WRITE(*,*) 'Read error for binary Cfile', kfile, 'record', jrec+1, ':', ierrc 
                     WRITE(8,*) 'Read error for binary Cfile', kfile, 'record', jrec+1, ':', ierrc
-                    IF (icheck <= 0) THEN ! stop unless 'checkinput' mode
+                    IF (icheck <= 0 .AND. ireeof <=0) THEN ! stop unless 'checkinput' mode or 'readerroraseof'
                         WRITE(cfile,'(I7)') kfile
                         CALL peend(18,'Aborted, read error(s) for binary file ' // cfile)
                         STOP 'PEREAD: stopping due to read errors'
-                    ENDIF
+                    END IF
+                    IF (kfd(1,jfile) == 1) THEN ! count files with read errors in first loop
+                        !$OMP ATOMIC
+                        nrderr=nrderr+1
+                    END IF     
                 END IF
             END IF
             IF(eof) EXIT records   ! end-of-files or error
@@ -1922,6 +1930,13 @@ SUBROUTINE peread(more)
         IF (kfd(1,jfile) == 1) THEN
             PRINT *, 'PEREAD: file ', kfile, 'read the first time, found',jrec,' records'
             kfd(1,jfile)=-jrec
+        ELSE
+            !PRINT *, 'PEREAD: file ', kfile, 'records', jrec, -kfd(1,jfile)
+            IF (-kfd(1,jfile) /= jrec) THEN
+                WRITE(cfile,'(I7)') kfile
+                CALL peend(19,'Aborted, binary file modified (length) ' // cfile)
+                STOP 'PEREAD: file modified (length)'
+            END IF   
         END IF
         !        take next file
         !$OMP CRITICAL
@@ -6677,6 +6692,7 @@ SUBROUTINE xloopn                !
     LOGICAL :: warner
     LOGICAL :: warners
     LOGICAL :: warnerss
+    LOGICAL :: warners3
     LOGICAL :: lsflag
     CHARACTER (LEN=7) :: cratio
     CHARACTER (LEN=7) :: cfacin
@@ -7138,8 +7154,10 @@ SUBROUTINE xloopn                !
     IF(nmiss1 /= 0) warnerss=.TRUE.
     IF(iagain /= 0) warnerss=.TRUE.
     IF(ndefec /= 0) warnerss=.TRUE.
+    warners3 = .FALSE. ! more severe warnings
+    IF(nrderr /= 0) warners3=.TRUE.
 
-    IF(warner.OR.warners.OR.warnerss) THEN
+    IF(warner.OR.warners.OR.warnerss.Or.warners3) THEN
         WRITE(*,199) ' '
         WRITE(*,199) ' '
         WRITE(*,199) 'WarningWarningWarningWarningWarningWarningWarningWarningWar'
@@ -7196,6 +7214,12 @@ SUBROUTINE xloopn                !
             WRITE(*,*) '        Possible rank defects =',nalow,  &
                 '  for global vector (too few entries)'
             WRITE(*,*) '        => please check mille data and ENTRIES cut'
+        END IF
+
+        IF(nrderr /= 0) THEN
+            WRITE(*,199) ' '
+            WRITE(*,*) '        Binary file(s) with read errors =',nrderr, ' (treated as EOF)'
+            WRITE(*,*) '        => please check mille data'
         END IF
         
         WRITE(*,199) ' '
@@ -7254,7 +7278,9 @@ SUBROUTINE xloopn                !
 
     CALL prtglo              ! print result
 
-    IF (warnerss) THEN
+    IF (warners3) THEN
+        CALL peend(4,'Ended with severe warnings (bad binary file(s))')
+    ELSE IF (warnerss) THEN
         CALL peend(3,'Ended with severe warnings (bad global matrix)')
     ELSE IF (warners) THEN
         CALL peend(2,'Ended with severe warnings (insufficient measurements)')
@@ -8512,6 +8538,13 @@ SUBROUTINE intext(text,nline)
             nhistp=1 ! print histograms
             RETURN
         END IF
+        
+        keystx='readerroraseof' ! treat (C) read errors as eof
+        mat=matint(text(ia:ib),keystx,npat,ntext)
+        IF(100*mat >= 80*max(npat,ntext)) THEN ! 80% (symmetric) matching
+            ireeof=1
+            RETURN
+        END IF
   
         keystx='fortranfiles'
         mat=matint(text(ia:ib),keystx,npat,ntext) ! comparison
@@ -8917,6 +8950,8 @@ SUBROUTINE binopn(kfile, ithr, ierr)
     INTEGER(mpi) :: lun
     INTEGER(mpi) :: moddate
     CHARACTER (LEN=1024) :: fname
+    CHARACTER (LEN=7) :: cfile
+
 
     ierr=0
     lun=ithr
@@ -8948,8 +8983,9 @@ SUBROUTINE binopn(kfile, ithr, ierr)
         ierr=1
         WRITE(*,*) 'Open error for file ',fname(1:lfn), ios
         IF (moddate /= 0) THEN
-            CALL peend(15,'Aborted, open error(s) for binary files')
-            STOP 'PEREAD: open error                                      '
+            WRITE(cfile,'(I7)') kfile
+            CALL peend(15,'Aborted, open error(s) for binary file ' // cfile)
+            STOP 'PEREAD: open error'
         ENDIF
         RETURN
     END IF
@@ -8964,8 +9000,9 @@ SUBROUTINE binopn(kfile, ithr, ierr)
     ! check/store modification date
     IF (moddate /= 0) THEN    
         IF (ibuff(10) /= moddate) THEN
-            CALL peend(19,'Aborted, binary file(s) modified')
-            STOP 'PEREAD: file modified                                   '
+            WRITE(cfile,'(I7)') kfile
+            CALL peend(19,'Aborted, binary file modified (date) ' // cfile)
+            STOP 'PEREAD: file modified'
         END IF
     ELSE
         yfd(kfile)=ibuff(10)
