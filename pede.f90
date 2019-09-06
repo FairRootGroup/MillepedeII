@@ -64,6 +64,8 @@
 !!
 !!    This will create (and use) the necessary text and binary files.
 !!
+!! Alternatively tarballs can be found [here](http://www.desy.de/~kleinwrt/MP2/tar).
+!!
 !! \section news_sec News
 !! * 131008: New solution method \ref ch-minresqlp "MINRES-QLP"
 !! [\ref ref_sec "ref 9"] implemented.
