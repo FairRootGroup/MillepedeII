@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-02 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-03 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -6690,6 +6690,7 @@ SUBROUTINE xloopn                !
     REAL(mpd) :: db1
     REAL(mpd) :: db2
     REAL(mpd) :: dbdot
+    REAL(mpd) :: dbsig
     LOGICAL :: btest
     LOGICAL :: warner
     LOGICAL :: warners
@@ -6966,11 +6967,13 @@ SUBROUTINE xloopn                !
             db2=dbdot(nvgb,globalVector,globalVector)
             delfun=REAL(db,mps)
             angras=REAL(db/SQRT(db1*db2),mps)
+            dbsig=16.0_mpd*SQRT(max(db1,db2))*epsilon(db) ! significant change
 
             ! do line search for this iteration/solution ?
             ! lsearch >2: all, =2: all with (next) chicut =1., =1: last, <1: none
             lsflag=(lsearch > 2 .OR. (lsearch == 2 .AND. chicut < 2.25) .OR. &
                 (lsearch == 1 .AND. chicut < 2.25 .AND. (delfun <= dflim .OR. iterat >= mitera)))
+            lsflag=lsflag .AND. (db > dbsig) ! require significant change      
             IF (lsflag) THEN
                 ! initialize line search based on slopes and prepare next
                 CALL ptldef(wolfc2, 10.0, minf,10)
@@ -6993,7 +6996,7 @@ SUBROUTINE xloopn                !
             ENDIF
 
             ! change significantly negative ?
-            IF(db <= -16.0_mpd*SQRT(max(db1,db2))*epsilon(db)) THEN
+            IF(db <= -dbsig) THEN
                 WRITE(*,*) 'Function not decreasing:',db
                 IF(db > -1.0E-3_mpd) THEN ! 100311, VB/CK: allow some margin for numerics
                     iagain=iagain+1
