@@ -5296,6 +5296,7 @@ SUBROUTINE loop2
     INTEGER(mpi) :: nmatmo
     INTEGER(mpi) :: noff
     INTEGER(mpi) :: nr
+    INTEGER(mpi) :: nrece
     INTEGER(mpi) :: nrecf
     INTEGER(mpi) :: nrecmm
     INTEGER(mpi) :: nst
@@ -5398,6 +5399,7 @@ SUBROUTINE loop2
     ENDIF
 
     !     reading events===reading events===reading events===reading events=
+    nrece =0  ! empty records (no global derivatives)
     nrecf =0  ! records with fixed global parameters
     naeqng=0  ! count number of equations (with global der.)
     naeqnf=0  ! count number of equations ( " , fixed)
@@ -5560,6 +5562,11 @@ SUBROUTINE loop2
             dstat(1)=dstat(1)+REAL((nwrd+2)*2,mpd)               ! record size
             dstat(2)=dstat(2)+REAL(nagbn+2,mpd)                  ! indices,
             dstat(3)=dstat(3)+REAL(nagbn*nagbn+nagbn,mpd)        ! data for MUPDAT
+
+            IF (nagbn == 0) THEN
+                nrece=nrece+1
+                CYCLE
+            ENDIF    
   
             CALL sort1k(globalIndexUsage,nagbn) ! sort global par.
             ! overwrite read buffer with lists of global labels
@@ -5836,6 +5843,10 @@ SUBROUTINE loop2
                 'number of equations with fixed global derivatives'
             WRITE(lu,101) 'NRECF',nrecf,  &
                 'number of records   with fixed global derivatives'
+        END IF
+        IF (nrece > 0) THEN
+            WRITE(lu,101) 'NRECE',nrece,  &
+                'number of records without global derivatives'
         END IF
         IF (ncache > 0) THEN
             WRITE(lu,101) 'NCACHE',ncache,'number of words for caching'
