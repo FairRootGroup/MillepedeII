@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-03 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-04 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -5399,7 +5399,7 @@ SUBROUTINE loop2
     ENDIF
 
     !     reading events===reading events===reading events===reading events=
-    nrece =0  ! empty records (no global derivatives)
+    nrece =0  ! 'empty' records (no variable global parameters)
     nrecf =0  ! records with fixed global parameters
     naeqng=0  ! count number of equations (with global der.)
     naeqnf=0  ! count number of equations ( " , fixed)
@@ -5565,7 +5565,6 @@ SUBROUTINE loop2
 
             IF (nagbn == 0) THEN
                 nrece=nrece+1
-                CYCLE
             ENDIF    
   
             CALL sort1k(globalIndexUsage,nagbn) ! sort global par.
@@ -5838,15 +5837,15 @@ SUBROUTINE loop2
         IF (mprint > 1) THEN
             WRITE(lu,101) 'NAEQNA',naeqna,'number of equations'
             WRITE(lu,101) 'NAEQNG',naeqng,  &
-                'number of equations with       global derivatives'
+                'number of equations with       global parameters'
             WRITE(lu,101) 'NAEQNF',naeqnf,  &
-                'number of equations with fixed global derivatives'
+                'number of equations with fixed global parameters'
             WRITE(lu,101) 'NRECF',nrecf,  &
-                'number of records   with fixed global derivatives'
+                'number of records   with fixed global parameters'
         END IF
         IF (nrece > 0) THEN
             WRITE(lu,101) 'NRECE',nrece,  &
-                'number of records without global derivatives'
+                'number of records without variable parameters'
         END IF
         IF (ncache > 0) THEN
             WRITE(lu,101) 'NCACHE',ncache,'number of words for caching'
