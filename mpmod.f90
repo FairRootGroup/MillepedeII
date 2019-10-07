@@ -32,7 +32,7 @@ MODULE mpmod
     ! steering parameters
     INTEGER(mpi) :: ictest=0  !< test mode '-t'
     INTEGER(mpi) :: metsol=0  !< solution method (1: inversion, 2: diagonalization, 3: \ref minresqlpmodule::minresqlp "MINRES-QLP")
-    INTEGER(mpi) :: matsto=2  !< (global) matrix storage mode (1: full, 2: sparse)
+    INTEGER(mpi) :: matsto=2  !< (global) matrix storage mode (1: full, 2: sparse, 3: block diagonal)
     INTEGER(mpi) :: mprint=1  !< print flag (0: minimal, 1: normal, >1: more)
     INTEGER(mpi) :: mdebug=0  !< debug flag (number of records to print)
     INTEGER(mpi) :: mdebg2=10 !< number of measurements for record debug printout
@@ -121,6 +121,7 @@ MODULE mpmod
     INTEGER(mpi) :: nfgb !< number of fit parameters
     INTEGER(mpi) :: ncgb !< number of constraints
     INTEGER(mpi) :: ncgbe !< number of empty constraints (no variable parameters)
+    INTEGER(mpi) :: npblck !< number of (disjoint) parameter blocks
     INTEGER(mpi) :: ncblck !< number of (disjoint) constraint blocks
     INTEGER(mpi) :: mszcon !< (integrated block) matrix size for constraint matrix
     INTEGER(mpi) :: mszprd !< (integrated block) matrix size for (constraint) product matrix
@@ -243,6 +244,10 @@ MODULE mpmod
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: backIndexUsage   !< list of global par in record
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: appearanceCounter !< appearance statistics for global par (first/last file,record)
     INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: pairCounter !< number of paired parameters (in equations)
+    ! global parameter usage from all records
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: globalIndexRanges   !< global par ranges
+    INTEGER(mpi), DIMENSION(:,:), ALLOCATABLE :: matParBlockOffsets   !< global par block offsets (parameter, constraint blocks)
+    INTEGER(mpl), DIMENSION(:), ALLOCATABLE :: vecParBlockOffsets   !< global par block offsets (global matrix)
     ! local fit
     REAL(mpd), DIMENSION(:), ALLOCATABLE::blvec  !< local fit vector 'b' (in A*x=b), replaced by 'x'
     REAL(mpd), DIMENSION(:), ALLOCATABLE::clmat  !< local fit matrix 'A' (in A*x=b)

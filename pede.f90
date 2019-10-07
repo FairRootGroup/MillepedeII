@@ -52,7 +52,7 @@
 !! 1. Download the software package from the DESY \c svn server to
 !!    \a target directory, e.g.:
 !!
-!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-05-04 target
+!!         svn checkout http://svnsrv.desy.de/public/MillepedeII/tags/V04-06-00 target
 !!
 !! 2. Create **Pede** executable (in \a target directory):
 !!
@@ -117,6 +117,9 @@
 !!   Matching is now symmetric in pattern and text. Previously e.g. a binary file
 !!   with the letters from '<tt>Cfiles</tt>' in the name in that order was
 !!   treated as that keyword and not as a binary file.
+!! * 191004: Checking global parameters for disjoint blocks. In case of solution by
+!!   inversion (optionally with constraints handled by elimination) switch to
+!!   \ref mpmod::matsto "block diagonal" storage mode.
 !!
 !! \section tools_sec Tools
 !! The subdirectory \c tools contains some useful scripts:
@@ -633,6 +636,7 @@ PROGRAM mptwo
     WRITE(*,*) '                                 ',chost
     WRITE(*,*) ' '
 
+    WRITE(8,*) '($Rev$)'
     WRITE(8,*) ' '
     WRITE(8,*) 'Log-file Millepede II-P                        ', chdate
     WRITE(8,*) '                                               ', chost
@@ -1258,6 +1262,7 @@ SUBROUTINE prpcon
     INTEGER(mpi) :: i
     INTEGER(mpi) :: icgb
     INTEGER(mpi) :: isblck
+    INTEGER(mpi) :: ifrst
     INTEGER(mpi) :: ilast
     INTEGER(mpi) :: itgbi
     INTEGER(mpi) :: ivgb
@@ -1400,8 +1405,9 @@ SUBROUTINE prpcon
         END IF   
         IF (matConsSort(1,jcgb+1) > ilast) THEN
             ncblck=ncblck+1
+            ifrst=matConsSort(1,isblck)
             matConsBlocks(1,ncblck)=isblck
-            matConsBlocks(2,ncblck)=matConsSort(1,isblck) ! save first parameter in block
+            matConsBlocks(2,ncblck)=ifrst ! save first parameter in block
             matConsBlocks(3,ncblck)=ilast ! save last parameter in block
             ncon=jcgb+1-isblck
             npar=ilast+1-matConsSort(1,isblck)
@@ -1410,12 +1416,14 @@ SUBROUTINE prpcon
             mszcon=mszcon+ncon*npar          ! (sum of) block size for constraint matrix     
             mszprd=mszprd+(ncon*ncon+ncon)/2 ! (sum of) block size for product matrix     
             IF (icheck > 0) THEN
-                labelf=globalParLabelIndex(1,globalParVarToTotal(matConsSort(1,isblck)))
+                labelf=globalParLabelIndex(1,globalParVarToTotal(ifrst))
                 labell=globalParLabelIndex(1,globalParVarToTotal(ilast))
                 WRITE(*,*) ' Cons. block ', ncblck, isblck, jcgb, labelf, labell
             ENDIF    
             ! reset for new block
             isblck=jcgb+1
+            ! update index ranges
+            globalIndexRanges(ifrst)=max(globalIndexRanges(ifrst),ilast)
         END IF
     END DO
     matConsBlocks(1,ncblck+1)=ncgb+1
@@ -1473,9 +1481,7 @@ SUBROUTINE feasma
     !     ...
 
     IF(ncgb == 0) RETURN  ! no constraints
-
-    ! QL decomposition
-    IF (nfgb < nvgb) CALL qlini(nvgb,ncgb)
+    
     !     product matrix A A^T (A is stored as transposed)
     length=mszprd
     CALL mpalloc(matConsProduct, length, 'product matrix of constraints (blocks)')
@@ -1558,7 +1564,11 @@ SUBROUTINE feasma
     IF (nfgb < nvgb) THEN
         print *
         print *, 'QL decomposition of constraints matrix'
-        CALL qldecb(matConstraintsT,ncblck,matConsBlocks)
+        ! QL decomposition
+        CALL qlini(nvgb,ncgb,npblck)
+        ! loop over parameter blocks
+        CALL qldecb(matConstraintsT,matParBlockOffsets,matConsBlocks)
+        !CALL qldump()
         ! check eignevalues of L
         CALL qlgete(evmin,evmax)
         PRINT *, '   largest  |eigenvalue| of L: ', evmax
@@ -2556,12 +2566,15 @@ SUBROUTINE loopn
         elmt=0.0
         DO i=1,nvgb        ! diagonal elements
             ii=0
+            IF(matsto == 2) ii=i
             IF(matsto == 1) THEN
                 ii=i
                 ii=(ii*ii+ii)/2
+            ELSE IF(matsto == 3) THEN             ! block diagonal symmetric matrix
+                ib=globalIndexRanges(i)
+                ii=i-matParBlockOffsets(1,ib)
+                ii=(ii*ii+ii)/2+vecParBlockOffsets(ib)
             END IF
-            IF(matsto == 2) ii=i
-            IF(matsto == 3) ii=i
             IF(ii /= 0) THEN
                 elmt=REAL(globalMatD(ii),mps)
                 IF(elmt > 0.0) CALL hmpent(23,1.0/SQRT(elmt))
@@ -3008,6 +3021,7 @@ SUBROUTINE mupdat(i,j,add)       !
     INTEGER(mpl):: ia
     INTEGER(mpl):: ja
     INTEGER(mpl):: ij
+    INTEGER(mpi):: ib
     !     ...
     IF(i <= 0.OR.j <= 0) RETURN
     ia=MAX(i,j)          ! larger
@@ -3024,6 +3038,13 @@ SUBROUTINE mupdat(i,j,add)       !
         ELSE
             globalMatF(-ij)=globalMatF(-ij)+REAL(add,mps)
         END IF
+    ELSE IF(matsto == 3) THEN             ! block diagonal symmetric matrix
+        ib=globalIndexRanges(ja)
+        ! local (row,col) in block
+        ia=ia-matParBlockOffsets(1,ib)
+        ja=ja-matParBlockOffsets(1,ib)
+        ij=ja+(ia*ia-ia)/2+vecParBlockOffsets(ib) ! global ISYM index
+        globalMatD(ij)=globalMatD(ij)+add
     END IF
     IF(metsol >= 3) THEN
         IF(mbandw > 0) THEN     ! for Cholesky decomposition
@@ -4008,6 +4029,7 @@ SUBROUTINE prtglo
     REAL(mps):: err
     REAL(mps):: gcor
     INTEGER(mpi) :: i
+    INTEGER(mpi) :: ib
     INTEGER(mpi) :: icount
     INTEGER(mpi) :: ie
     INTEGER(mpi) :: iev
@@ -4056,8 +4078,9 @@ SUBROUTINE prtglo
             icount=globalCounter(ivgbi) ! used in last iteration
             dpa=REAL(globalParameter(itgbi)-globalParStart(itgbi),mps)       ! difference
             IF(metsol == 1.OR.metsol == 2) THEN
-                ii=ivgbi
-                ii=(ii*ii+ii)/2
+                ib=globalIndexRanges(ivgbi)
+                ii=ivgbi-matParBlockOffsets(1,ib)
+                ii=(ii*ii+ii)/2+vecParBlockOffsets(ib)
                 gmati=globalMatD(ii)
                 ERR=SQRT(ABS(REAL(gmati,mps)))
                 IF(gmati < 0.0_mpd) ERR=-ERR
@@ -4235,16 +4258,19 @@ SUBROUTINE prtstat
 END SUBROUTINE prtstat    ! print input statistics
 
 
-!> Product symmetric matrix times vector.
+!> Product symmetric (sub block) matrix times vector.
 !!
 !! A(sym) * X => B. Used by \ref minresmodule::minres "MINRES" method (Is most CPU intensive part).
 !! The matrix A is the global matrix in full symmetric or (compressed) sparse storage.
+!! In full symmetric storage it could be block diagonal (MATSTO=3) and only a
+!! single block is used in the product.
 !!
-!! \param [in]   n   size of matrix
+!! \param [in]   n   size of (sub block) matrix
+!! \param [in]   l   offset of (sub block) matrix
 !! \param [in]   x   vector X
 !! \param [in]   b   result vector B
 
-SUBROUTINE avprd0(n,x,b)
+SUBROUTINE avprd0(n,l,x,b)
     USE mpmod
 
     IMPLICIT NONE
@@ -4259,6 +4285,7 @@ SUBROUTINE avprd0(n,x,b)
     INTEGER(mpi) :: jn
 
     INTEGER(mpi), INTENT(IN)          :: n
+    INTEGER(mpl), INTENT(IN)          :: l
     REAL(mpd), INTENT(IN)             :: x(n)
     REAL(mpd), INTENT(OUT)            :: b(n)
     INTEGER(mpl) :: k
@@ -4297,6 +4324,25 @@ SUBROUTINE avprd0(n,x,b)
             END DO
         END DO
         !$OMP END PARALLEL DO
+    ELSE IF(matsto == 3) THEN
+        ! full symmetric block diagonal matrix, single block only
+        ! parallelize row loop
+        ! private copy of B(N) for each thread, combined at end, init with 0.
+        ! slot of 1024 'I' for next idle thread
+        !$OMP  PARALLEL DO &
+        !$OMP  PRIVATE(J,IJ) &
+        !$OMP  REDUCTION(+:B) &
+        !$OMP  SCHEDULE(DYNAMIC,ichunk)
+        DO i=1,n
+            ij=i
+            ij=(ij*ij-ij)/2+l ! apply offset of block
+            b(i)=globalMatD(ij+i)*x(i)
+            DO j=1,i-1
+                b(j)=b(j)+globalMatD(ij+j)*x(i)
+                b(i)=b(i)+globalMatD(ij+j)*x(j)
+            END DO
+        END DO
+       !$OMP END PARALLEL DO
     ELSE
         ! sparse, compressed matrix
         IF(sparseMatrixOffsets(2,1) /= n+1) THEN
@@ -4433,7 +4479,7 @@ SUBROUTINE avprod(n,x,b)
     !use elimination for constraints ?
     IF(n < nagb) CALL qlmlq(vecXav,1,.false.) ! Q*x
     ! calclulate vecBav=globalMat*vecXav
-    CALL AVPRD0(nagb,vecXav,vecBav)
+    CALL AVPRD0(nagb,0_mpl,vecXav,vecBav)
     !use elimination for constraints ?
     IF(n < nagb) CALL qlmlq(vecBav,1,.true.) ! Q^t*x
     ! output from AVPRD0
@@ -5253,6 +5299,7 @@ SUBROUTINE loop2
     INTEGER(mpi) :: iext
     INTEGER(mpi) :: ihis
     INTEGER(mpi) :: ij
+    INTEGER(mpi) :: ij1
     INTEGER(mpi) :: ijn
     INTEGER(mpi) :: inder
     INTEGER(mpi) :: ioff
@@ -5277,6 +5324,8 @@ SUBROUTINE loop2
     INTEGER(mpi) :: kfile
     INTEGER(mpi) :: l
     INTEGER(mpi) :: label
+    INTEGER(mpi) :: labelf
+    INTEGER(mpi) :: labell
     INTEGER(mpi) :: lu
     INTEGER(mpi) :: lun
     INTEGER(mpi) :: maeqnf
@@ -5295,6 +5344,7 @@ SUBROUTINE loop2
     INTEGER(mpi) :: nggi
     INTEGER(mpi) :: nmatmo
     INTEGER(mpi) :: noff
+    INTEGER(mpi) :: nparmx
     INTEGER(mpi) :: nr
     INTEGER(mpi) :: nrece
     INTEGER(mpi) :: nrecf
@@ -5362,9 +5412,12 @@ SUBROUTINE loop2
     CALL mpalloc(globalIndexUsage,length,'global index')
     CALL mpalloc(backIndexUsage,length,'back index')
     backIndexUsage=0
-
+    CALL mpalloc(globalIndexRanges,length,'global index ranges')
+    globalIndexRanges=0
+    
     ! prepare constraints - determine number of constraints NCGB
     !                     - sort and split into blocks
+    !                     -  update globalIndexRanges
     CALL prpcon
 
     IF (icelim > 0) THEN ! elimination
@@ -5548,7 +5601,7 @@ SUBROUTINE loop2
                     END DO
                 END IF
             END DO
-  
+              
             ! end-of-event
             IF (naeqnf > maeqnf) nrecf=nrecf+1
             irecmm=irecmm+1
@@ -5563,11 +5616,16 @@ SUBROUTINE loop2
             dstat(2)=dstat(2)+REAL(nagbn+2,mpd)                  ! indices,
             dstat(3)=dstat(3)+REAL(nagbn*nagbn+nagbn,mpd)        ! data for MUPDAT
 
+            CALL sort1k(globalIndexUsage,nagbn) ! sort global par.
+  
             IF (nagbn == 0) THEN
                 nrece=nrece+1
-            ENDIF    
-  
-            CALL sort1k(globalIndexUsage,nagbn) ! sort global par.
+            ELSE
+                ! update parameter range
+                globalIndexRanges(globalIndexUsage(1))=&
+                    max(globalIndexRanges(globalIndexUsage(1)),globalIndexUsage(nagbn))
+            ENDIF
+            
             ! overwrite read buffer with lists of global labels
             ioff=ioff+1
             readBufferPointer(ibuf)=ioff
@@ -5644,11 +5702,13 @@ SUBROUTINE loop2
         dstat(k)=dstat(k)/REAL(nrec,mpd)
     END DO
     !     end=of=data=end=of=data=end=of=data=end=of=data=end=of=data=end=of
-
+    
     IF (icheck > 1) THEN
         CALL gpbmap(pairCounter)
     END IF    
 
+    
+    ! check constraints and measurements
     IF(matsto == 2) THEN
           
         !     constraints and index pairs with Lagrange multiplier
@@ -5706,6 +5766,35 @@ SUBROUTINE loop2
             END DO
 
         END DO
+    ELSE
+        ! more checks for block diagonal structure  
+        ! loop over measurements
+        i=1
+        DO WHILE (i <= lenMeasurements)
+            i=i+2
+            !        loop over label/factor pairs
+            ia=i
+            DO
+                i=i+1
+                IF(i > lenMeasurements) EXIT
+                IF(listMeasurements(i)%label == 0) EXIT
+            END DO
+            ib=i-1
+            ij1=nvgb
+            ijn=1  
+            DO j=ia,ib
+                itgbij=inone(listMeasurements(j)%label) ! total parameter index
+                !         first index
+                ij=0
+                IF(itgbij /= 0) ij=globalParLabelIndex(2,itgbij) ! variable-parameter index
+                IF (ij > 0) THEN
+                    ij1=min(ij1,ij)
+                    ijn=max(ijn,ij)
+                END IF                
+            END DO
+            globalIndexRanges(ij1)=max(globalIndexRanges(ij1),ijn)
+        END DO
+        
     END IF
 
     numMeas=0 ! number of measurement groups
@@ -5720,6 +5809,76 @@ SUBROUTINE loop2
         length=numMeas*mthrd*measBins
         CALL mpalloc(measHists,length,'measurement counter')
     END IF
+    
+    !     check for block diagonal structure, count blocks
+    npblck=0
+    l=0
+    DO i=1,nvgb
+        IF (i > l) npblck=npblck+1
+        l=max(l,globalIndexRanges(i))
+        globalIndexRanges(i)=npblck ! block number    
+    END DO
+    length=npblck+1; rows=2
+    ! parameter blocks 
+    CALL mpalloc(matParBlockOffsets,rows,length,'global parameter blocks (I)')
+    matParBlockOffsets=0
+    CALL mpalloc(vecParBlockOffsets,length,'global parameter blocks (L)')
+    vecParBlockOffsets=0
+    ! fill matParBlocks
+    l=0
+    DO i=1,nvgb
+        IF (globalIndexRanges(i) > l) THEN
+            l=globalIndexRanges(i) ! block number
+            matParBlockOffsets(1,l)=i-1 ! block offset
+        END IF    
+    END DO
+    matParBlockOffsets(1,npblck+1)=nvgb
+    nparmx=0
+    DO i=1,npblck
+        rows=matParBlockOffsets(1,i+1)-matParBlockOffsets(1,i)
+        vecParBlockOffsets(i+1)=vecParBlockOffsets(i)+(rows*rows+rows)/2
+        nparmx=max(nparmx,INT(rows,mpi))
+    END DO
+    ! connect constraint blocks
+    DO i=1,ncblck
+        ia=matConsBlocks(2,i) ! first parameter in constraint block
+        ib=globalIndexRanges(ia) ! parameter block number
+        matParBlockOffsets(2,ib+1)=i
+    END DO 
+ 
+    ! use diagonal block matrix storage?
+    IF (npblck > 1) THEN
+        IF (icheck > 0) THEN
+            WRITE(*,*)
+            DO i=1,npblck
+                ia=matParBlockOffsets(1,i)
+                ib=matParBlockOffsets(1,i+1)
+                ja=matParBlockOffsets(2,i)
+                jb=matParBlockOffsets(2,i+1)            
+                labelf=globalParLabelIndex(1,globalParVarToTotal(ia+1))
+                labell=globalParLabelIndex(1,globalParVarToTotal(ib))
+                WRITE(*,*) ' Parameter block', i, ib-ia, jb-ja, labelf, labell
+            ENDDO    
+        ENDIF 
+        WRITE(lunlog,*)
+        WRITE(lunlog,*) 'Detected', npblck, '(disjoint) parameter blocks, max size ', nparmx     
+        WRITE(*,*)
+        WRITE(*,*) 'Detected', npblck, '(disjoint) parameter blocks, max size ', nparmx
+        IF (metsol == 1.AND.matsto == 1.AND.nagb == nvgb) THEN
+            matsto=3 ! constraints with elimination implemented  
+            WRITE(*,*) 'Using block diagonal storage mode'
+        ELSE
+            ! keep single block = full matrix
+            DO i=1,3
+                matParBlockOffsets(i,2)=matParBlockOffsets(i,npblck+1) 
+            END DO
+            npblck=1
+            DO i=1,nvgb
+                globalIndexRanges(i)=1
+            END DO
+        END IF        
+    END IF   
+    
     !     print numbers ----------------------------------------------------
 
     IF (nagb >= 65536) THEN
@@ -5808,7 +5967,7 @@ SUBROUTINE loop2
 
     DO lu=6,8,2  ! unit 6 and 8
   
-        WRITE(*,*) ' '
+        WRITE(lu,*) ' '
         WRITE(lu,101) 'NTGB',ntgb,'total number of parameters'
         WRITE(lu,102) '(all parameters, appearing in binary files)'
         WRITE(lu,101) 'NVGB',nvgb,'number of variable parameters'
@@ -5846,7 +6005,7 @@ SUBROUTINE loop2
         IF (nrece > 0) THEN
             WRITE(lu,101) 'NRECE',nrece,  &
                 'number of records without variable parameters'
-        END IF
+        END IF        
         IF (ncache > 0) THEN
             WRITE(lu,101) 'NCACHE',ncache,'number of words for caching'
             WRITE(lu,111) (fcache(k)*100.0,k=1,3)
@@ -5869,9 +6028,12 @@ SUBROUTINE loop2
         END IF
         WRITE(lu,*) '                  with',mitera,' iterations'
         IF(matsto == 1) THEN
-            WRITE(lu,*) '     MATSTO = 1:  symmetric matrix, ', '(n*n+n)/2 elements'
+            WRITE(lu,*) '     MATSTO = 1:  symmetric matrix, ', '(n*n+n)/2 elements' 
         ELSE IF(matsto == 2) THEN
             WRITE(lu,*) '     MATSTO = 2:  sparse matrix'
+        ELSE IF(matsto == 3) THEN
+            WRITE(lu,*) '     MATSTO = 3:  symmetric block diagonal matrix, ', '(n*n+n)/2 elements per block'
+            WRITE(lu,*) '                  with', npblck, ' blocks'
         END IF
         IF(mextnd>0) WRITE(lu,*) '                  with extended storage'
         IF(dflim /= 0.0) THEN
@@ -5911,11 +6073,13 @@ SUBROUTINE loop2
     !32 CONTINUE
 32  matsiz(1)=int8(nagb)*int8(nagb+1)/2 ! number of words for double precision storage 'j'
     matsiz(2)=0                         ! number of words for single precision storage '.'
-    IF(matsto == 2) THEN     ! sparse matrix
+    IF (matsto == 2) THEN     ! sparse matrix
         matsiz(1)=ndimsa(3)+nagb
         matsiz(2)=ndimsa(4)
         CALL mpalloc(sparseMatrixColumns,ndimsa(2),'sparse matrix column list')
         CALL spbits(sparseMatrixOffsets,sparseMatrixColumns,sparseMatrixCompression)
+    ELSE IF (matsto == 3) THEN
+        matsiz(1)=vecParBlockOffsets(npblck+1) ! sum of block sizes
     END IF
     matwords=matwords+matsiz(1)*2+matsiz(2) ! #words for matrix storage
 
@@ -6162,11 +6326,21 @@ SUBROUTINE minver
 
     IMPLICIT NONE
     INTEGER(mpi) :: i
-    INTEGER(mpl) :: ioff1
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: icboff
+    INTEGER(mpi) :: icblst
+    INTEGER(mpi) :: icoff
+    INTEGER(mpi) :: ipoff
     INTEGER(mpi) :: j
     INTEGER(mpi) :: lun
+    INTEGER(mpi) :: ncon
+    INTEGER(mpi) :: nfit
+    INTEGER(mpi) :: npar
     INTEGER(mpi) :: nrank
     INTEGER(mpl) :: ii
+    INTEGER(mpl) :: imoff
+    INTEGER(mpl) :: ioff1
+        
     EXTERNAL avprd0
 
     SAVE
@@ -6174,63 +6348,91 @@ SUBROUTINE minver
     lun=lunlog                       ! log file
     IF(lunlog == 0) lunlog=6
 
-    ! save diagonal (for global correlation)
     IF(icalcm == 1) THEN
-        DO i=1,nagb 
-            ii=i
-            workspaceDiag(i)=globalMatD((ii*ii+ii)/2) ! save diagonal elements
-        END DO
-    ENDIF
-
-    !      WRITE(*,*) 'MINVER ICALCM=',ICALCM
-    !use elimination for constraints ?
-    IF(nfgb < nvgb) THEN
-        IF(icalcm == 1) CALL qlssq(avprd0,globalMatD,.true.) ! Q^t*A*Q
-        ! solve L^t*y=d by backward substitution
-        CALL qlbsub(vecConsResiduals,vecConsSolution)
-        ! transform, reduce rhs
-        CALL qlmlq(globalCorrections,1,.true.) ! Q^t*b
-        ! correction from eliminated part
-        DO i=1,nfgb
-            ioff1=((nfgb+1)*nfgb)/2+i
-            DO j=1,ncgb
-                globalCorrections(i)=globalCorrections(i)-globalMatD(ioff1)*vecConsSolution(j)
-                ioff1=ioff1+nfgb+j
+        ! save diagonal (for global correlation)
+        DO ib=1,npblck
+            ipoff=matParBlockOffsets(1,ib)
+            imoff=vecParBlockOffsets(ib)
+            npar=matParBlockOffsets(1,ib+1)-ipoff ! size of block (number of parameters)
+            DO i=1,npar
+                ii=i
+                workspaceDiag(i+ipoff)=globalMatD((ii*ii+ii)/2+imoff) ! save diagonal elements
             END DO
         END DO
+        ! use elimination for constraints ?
+        IF(nfgb < nvgb) CALL qlssq(avprd0,globalMatD,.true.) ! Q^t*A*Q
     END IF
 
-    IF(icalcm == 1) THEN
-        ! invert and solve
-        CALL sqminl(globalMatD, globalCorrections,nfgb,nrank,  &
-            workspaceD,workspaceI)
-        IF(nfgb /= nrank) THEN
-            WRITE(*,*)   'Warning: the rank defect of the symmetric',nfgb,  &
-                '-by-',nfgb,' matrix is ',nfgb-nrank,' (should be zero).'
-            WRITE(lun,*) 'Warning: the rank defect of the symmetric',nfgb,  &
-                '-by-',nfgb,' matrix is ',nfgb-nrank,' (should be zero).'
-            IF (iforce == 0 .AND. isubit == 0) THEN
-                isubit=1
-                WRITE(*,*)   '         --> enforcing SUBITO mode'
-                WRITE(lun,*) '         --> enforcing SUBITO mode'
-            END IF
-        ELSE IF(ndefec == 0) THEN
-            WRITE(lun,*) 'No rank defect of the symmetric matrix'
+    ! loop over blocks 
+    DO ib=1,npblck
+        ipoff=matParBlockOffsets(1,ib)
+        imoff=vecParBlockOffsets(ib)
+        icboff=matParBlockOffsets(2,ib) ! constraint block offset
+        icblst=matParBlockOffsets(2,ib+1) ! constraint block offset
+        npar=matParBlockOffsets(1,ib+1)-ipoff ! size of block (number of parameters)
+        IF(icblst > icboff) THEN
+            icoff=matConsBlocks(1,icboff+1) ! first constraint in (parameter) block
+            ncon=matConsBlocks(1,icblst+1)-icoff ! number of constraints in  (parameter) block
+            icoff=icoff-1 ! true offset now
+        ELSE ! no constraints
+            icoff=0
+            ncon=0
         END IF
-        ndefec=max(nfgb-nrank, ndefec)   ! rank defect
+        nfit=npar-ncon ! number of fit parameters (elimination)
+        !      WRITE(*,*) 'MINVER ICALCM=',ICALCM
+        ! use elimination for constraints ?
+        IF(nfit < npar) THEN
+            CALL qlsetb(ib)
+            ! solve L^t*y=d by backward substitution
+            CALL qlbsub(vecConsResiduals(icoff+1:),vecConsSolution)
+            ! transform, reduce rhs
+            CALL qlmlq(globalCorrections(ipoff+1:),1,.true.) ! Q^t*b
+            ! correction from eliminated part
+            DO i=1,nfit
+                ioff1=((nfit+1)*nfit)/2+i+imoff
+                DO j=1,ncon
+                    globalCorrections(i+ipoff)=globalCorrections(i+ipoff)-globalMatD(ioff1)*vecConsSolution(j)
+                    ioff1=ioff1+nfit+j
+                END DO
+            END DO
+        END IF
 
-    ELSE             ! multiply gradient by inverse matrix
-        workspaceD(:nfgb)=globalCorrections(:nfgb)
-        CALL dbsvxl(globalMatD,workspaceD,globalCorrections,nfgb)
-    END IF
+        IF(icalcm == 1) THEN
+            ! invert and solve
+            CALL sqminl(globalMatD(imoff+1:), globalCorrections(ipoff+1:),nfit,nrank,  &
+                workspaceD,workspaceI)
+            IF(nfit /= nrank) THEN
+                WRITE(*,*)   'Warning: the rank defect of the symmetric',nfit,  &
+                    '-by-',nfit,' matrix is ',nfit-nrank,' (should be zero).'
+                WRITE(lun,*) 'Warning: the rank defect of the symmetric',nfit,  &
+                    '-by-',nfit,' matrix is ',nfit-nrank,' (should be zero).'
+                IF (iforce == 0 .AND. isubit == 0) THEN
+                    isubit=1
+                    WRITE(*,*)   '         --> enforcing SUBITO mode'
+                    WRITE(lun,*) '         --> enforcing SUBITO mode'
+                END IF
+            ELSE IF(ndefec == 0) THEN
+                IF(matsto == 1) THEN
+                    WRITE(lun,*) 'No rank defect of the symmetric matrix'
+                ELSE
+                    WRITE(lun,*) 'No rank defect of the symmetric block', ib, ' of size', npar
+                END IF     
+            END IF
+            ndefec=ndefec+nfit-nrank   ! rank defect
 
-    !use elimination for constraints ?
-    IF(nfgb < nvgb) THEN  
-        ! extend, transform back solution
-        globalCorrections(nfgb+1:nvgb)=vecConsSolution(1:ncgb)
-        CALL qlmlq(globalCorrections,1,.false.) ! Q*x
-    END IF
+        ELSE             ! multiply gradient by inverse matrix
+            workspaceD(:nfit)=globalCorrections(ipoff+1:ipoff+nfit)
+            CALL dbsvxl(globalMatD(imoff+1:),workspaceD,globalCorrections(ipoff+1:),nfit)
+        END IF
 
+        !use elimination for constraints ?
+        IF(nfit < npar) THEN
+            ! extend, transform back solution
+            globalCorrections(nfit+1+ipoff:npar+ipoff)=vecConsSolution(1:ncon)
+            CALL qlmlq(globalCorrections(ipoff+1:),1,.false.) ! Q*x
+        END IF   
+    END DO 
+    
 END SUBROUTINE minver
 
 !> Solution by diagonalization.
@@ -6456,7 +6658,7 @@ SUBROUTINE mminrs
         vecXav(nfgb+1:nagb)=vecConsSolution
         CALL qlmlq(vecXav,1,.false.) ! Q*x
         ! calclulate vecBav=globalMat*vecXav
-        CALL AVPRD0(nagb,vecXav,vecBav)
+        CALL AVPRD0(nagb,0_mpl,vecXav,vecBav)
         ! correction from eliminated part
         workspaceD=workspaceD-vecBav
         ! transform, reduce rhs
@@ -6528,7 +6730,7 @@ SUBROUTINE mminrsqlp
     !     ...
     lun=lunlog                       ! log file
     IF(lunlog == 0) lun=6
-
+    
     nout=lun
     itnlim=2000    ! iteration limit
     rtol = mrestl ! from steering
@@ -6551,7 +6753,7 @@ SUBROUTINE mminrsqlp
         vecXav(nfgb+1:nagb)=vecConsSolution
         CALL qlmlq(vecXav,1,.false.) ! Q*x
         ! calclulate vecBav=globalMat*vecXav
-        CALL AVPRD0(nagb,vecXav,vecBav)
+        CALL AVPRD0(nagb,0_mpl,vecXav,vecBav)
         ! correction from eliminated part
         workspaceD=workspaceD-vecBav
         ! transform, reduce rhs
@@ -6673,7 +6875,12 @@ SUBROUTINE xloopn                !
     INTEGER(mpi) :: iagain
     INTEGER(mpi) :: idx
     INTEGER(mpi) :: info
+    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: icboff
+    INTEGER(mpi) :: icblst
+    INTEGER(mpi) :: ipoff
     INTEGER(mpl) :: ioff
+    INTEGER(mpl) :: imoff
     INTEGER(mpi) :: itgbi
     INTEGER(mpi) :: ivgbi
     INTEGER(mpi) :: jcalcm
@@ -6686,8 +6893,10 @@ SUBROUTINE xloopn                !
     INTEGER(mpi) :: minf
     INTEGER(mpi) :: mrati
     INTEGER(mpi) :: nan
+    INTEGER(mpi) :: ncon
     INTEGER(mpi) :: nfaci
     INTEGER(mpi) :: nloopsol
+    INTEGER(mpi) :: npar
     INTEGER(mpi) :: nrati
     INTEGER(mpi) :: nrej
     INTEGER(mpi) :: nsol
@@ -6971,7 +7180,7 @@ SUBROUTINE xloopn                !
                 globalCorrections(i)=globalParameter(itgbi)-globalParCopy(itgbi) ! feasible stp
                 globalParameter(itgbi)=globalParCopy(itgbi)               ! restore
             END DO
-
+                
             db=dbdot(nvgb,globalCorrections,globalVector)
             db1=dbdot(nvgb,globalCorrections,globalCorrections)
             db2=dbdot(nvgb,globalVector,globalVector)
@@ -7283,9 +7492,18 @@ SUBROUTINE xloopn                !
         !use elimination for constraints ?
         IF(nfgb < nvgb) THEN
             ! extend, transform matrix
-            DO i=nvgb-ncgb+1,nvgb
-                ioff=((i-1)*i)/2
-                globalMatD(ioff+1:ioff+i)=0.0_mpd
+            ! loop over blocks
+            DO ib=1,npblck
+                ipoff=matParBlockOffsets(1,ib)
+                imoff=vecParBlockOffsets(ib)
+                icboff=matParBlockOffsets(2,ib) ! constraint block offset
+                icblst=matParBlockOffsets(2,ib+1) ! constraint block offset
+                npar=matParBlockOffsets(1,ib+1)-ipoff ! size of block (number of parameters)
+                ncon=matConsBlocks(1,icblst+1)-matConsBlocks(1,icboff+1) ! number of constraints in  (parameter) block
+                DO i=npar-ncon+1,npar
+                    ioff=((i-1)*i)/2+imoff
+                    globalMatD(ioff+1:ioff+i)=0.0_mpd
+                END DO    
             END DO
             CALL qlssq(avprd0,globalMatD,.false.) ! Q^t*A*Q
         END IF
@@ -7954,6 +8172,8 @@ SUBROUTINE filetx ! ---------------------------------------------------
         WRITE(*,*) '     MATSTO = 1:  symmetric matrix, ', '(n*n+n)/2 elements'
     ELSE IF(matsto == 2) THEN
         WRITE(*,*) '     MATSTO = 2:  sparse matrix'
+    ELSE IF(matsto == 3) THEN
+        WRITE(*,*) '     MATSTO = 3:  symmetric block diagonal matrix'
     END IF
     IF(mbandw /= 0) THEN
         WRITE(*,*) '                  and band matrix, width',mbandw

@@ -20,7 +20,7 @@
 !! 675 Mass Ave, Cambridge, MA 02139, USA.
 !!
 !! QL decomposition of constraints matrix by Householder transformations
-!! for solution by elimination.
+!! for solution by elimination. Optionally split into disjoint blocks.
 !!
 
 !> QL data.
@@ -30,9 +30,13 @@ MODULE mpqldec
 
     INTEGER(mpi) :: npar   !< number of parameters
     INTEGER(mpi) :: ncon   !< number of constraints
+    INTEGER(mpi) :: nblock !< number of blocks
+    INTEGER(mpi) :: iblock !< active block
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matV !< unit normals (v_i) of Householder reflectors
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: matL !< lower diagonal matrix L
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: vecN !< normal vector
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: nparBlock !< number of parameters in block
+    INTEGER(mpi), DIMENSION(:), ALLOCATABLE :: ioffBlock !< block offset (1. constraint -1)
 
 END MODULE mpqldec
 
@@ -40,8 +44,9 @@ END MODULE mpqldec
 !!
 !! \param [in]     n  number of rows (parameters)
 !! \param [in]     m  number of columns (constraints)
+!! \param [in]     l  number of disjoint blocks
 !!
-SUBROUTINE qlini(n,m)
+SUBROUTINE qlini(n,m,l)
     USE mpqldec
     USE mpdalc
 
@@ -50,20 +55,29 @@ SUBROUTINE qlini(n,m)
 
     INTEGER(mpi), INTENT(IN)          :: n
     INTEGER(mpi), INTENT(IN)          :: m
+    INTEGER(mpi), INTENT(IN)          :: l
 
     npar=n
     ncon=m
+    nblock=l
+    iblock=1
     ! allocate 
     length=npar*ncon
     CALL mpalloc(matV,length,'QLDEC: V')
     length=ncon*ncon
     CALL mpalloc(matL,length,'QLDEC: L')
     length=npar
-    CALL mpalloc(vecN,length,'QLDEC: v')    
+    CALL mpalloc(vecN,length,'QLDEC: v') 
+    length=nblock   
+    CALL mpalloc(nparBlock,length,'QLDEC: npar in block')
+    nparBlock=0
+    length=nblock+1   
+    CALL mpalloc(ioffBlock,length,'QLDEC: ioff for block')
+    ioffBlock=0   
 END SUBROUTINE qlini
 
 !                                                 141217 C. Kleinwort, DESY-FH1
-!> QL decomposition.
+!> QL decomposition (as single block).
 !!
 !! QL decomposition with Householder transformations.
 !! Decompose N-By-M matrix A into orthogonal N-by-N matrix Q and a
@@ -103,6 +117,10 @@ SUBROUTINE qldec(a)
     length=npar*ncon
     matV=a(1:length)
     matL=0.0_mpd
+    ! implemented as single block
+    nblock=1
+    nparBlock(1)=npar
+    ioffBlock(2)=ncon   
 
     ! Householder procedure
     DO k=ncon,1,-1
@@ -155,11 +173,11 @@ END SUBROUTINE qldec
 !! normal vectors v_i of the hyperplanes (Householder reflectors) defining Q.
 !! The lower triangular matrix L is stored in the M-by-M matrix matL.
 !!
-!! \param [in]     a   block compressed Npar-by-Ncon matrix
-!! \param [in]     nb  number of blocks
-!! \param [in]     b   3-by-Ncon+1 matrix (with block definition)
+!! \param [in]     a     block compressed Npar-by-Ncon matrix
+!! \param [in]     bpar  3-by-NparBlock+1 matrix (with parameter block definition)
+!! \param [in]     bcon  3-by-NconBlock+1 matrix (with constraint block definition)
 !!
-SUBROUTINE qldecb(a,nb,b)
+SUBROUTINE qldecb(a,bpar,bcon)
     USE mpqldec
     USE mpdalc
 
@@ -167,12 +185,17 @@ SUBROUTINE qldecb(a,nb,b)
 
     IMPLICIT NONE
     INTEGER(mpi) :: i
-    INTEGER(mpi) :: ib
+    INTEGER(mpi) :: ibcon
+    INTEGER(mpi) :: ibpar
     INTEGER(mpi) :: ifirst
     INTEGER(mpi) :: ilast
     INTEGER(mpl) :: ioff1
     INTEGER(mpl) :: ioff2
     INTEGER(mpl) :: ioff3
+    INTEGER(mpi) :: iclast
+    INTEGER(mpi) :: icoff
+    INTEGER(mpi) :: iplast
+    INTEGER(mpi) :: ipoff
     INTEGER(mpi) :: k
     INTEGER(mpi) :: k1
     INTEGER(mpi) :: kn
@@ -183,99 +206,111 @@ SUBROUTINE qldecb(a,nb,b)
     REAL(mpd) :: sp
 
     REAL(mpd), INTENT(IN)             :: a(*)
-    INTEGER(mpi), INTENT(IN)          :: nb
-    INTEGER(mpi), INTENT(IN)          :: b(3,*)
+    INTEGER(mpi), INTENT(IN)          :: bpar(2,*)
+    INTEGER(mpi), INTENT(IN)          :: bcon(3,*)
 
     ! prepare 
     length=npar*ncon
     matV=0.0_mpd
     matL=0.0_mpd
-    ! expand a into matV
+
     ioff1=0
     ioff2=0
-    DO ib=1,nb
-        ncb=b(1,ib+1)-b(1,ib) ! number of constraints in block
-        npb=b(3,ib)+1-b(2,ib) ! number of parameters in block
-        ifirst=b(2,ib)
-        ilast=b(3,ib)
-        DO i=1,ncb
-            matV(ioff1+ifirst:ioff1+ilast)=a(ioff2+1:ioff2+npb)
-            ioff1=ioff1+npar
-            ioff2=ioff2+npb
-        END DO    
+    icoff=0
+    DO ibpar=1,nblock ! parameter block
+        DO ibcon=bpar(2,ibpar)+1, bpar(2,ibpar+1)! constraint block
+            ncb=bcon(1,ibcon+1)-bcon(1,ibcon) ! number of constraints in constraint block
+            npb=bcon(3,ibcon)+1-bcon(2,ibcon) ! number of parameters in constraint block
+            ifirst=bcon(2,ibcon)
+            ilast=bcon(3,ibcon)
+            DO i=1,ncb
+                matV(ioff1+ifirst:ioff1+ilast)=a(ioff2+1:ioff2+npb)
+                ioff1=ioff1+npar
+                ioff2=ioff2+npb
+            END DO
+            icoff=icoff+ncb
+        END DO
+        nparBlock(ibpar)=bpar(1,ibpar+1)-bpar(1,ibpar)
+        ioffBlock(ibpar+1)=icoff
     END DO
  
-    ib=nb ! start with last block
-    k1=b(1,ib) ! first constraint in block
-    ! Householder procedure
-    DO k=ncon,1,-1
-        kn=npar+k-ncon
-        ! different block?
-        IF (k < k1) THEN
-            ib=ib-1
-            k1=b(1,ib)
-        END IF    
-        ! index if first non-zero element
-        ifirst=b(2,ib)
-        IF (ifirst > kn) CYCLE
-        ! index of last element
-        ilast=min(b(3,ib),kn)
-        ! column offsets
-        ioff1=(k-1)*npar
-        ioff2=(k1-1)*npar
-        ! get column
-        vecN(kn)=0.0_mpd
-        vecN(ifirst:ilast)=matV(ioff1+ifirst:ioff1+ilast)
-        nrm = SQRT(dot_product(vecN(ifirst:ilast),vecN(ifirst:ilast)))
-        IF (nrm == 0.0_mpd) CYCLE
-        !
-        IF (vecN(kn) >= 0.0_mpd) THEN
-            vecN(kn)=vecN(kn)+nrm
-        ELSE
-            vecN(kn)=vecN(kn)-nrm
-        END IF
-        
-        IF (ilast < kn) THEN
-            ! create normal vector
-            nrm = SQRT(dot_product(vecN(ifirst:ilast),vecN(ifirst:ilast))+vecN(kn)*vecN(kn))
-            vecN(ifirst:ilast)=vecN(ifirst:ilast)/nrm
-            vecN(kn)=vecN(kn)/nrm  
-            ! transformation
-            DO i=k1,k
-                sp=dot_product(vecN(ifirst:ilast),matV(ioff2+ifirst:ioff2+ilast))
-                matV(ioff2+ifirst:ioff2+ilast)=matV(ioff2+ifirst:ioff2+ilast)-2.0_mpd*vecN(ifirst:ilast)*sp
-                matV(ioff2+kn)=-2.0_mpd*vecN(kn)*sp
-                ioff2=ioff2+npar
-            END DO
-        ELSE
-            ! create normal vector
+    DO ibpar=1,nblock ! parameter block
+        ipoff=bpar(1,ibpar) ! parameter offset in parameter block
+        iplast=bpar(1,ibpar+1) ! last parameter in parameter block
+        icoff=ioffBlock(ibpar) ! constraint offset in parameter block
+        iclast=ioffBlock(ibpar+1) ! last constraint in parameter block
+        ibcon=bpar(2,ibpar+1) ! start with last constraint block
+        k1=bcon(1,ibcon) ! first constraint in block
+        ! Householder procedure
+        DO k=iclast,icoff+1,-1
+            kn=iplast+k-iclast
+            ! different constraint block?
+            IF (k < k1) THEN
+                ibcon=ibcon-1
+                k1=bcon(1,ibcon)
+            END IF
+            ! index if first non-zero element
+            ifirst=bcon(2,ibcon)
+            IF (ifirst > kn) CYCLE
+            ! index of last element
+            ilast=min(bcon(3,ibcon),kn)
+            ! column offsets
+            ioff1=(k-1)*npar
+            ioff2=(k1-1)*npar
+            ! get column
+            vecN(kn)=0.0_mpd
+            vecN(ifirst:ilast)=matV(ioff1+ifirst:ioff1+ilast)
             nrm = SQRT(dot_product(vecN(ifirst:ilast),vecN(ifirst:ilast)))
-            vecN(ifirst:ilast)=vecN(ifirst:ilast)/nrm
-            ! transformation
-            DO i=k1,k
-                sp=dot_product(vecN(ifirst:ilast),matV(ioff2+ifirst:ioff2+ilast))
-                matV(ioff2+ifirst:ioff2+ilast)=matV(ioff2+ifirst:ioff2+ilast)-2.0_mpd*vecN(ifirst:ilast)*sp
-                ioff2=ioff2+npar
-            END DO
-        END IF
+            IF (nrm == 0.0_mpd) CYCLE
+            !
+            IF (vecN(kn) >= 0.0_mpd) THEN
+                vecN(kn)=vecN(kn)+nrm
+            ELSE
+                vecN(kn)=vecN(kn)-nrm
+            END IF
+        
+            IF (ilast < kn) THEN
+                ! create normal vector
+                nrm = SQRT(dot_product(vecN(ifirst:ilast),vecN(ifirst:ilast))+vecN(kn)*vecN(kn))
+                vecN(ifirst:ilast)=vecN(ifirst:ilast)/nrm
+                vecN(kn)=vecN(kn)/nrm
+                ! transformation
+                DO i=k1,k
+                    sp=dot_product(vecN(ifirst:ilast),matV(ioff2+ifirst:ioff2+ilast))
+                    matV(ioff2+ifirst:ioff2+ilast)=matV(ioff2+ifirst:ioff2+ilast)-2.0_mpd*vecN(ifirst:ilast)*sp
+                    matV(ioff2+kn)=-2.0_mpd*vecN(kn)*sp
+                    ioff2=ioff2+npar
+                END DO
+            ELSE
+                ! create normal vector
+                nrm = SQRT(dot_product(vecN(ifirst:ilast),vecN(ifirst:ilast)))
+                vecN(ifirst:ilast)=vecN(ifirst:ilast)/nrm
+                ! transformation
+                DO i=k1,k
+                    sp=dot_product(vecN(ifirst:ilast),matV(ioff2+ifirst:ioff2+ilast))
+                    matV(ioff2+ifirst:ioff2+ilast)=matV(ioff2+ifirst:ioff2+ilast)-2.0_mpd*vecN(ifirst:ilast)*sp
+                    ioff2=ioff2+npar
+                END DO
+            END IF
             
-        ! store column of L
-        ioff3=(k-1)*ncon
-        matL(ioff3+k:ioff3+ncon)=matV(ioff1+kn:ioff1+npar)
-        ! store normal vector
-        matV(ioff1+1:ioff1+npar)=0.0_mpd
-        matV(ioff1+ifirst:ioff1+ilast)=vecN(ifirst:ilast)
-        matV(ioff1+kn)=vecN(kn)
+            ! store column of L
+            ioff3=(k-1)*ncon
+            matL(ioff3+k-icoff:ioff3+iclast-icoff)=matV(ioff1+kn:ioff1+iplast)
+            ! store normal vector
+            matV(ioff1+1:ioff1+npar)=0.0_mpd
+            matV(ioff1+ifirst-ipoff:ioff1+ilast-ipoff)=vecN(ifirst:ilast)
+            matV(ioff1+kn-ipoff)=vecN(kn)
+        END DO
     END DO
     
 END SUBROUTINE qldecb
 
 
-!> Multiply left by Q(t).
+!> Multiply left by Q(t) (per block).
 !!
 !! Multiply left by Q(t) from QL decomposition.
 !!
-!! \param [in,out] x    Npar-by-M matrix, overwritten with Q*X (t=false) or Q^t*X (t=true)
+!! \param [in,out] x    NparBlock-by-M matrix, overwritten with Q*X (t=false) or Q^t*X (t=true)
 !! \param [in]     m    number of columns
 !! \param [in]     t    use transposed of Q
 !!
@@ -286,29 +321,37 @@ SUBROUTINE qlmlq(x,m,t)
 
     IMPLICIT NONE
     INTEGER(mpi) :: i
+    INTEGER(mpi) :: icoff
+    INTEGER(mpi) :: iclast
     INTEGER(mpl) :: ioff1
     INTEGER(mpl) :: ioff2
     INTEGER(mpi) :: j
     INTEGER(mpi) :: k
     INTEGER(mpi) :: kn
+    INTEGER(mpi) :: nconb
+    INTEGER(mpi) :: nparb
     REAL(mpd) :: sp
 
     REAL(mpd), INTENT(IN OUT)         :: x(*)
     INTEGER(mpi), INTENT(IN)          :: m
     LOGICAL, INTENT(IN)               :: t
 
-    DO j=1,ncon
+    icoff=ioffBlock(iblock) ! constraint offset in parameter block
+    iclast=ioffBlock(iblock+1) ! last constraint in parameter block
+    nconb=iclast-icoff ! number of constraints in block
+    nparb=nparBlock(iblock) ! number of parameters in block
+    DO j=1,nconb
         k=j
-        IF (t) k=ncon+1-j
-        kn=npar+k-ncon
+        IF (t) k=nconb+1-j
+        kn=nparb+k-nconb
         ! column offset
-        ioff1=(k-1)*npar
+        ioff1=(k-1+icoff)*npar
         ! transformation
         ioff2=0
         DO i=1,m
             sp=dot_product(matV(ioff1+1:ioff1+kn),x(ioff2+1:ioff2+kn))
             x(ioff2+1:ioff2+kn)=x(ioff2+1:ioff2+kn)-2.0_mpd*matV(ioff1+1:ioff1+kn)*sp
-            ioff2=ioff2+npar
+            ioff2=ioff2+nparb
         END DO
     END DO
 
@@ -424,13 +467,19 @@ SUBROUTINE qlssq(aprod,A,t)
 
     IMPLICIT NONE
     INTEGER(mpi) :: i
+    INTEGER(mpi) :: ibpar
+    INTEGER(mpi) :: icoff
+    INTEGER(mpi) :: iclast
     INTEGER(mpl) :: ioff1
     INTEGER(mpl) :: ioff2
+    INTEGER(mpl) :: ioffb
     INTEGER(mpi) :: j
     INTEGER(mpi) :: k
     INTEGER(mpi) :: kn
     INTEGER(mpi) :: l
     INTEGER(mpl) :: length
+    INTEGER(mpi) :: nconb
+    INTEGER(mpi) :: nparb
     REAL(mpd) :: vtAv
     REAL(mpd), DIMENSION(:), ALLOCATABLE :: Av
 
@@ -438,9 +487,10 @@ SUBROUTINE qlssq(aprod,A,t)
     LOGICAL, INTENT(IN)               :: t
 
     INTERFACE
-        SUBROUTINE aprod(n,x,y) ! y=A*x
+        SUBROUTINE aprod(n,l,x,y) ! y=A*x
             USE mpdef
             INTEGER(mpi), INTENT(in) :: n
+            INTEGER(mpl), INTENT(in) :: l
             REAL(mpd), INTENT(IN)    :: x(n)
             REAL(mpd), INTENT(OUT)   :: y(n)
         END SUBROUTINE aprod
@@ -449,33 +499,43 @@ SUBROUTINE qlssq(aprod,A,t)
     length=npar
     CALL mpalloc(Av,length,'qlssq: A*v')
 
-    DO j=1,ncon
-        k=j
-        IF (t) k=ncon+1-j
-        kn=npar+k-ncon
-        ! column offset
-        ioff1=(k-1)*npar
-        ! A*v
-        CALL aprod(npar,matV(ioff1+1:ioff1+npar),Av(1:npar))
-        ! transformation
-        ! diagonal block
-        ! v^t*A*v
-        vtAv=dot_product(matV(ioff1+1:ioff1+kn),Av(1:kn))
-        ! update 
-        ioff2=0
-        DO i=1,kn
-            ! correct with  2*(2v*vtAv*v^t - Av*v^t - (Av*v^t)^t)
-            DO l=1,i
-                ioff2=ioff2+1
-                A(ioff2)=A(ioff2)+2.0_mpd*((2.0_mpd*matV(ioff1+i)*vtAv-Av(i))*matV(ioff1+l)-Av(l)*matV(ioff1+i))
+    ioffb=0 ! block offset
+    DO ibpar=1,nblock ! parameter block
+        icoff=ioffBlock(ibpar) ! constraint offset in parameter block
+        iclast=ioffBlock(ibpar+1) ! last constraint in parameter block
+        nconb=iclast-icoff ! number of constraints in block
+        nparb=nparBlock(ibpar) ! number of parameters in block
+        DO j=1,nconb
+            k=j
+            IF (t) k=nconb+1-j
+            kn=nparb+k-nconb
+            ! column offset
+            ioff1=(k-1+icoff)*npar
+            ! A*v
+            CALL aprod(nparb,ioffb,matV(ioff1+1:ioff1+nparb),Av(1:nparb))
+            ! transformation
+            ! diagonal block
+            ! v^t*A*v
+            vtAv=dot_product(matV(ioff1+1:ioff1+kn),Av(1:kn))
+            ! update
+            ioff2=ioffb
+            DO i=1,kn
+                ! correct with  2*(2v*vtAv*v^t - Av*v^t - (Av*v^t)^t)
+                DO l=1,i
+                    ioff2=ioff2+1
+                    A(ioff2)=A(ioff2)+2.0_mpd*((2.0_mpd*matV(ioff1+i)*vtAv-Av(i))*matV(ioff1+l)-Av(l)*matV(ioff1+i))
+                END DO
+            END DO
+            ! off diagonal block
+            DO i=kn+1,nparb
+                ! correct with -2Av*v^t
+                A(ioff2+1:ioff2+kn)=A(ioff2+1:ioff2+kn)-2.0_mpd*matV(ioff1+1:ioff1+kn)*Av(i)
+                ioff2=ioff2+i
             END DO
         END DO
-        ! off diagonal block
-        DO i=kn+1,npar
-            ! correct with -2Av*v^t
-            A(ioff2+1:ioff2+kn)=A(ioff2+1:ioff2+kn)-2.0_mpd*matV(ioff1+1:ioff1+kn)*Av(i)
-            ioff2=ioff2+i
-        END DO
+        ! update block offset
+        l=nparb
+        ioffb=ioffb+(l*l+l)/2
     END DO
 
     CALL mpdealloc(Av)
@@ -522,9 +582,10 @@ SUBROUTINE qlpssq(aprod,B,m,t)
     LOGICAL, INTENT(IN)               :: t
 
     INTERFACE
-        SUBROUTINE aprod(n,x,y) ! y=A*x
+        SUBROUTINE aprod(n,l,x,y) ! y=A*x
             USE mpdef
             INTEGER(mpi), INTENT(in) :: n
+            INTEGER(mpl), INTENT(in) :: l
             REAL(mpd), INTENT(IN)    :: x(n)
             REAL(mpd), INTENT(OUT)   :: y(n)
         END SUBROUTINE aprod
@@ -538,7 +599,7 @@ SUBROUTINE qlpssq(aprod,B,m,t)
     ! A*V
     ioff1=0
     DO i=1,ncon
-        CALL aprod(npar,matV(ioff1+1:ioff1+npar),Av(ioff1+1:ioff1+npar))
+        CALL aprod(npar,0_mpl,matV(ioff1+1:ioff1+npar),Av(ioff1+1:ioff1+npar))
         ioff1=ioff1+npar
     END DO
 
@@ -603,24 +664,31 @@ SUBROUTINE qlgete(emin,emax)
 
     IMPLICIT NONE
     INTEGER(mpi) :: i
+    INTEGER(mpi) :: ibpar
+    INTEGER(mpi) :: icoff
+    INTEGER(mpi) :: iclast
     INTEGER(mpl) :: idiag
 
     REAL(mpd), INTENT(OUT)         :: emin
     REAL(mpd), INTENT(OUT)         :: emax
 
-    idiag=1
     emax=matL(1)
     emin=emax
-    DO i=2,ncon
-        idiag=idiag+ncon+1
-        IF (ABS(emax) < ABS(matL(idiag))) emax=matL(idiag)
-        IF (ABS(emin) > ABS(matL(idiag))) emin=matL(idiag)
+    DO ibpar=1,nblock ! parameter block
+        icoff=ioffBlock(ibpar) ! constraint offset in parameter block
+        iclast=ioffBlock(ibpar+1) ! last constraint in parameter block
+        idiag=ncon*icoff+1
+        DO i=icoff+1,iclast
+            IF (ABS(emax) < ABS(matL(idiag))) emax=matL(idiag)
+            IF (ABS(emin) > ABS(matL(idiag))) emin=matL(idiag)
+            idiag=idiag+ncon+1
+        END DO
     END DO
 
 END SUBROUTINE qlgete
 
 
-!> Backward substitution.
+!> Backward substitution (per block).
 !!
 !! Get y from L^t*y=d.
 !!
@@ -631,17 +699,75 @@ SUBROUTINE qlbsub(d,y)
     USE mpqldec
 
     IMPLICIT NONE
+    INTEGER(mpi) :: icoff
+    INTEGER(mpi) :: iclast
     INTEGER(mpl) :: idiag
     INTEGER(mpi) :: k
+    INTEGER(mpi) :: nconb
 
-    REAL(mpd), INTENT(IN)         :: d(ncon)
-    REAL(mpd), INTENT(OUT)        :: y(ncon)
+    REAL(mpd), INTENT(IN)         :: d(*)
+    REAL(mpd), INTENT(OUT)        :: y(*)
 
     ! solve L*y=d by forward substitution
-    idiag=ncon*ncon
-    DO k=ncon,1,-1
-        y(k)=(d(k)-dot_product(matL(idiag+1:idiag+ncon-k),y(k+1:ncon)))/matL(idiag)
+    icoff=ioffBlock(iblock) ! constraint offset in parameter block
+    iclast=ioffBlock(iblock+1) ! last constraint in parameter block
+    nconb=iclast-icoff ! number of constraints in block
+    idiag=ncon*(iclast-1)+nconb
+    DO k=nconb,1,-1
+        y(k)=(d(k)-dot_product(matL(idiag+1:idiag+nconb-k),y(k+1:nconb)))/matL(idiag)
         idiag=idiag-ncon-1
     END DO
 
 END SUBROUTINE qlbsub
+
+!> Set block
+!!
+SUBROUTINE qlsetb(ib)
+    USE mpqldec
+
+    IMPLICIT NONE
+    INTEGER(mpi), INTENT(IN)      :: ib
+
+    iblock=ib
+
+END SUBROUTINE qlsetb
+
+!> Print statistics
+!!
+SUBROUTINE qldump()
+    USE mpqldec
+
+    IMPLICIT NONE
+    INTEGER(mpi) :: i
+    INTEGER(mpl) :: ioff1
+    INTEGER(mpl) :: ioff2
+    INTEGER(mpi) :: istat(6)
+    INTEGER(mpi) :: j
+    
+    print *
+    ioff1=0
+    ioff2=0
+    DO i=1, ncon
+        istat=0
+        DO j=1,npar!+i-ncon
+            IF (matV(ioff1+j) /= 0.0_mpd) THEN
+                IF (istat(3) == 0) istat(1)=j
+                istat(2)=j
+                istat(3)=istat(3)+1
+            END IF
+        END DO
+        ioff1=ioff1+npar
+        DO j=1,ncon
+            IF (matL(ioff2+j) /= 0.0_mpd) THEN
+                IF (istat(6) == 0) istat(4)=j
+                istat(5)=j
+                istat(6)=istat(6)+1            
+            END IF
+        END DO
+        ioff2=ioff2+ncon
+        print 100, i, istat
+    END DO
+    print *
+100 FORMAT(" qldump",7I8)   
+    
+END SUBROUTINE qldump
